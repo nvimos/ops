@@ -31,17 +31,32 @@ void main() {
   test('buffer handles arrive as ints and work as arguments', () async {
     final buf = await rpc.request('nvim_get_current_buf');
     expect(buf, isA<int>());
-    await rpc.request('nvim_buf_set_lines', [buf, 0, -1, false, ['x', 'y']]);
+    await rpc.request('nvim_buf_set_lines', [
+      buf,
+      0,
+      -1,
+      false,
+      ['x', 'y'],
+    ]);
     expect(await rpc.request('nvim_buf_get_lines', [buf, 0, -1, false]), ['x', 'y']);
   });
 
   test('the backend plugin sends nvimos notifications', () async {
     final info = await rpc.request('nvim_get_api_info') as List;
     await rpc.lua("return require('nvimos').attach(...)", [
-      {'chan': info[0], 'domains': ['buffers']},
+      {
+        'chan': info[0],
+        'domains': ['buffers'],
+      },
     ]);
     final ev = rpc.notifications.firstWhere((n) => n.method == 'nvimos');
-    await rpc.request('nvim_buf_set_lines', [0, 0, -1, false, ['hello']]);
+    await rpc.request('nvim_buf_set_lines', [
+      0,
+      0,
+      -1,
+      false,
+      ['hello'],
+    ]);
     final n = await ev.timeout(const Duration(seconds: 5));
     final m = n.args[0] as Map;
     expect(m['domain'], 'buffers');

@@ -34,11 +34,7 @@ class _HoverRowState extends State<HoverRow> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        child: Container(
-          color: bg,
-          padding: widget.padding,
-          child: widget.child,
-        ),
+        child: Container(color: bg, padding: widget.padding, child: widget.child),
       ),
     );
   }
@@ -96,10 +92,13 @@ class SmallButton extends StatelessWidget {
         ),
         textStyle: const TextStyle(fontSize: 12.5),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != null) ...[Icon(icon, size: 14), const SizedBox(width: 5)],
-        Text(label),
-      ]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 14), const SizedBox(width: 5)],
+          Text(label),
+        ],
+      ),
     );
   }
 }
@@ -116,11 +115,17 @@ class PaneHeader extends StatelessWidget {
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.border))),
-      child: Row(children: [
-        Expanded(child: DefaultTextStyle(style: T.title, overflow: TextOverflow.ellipsis, child: title)),
-        ...trailing,
-      ]),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: C.border)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: DefaultTextStyle(style: T.title, overflow: TextOverflow.ellipsis, child: title),
+          ),
+          ...trailing,
+        ],
+      ),
     );
   }
 }
@@ -132,6 +137,10 @@ class Empty extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) =>
-      Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(text, style: T.small, textAlign: TextAlign.center)));
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(text, style: T.small, textAlign: TextAlign.center),
+    ),
+  );
 }

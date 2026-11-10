@@ -40,12 +40,7 @@ class _NvimosAppState extends State<NvimosApp> {
   Widget build(BuildContext context) {
     return SessionScope(
       session: _session,
-      child: MaterialApp(
-        title: 'nvimos',
-        debugShowCheckedModeBanner: false,
-        theme: buildTheme(),
-        home: const Shell(),
-      ),
+      child: MaterialApp(title: 'nvimos', debugShowCheckedModeBanner: false, theme: buildTheme(), home: const Shell()),
     );
   }
 }

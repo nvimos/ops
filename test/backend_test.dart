@@ -28,7 +28,13 @@ void main() {
     expect(snaps['git']!['head'], 'main');
     expect(snaps['windows']!['current'], isA<Map>());
     final ev = b.events.firstWhere((e) => e.domain == 'buffers' && e.reason == 'lines_changed');
-    await b.rpc.request('nvim_buf_set_lines', [0, 0, -1, false, ['x']]);
+    await b.rpc.request('nvim_buf_set_lines', [
+      0,
+      0,
+      -1,
+      false,
+      ['x'],
+    ]);
     expect((await ev.timeout(const Duration(seconds: 5))).data['lines'], ['x']);
   });
 

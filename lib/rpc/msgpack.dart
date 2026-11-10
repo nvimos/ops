@@ -8,8 +8,7 @@ class MsgExt {
   final Uint8List data;
 
   @override
-  bool operator ==(Object other) =>
-      other is MsgExt && other.type == type && _bytesEq(other.data, data);
+  bool operator ==(Object other) => other is MsgExt && other.type == type && _bytesEq(other.data, data);
 
   @override
   int get hashCode => Object.hash(type, data.length);

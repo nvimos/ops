@@ -27,8 +27,7 @@ class ChangesState extends ChangeNotifier {
   }
 
   List<StatusFile> get staged => status?.files.where((f) => f.staged).toList() ?? [];
-  List<StatusFile> get unstaged =>
-      status?.files.where((f) => f.unstaged || f.untracked || f.conflicted).toList() ?? [];
+  List<StatusFile> get unstaged => status?.files.where((f) => f.unstaged || f.untracked || f.conflicted).toList() ?? [];
 
   Future<void> refresh() async {
     final b = session.backend;

@@ -12,7 +12,8 @@ class TestNvim {
   final Directory dir;
 
   static String get backendDir =>
-      Platform.environment['NVIMOS_BACKEND'] ?? '${Directory.current.parent.path}/nvimos-poc-backend'.replaceAll('\\', '/');
+      Platform.environment['NVIMOS_BACKEND'] ??
+      '${Directory.current.parent.path}/nvimos-poc-backend'.replaceAll('\\', '/');
 
   static Future<int> freePort() async {
     final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -28,9 +29,15 @@ class TestNvim {
   static Future<TestNvim> startOn(int port, {Directory? cwd}) async {
     final dir = cwd ?? await Directory.systemTemp.createTemp('nvimos_test_');
     final p = await Process.start('nvim', [
-      '--headless', '--clean', '-n', '-i', 'NONE',
-      '--listen', '127.0.0.1:$port',
-      '--cmd', 'set rtp^=$backendDir',
+      '--headless',
+      '--clean',
+      '-n',
+      '-i',
+      'NONE',
+      '--listen',
+      '127.0.0.1:$port',
+      '--cmd',
+      'set rtp^=$backendDir',
     ], workingDirectory: dir.path);
     p.stdout.drain<void>();
     p.stderr.drain<void>();
@@ -59,7 +66,13 @@ class TestNvim {
 /// git in [dir] with a test identity; throws on failure.
 Future<String> git(Directory dir, List<String> args) async {
   final r = await Process.run('git', [
-    '-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'core.autocrlf=false', ...args,
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.com',
+    '-c',
+    'core.autocrlf=false',
+    ...args,
   ], workingDirectory: dir.path);
   if (r.exitCode != 0) throw Exception('git ${args.join(' ')}: ${r.stderr}');
   return '${r.stdout}';

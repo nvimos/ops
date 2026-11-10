@@ -137,7 +137,10 @@ void main() {
       (DeltaOp.removed, 'Manual refresh'),
     ]);
     final added = c.deltas.first.requirement;
-    expect(added.scenarios.single.steps, ['**WHEN** the user runs :edit other.lua', '**THEN** the sidebar shows other.lua']);
+    expect(added.scenarios.single.steps, [
+      '**WHEN** the user runs :edit other.lua',
+      '**THEN** the sidebar shows other.lua',
+    ]);
     final old = cs.firstWhere((c) => c.id == 'old');
     expect([old.archived, old.archiveDate, old.stage], [true, DateTime(2026, 10, 23), 'Completed']);
   });
@@ -159,24 +162,43 @@ void main() {
       ('later', false, 'other'),
     ]);
     expect(items[0].notes, ['  - candidates: DeepSeek']);
-    expect([items[1].untested, items[1].commits, items[1].group], [true, ['2492965'], '2027']);
+    expect(
+      [items[1].untested, items[1].commits, items[1].group],
+      [
+        true,
+        ['2492965'],
+        '2027',
+      ],
+    );
   });
 
   test('spec, milestones and backlog config', () {
-    final spec = parseSpec('sidebar', Doc('openspec/specs/sidebar/spec.md', [
-      '# sidebar Specification',
-      '## Purpose',
-      'Symbols of the file.',
-      '## Requirements',
-      '### Requirement: Sidebar width',
-      'The sidebar SHALL be 30 columns.',
-    ]));
+    final spec = parseSpec(
+      'sidebar',
+      Doc('openspec/specs/sidebar/spec.md', [
+        '# sidebar Specification',
+        '## Purpose',
+        'Symbols of the file.',
+        '## Requirements',
+        '### Requirement: Sidebar width',
+        'The sidebar SHALL be 30 columns.',
+      ]),
+    );
     expect(spec.purpose, 'Symbols of the file.');
     expect(spec.requirements.single.name, 'Sidebar width');
     final ms = parseMilestones(['# Milestones', '## v2027 (2027-01-31)', '## v2026 (2026-11-30)']);
     expect(ms.map((m) => m.name), ['v2026', 'v2027']);
-    final (statuses, name) = parseBacklogConfig(['project_name: "nvimos meta"', 'statuses: ["To Do", "Needs Test", "Done"]']);
-    expect([name, statuses], ['nvimos meta', ['To Do', 'Needs Test', 'Done']]);
+    final (statuses, name) = parseBacklogConfig([
+      'project_name: "nvimos meta"',
+      'statuses: ["To Do", "Needs Test", "Done"]',
+    ]);
+    expect(
+      [name, statuses],
+      [
+        'nvimos meta',
+        ['To Do', 'Needs Test', 'Done'],
+      ],
+    );
   });
 
   test('yamlScalar quotes what needs it', () {

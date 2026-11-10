@@ -7,12 +7,12 @@ int intOr(Object? v, [int d = 0]) => v is int ? v : (v is double ? v.toInt() : d
 
 class Branch {
   Branch(Map<String, Object?> m)
-      : name = str(m['name']),
-        sha = str(m['sha']),
-        upstream = str(m['upstream']),
-        current = m['current'] == true,
-        date = DateTime.fromMillisecondsSinceEpoch(intOr(m['date']) * 1000),
-        subject = str(m['subject']);
+    : name = str(m['name']),
+      sha = str(m['sha']),
+      upstream = str(m['upstream']),
+      current = m['current'] == true,
+      date = DateTime.fromMillisecondsSinceEpoch(intOr(m['date']) * 1000),
+      subject = str(m['subject']);
   final String name, sha, upstream, subject;
   final bool current;
   final DateTime date;
@@ -20,19 +20,19 @@ class Branch {
 
 class Branches {
   Branches(Map<String, Object?> m)
-      : current = m['current'] is String ? m['current'] as String : null,
-        list = asList(m['branches']).map((e) => Branch(asMap(e))).toList();
+    : current = m['current'] is String ? m['current'] as String : null,
+      list = asList(m['branches']).map((e) => Branch(asMap(e))).toList();
   final String? current;
   final List<Branch> list;
 }
 
 class Commit {
   Commit(Map<String, Object?> m)
-      : sha = str(m['sha']),
-        short = str(m['short']),
-        author = str(m['author']),
-        date = DateTime.fromMillisecondsSinceEpoch(intOr(m['date']) * 1000),
-        subject = str(m['subject']);
+    : sha = str(m['sha']),
+      short = str(m['short']),
+      author = str(m['author']),
+      date = DateTime.fromMillisecondsSinceEpoch(intOr(m['date']) * 1000),
+      subject = str(m['subject']);
   final String sha, short, author, subject;
   final DateTime date;
 }
@@ -41,11 +41,15 @@ enum LineKind { context, add, del }
 
 class DiffLine {
   DiffLine(Map<String, Object?> m)
-      : kind = switch (m['kind']) { 'add' => LineKind.add, 'del' => LineKind.del, _ => LineKind.context },
-        text = str(m['text']),
-        oldLine = m['old'] is int ? m['old'] as int : null,
-        newLine = m['new'] is int ? m['new'] as int : null,
-        noEol = m['no_eol'] == true;
+    : kind = switch (m['kind']) {
+        'add' => LineKind.add,
+        'del' => LineKind.del,
+        _ => LineKind.context,
+      },
+      text = str(m['text']),
+      oldLine = m['old'] is int ? m['old'] as int : null,
+      newLine = m['new'] is int ? m['new'] as int : null,
+      noEol = m['no_eol'] == true;
   final LineKind kind;
   final String text;
   final int? oldLine, newLine;
@@ -54,13 +58,13 @@ class DiffLine {
 
 class Hunk {
   Hunk(Map<String, Object?> m)
-      : header = str(m['header']),
-        oldStart = intOr(m['old_start']),
-        oldCount = intOr(m['old_count']),
-        newStart = intOr(m['new_start']),
-        newCount = intOr(m['new_count']),
-        section = str(m['section']),
-        lines = asList(m['lines']).map((e) => DiffLine(asMap(e))).toList();
+    : header = str(m['header']),
+      oldStart = intOr(m['old_start']),
+      oldCount = intOr(m['old_count']),
+      newStart = intOr(m['new_start']),
+      newCount = intOr(m['new_count']),
+      section = str(m['section']),
+      lines = asList(m['lines']).map((e) => DiffLine(asMap(e))).toList();
   final String header, section;
   final int oldStart, oldCount, newStart, newCount;
   final List<DiffLine> lines;
@@ -79,13 +83,13 @@ class Hunk {
 
 class DiffFile {
   DiffFile(Map<String, Object?> m)
-      : path = str(m['path']),
-        oldPath = str(m['old_path']),
-        status = str(m['status']),
-        binary = m['binary'] == true,
-        additions = intOr(m['additions']),
-        deletions = intOr(m['deletions']),
-        hunks = asList(m['hunks']).map((e) => Hunk(asMap(e))).toList();
+    : path = str(m['path']),
+      oldPath = str(m['old_path']),
+      status = str(m['status']),
+      binary = m['binary'] == true,
+      additions = intOr(m['additions']),
+      deletions = intOr(m['deletions']),
+      hunks = asList(m['hunks']).map((e) => Hunk(asMap(e))).toList();
   final String path, oldPath, status;
   final bool binary;
   final int additions, deletions;
@@ -94,24 +98,24 @@ class DiffFile {
 
 class PrDiff {
   PrDiff(Map<String, Object?> m)
-      : base = str(m['base']),
-        head = str(m['head']),
-        mergeBase = str(m['merge_base']),
-        files = asList(m['files']).map((e) => DiffFile(asMap(e))).toList();
+    : base = str(m['base']),
+      head = str(m['head']),
+      mergeBase = str(m['merge_base']),
+      files = asList(m['files']).map((e) => DiffFile(asMap(e))).toList();
   final String base, head, mergeBase;
   final List<DiffFile> files;
 }
 
 class StatusFile {
   StatusFile(Map<String, Object?> m)
-      : path = str(m['path']),
-        orig = m['orig'] is String ? m['orig'] as String : null,
-        index = str(m['index']),
-        worktree = str(m['worktree']),
-        staged = m['staged'] == true,
-        unstaged = m['unstaged'] == true,
-        untracked = m['untracked'] == true,
-        conflicted = m['conflicted'] == true;
+    : path = str(m['path']),
+      orig = m['orig'] is String ? m['orig'] as String : null,
+      index = str(m['index']),
+      worktree = str(m['worktree']),
+      staged = m['staged'] == true,
+      unstaged = m['unstaged'] == true,
+      untracked = m['untracked'] == true,
+      conflicted = m['conflicted'] == true;
   final String path, index, worktree;
   final String? orig;
   final bool staged, unstaged, untracked, conflicted;
@@ -119,8 +123,8 @@ class StatusFile {
 
 class Status {
   Status(Map<String, Object?> m)
-      : branch = m['branch'] is String ? m['branch'] as String : null,
-        files = asList(m['files']).map((e) => StatusFile(asMap(e))).toList();
+    : branch = m['branch'] is String ? m['branch'] as String : null,
+      files = asList(m['files']).map((e) => StatusFile(asMap(e))).toList();
   final String? branch;
   final List<StatusFile> files;
 }
@@ -128,30 +132,30 @@ class Status {
 /// Neovim's current window, from the windows domain.
 class Cursor {
   Cursor(Map<String, Object?> m)
-      : win = intOr(m['win']),
-        buf = intOr(m['buf']),
-        name = str(m['name']),
-        row = intOr(asList(m['cursor']).elementAtOrNull(0), 1),
-        col = intOr(asList(m['cursor']).elementAtOrNull(1));
+    : win = intOr(m['win']),
+      buf = intOr(m['buf']),
+      name = str(m['name']),
+      row = intOr(asList(m['cursor']).elementAtOrNull(0), 1),
+      col = intOr(asList(m['cursor']).elementAtOrNull(1));
   final int win, buf, row, col;
   final String name;
 }
 
 class RepoInfo {
   RepoInfo(Map<String, Object?> m)
-      : cwd = str(m['cwd']),
-        root = m['root'] is String ? m['root'] as String : null,
-        head = m['head'] is String ? m['head'] as String : null;
+    : cwd = str(m['cwd']),
+      root = m['root'] is String ? m['root'] as String : null,
+      head = m['head'] is String ? m['head'] as String : null;
   final String cwd;
   final String? root, head;
 }
 
 class FileText {
   FileText(Map<String, Object?> m)
-      : path = str(m['path']),
-        exists = m['exists'] == true,
-        buffer = m['buffer'] == true,
-        lines = asList(m['lines']).map(str).toList();
+    : path = str(m['path']),
+      exists = m['exists'] == true,
+      buffer = m['buffer'] == true,
+      lines = asList(m['lines']).map(str).toList();
   final String path;
   final bool exists, buffer;
   final List<String> lines;
@@ -159,19 +163,16 @@ class FileText {
 
 class FileEntry {
   FileEntry(Map<String, Object?> m)
-      : path = str(m['path']),
-        size = intOr(m['size']),
-        mtime = DateTime.fromMillisecondsSinceEpoch(intOr(m['mtime']) * 1000);
+    : path = str(m['path']),
+      size = intOr(m['size']),
+      mtime = DateTime.fromMillisecondsSinceEpoch(intOr(m['mtime']) * 1000);
   final String path;
   final int size;
   final DateTime mtime;
 }
 
 class CliResult {
-  CliResult(Map<String, Object?> m)
-      : code = intOr(m['code'], -1),
-        stdout = str(m['stdout']),
-        stderr = str(m['stderr']);
+  CliResult(Map<String, Object?> m) : code = intOr(m['code'], -1), stdout = str(m['stdout']), stderr = str(m['stderr']);
   final int code;
   final String stdout, stderr;
 }
@@ -183,10 +184,5 @@ class LineEdit {
   final List<String> lines;
   final List<String>? expect;
 
-  Map<String, Object?> toMap() => {
-        'first': first,
-        'last': last,
-        'lines': lines,
-        if (expect != null) 'expect': expect,
-      };
+  Map<String, Object?> toMap() => {'first': first, 'last': last, 'lines': lines, if (expect != null) 'expect': expect};
 }

@@ -37,11 +37,7 @@ ThemeData buildTheme() {
       onSurface: C.text,
       error: C.red,
     ),
-    textTheme: base.textTheme.apply(
-      fontFamily: 'Segoe UI',
-      bodyColor: C.text,
-      displayColor: C.text,
-    ),
+    textTheme: base.textTheme.apply(fontFamily: 'Segoe UI', bodyColor: C.text, displayColor: C.text),
     tooltipTheme: const TooltipThemeData(
       waitDuration: Duration(milliseconds: 500),
       decoration: BoxDecoration(color: C.surface2, borderRadius: BorderRadius.all(Radius.circular(4))),
