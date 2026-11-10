@@ -4,3 +4,5 @@ analyzer:
   exclude:
     - build/**
     - windows/**
+formatter:
+  page_width: 120
