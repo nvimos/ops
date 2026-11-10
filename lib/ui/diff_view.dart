@@ -39,37 +39,45 @@ class DiffView extends StatelessWidget {
     final body = file.binary
         ? const Empty('Binary file')
         : rows.isEmpty
-            ? Empty(file.status == 'renamed' ? 'Renamed without changes' : 'No textual changes')
-            : SelectionArea(
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 40),
-                  itemCount: rows.length,
-                  itemBuilder: (context, i) => rows[i].build(this),
+        ? Empty(file.status == 'renamed' ? 'Renamed without changes' : 'No textual changes')
+        : SelectionArea(
+            child: ListView.builder(
+              padding: const EdgeInsets.only(bottom: 40),
+              itemCount: rows.length,
+              itemBuilder: (context, i) => rows[i].build(this),
+            ),
+          );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PaneHeader(
+          title: Row(
+            children: [
+              Icon(statusIcon(file.status), size: 15, color: statusColor(file.status)),
+              const SizedBox(width: 8),
+              Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 10),
+              Text('+${file.additions}', style: const TextStyle(fontSize: 12, color: C.green)),
+              const SizedBox(width: 4),
+              Text('−${file.deletions}', style: const TextStyle(fontSize: 12, color: C.red)),
+            ],
+          ),
+          trailing: headerActions,
+        ),
+        Expanded(
+          child: side == null
+              ? body
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: body),
+                    const VerticalDivider(width: 1),
+                    SizedBox(width: 320, child: side),
+                  ],
                 ),
-              );
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      PaneHeader(
-        title: Row(children: [
-          Icon(statusIcon(file.status), size: 15, color: statusColor(file.status)),
-          const SizedBox(width: 8),
-          Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
-          const SizedBox(width: 10),
-          Text('+${file.additions}', style: const TextStyle(fontSize: 12, color: C.green)),
-          const SizedBox(width: 4),
-          Text('−${file.deletions}', style: const TextStyle(fontSize: 12, color: C.red)),
-        ]),
-        trailing: headerActions,
-      ),
-      Expanded(
-        child: side == null
-            ? body
-            : Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Expanded(child: body),
-                const VerticalDivider(width: 1),
-                SizedBox(width: 320, child: side),
-              ]),
-      ),
-    ]);
+        ),
+      ],
+    );
   }
 }
 
@@ -86,19 +94,21 @@ class _Row {
       return Container(
         color: C.surface2,
         padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
-        child: Row(children: [
-          Expanded(
-            child: InkWell(
-              onTap: v.onLine == null ? null : () => v.onLine!(h.firstChangedLine, false),
-              child: Text(
-                '@@ −${h.oldStart},${h.oldCount} +${h.newStart},${h.newCount} @@ ${h.section}',
-                style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.accent),
-                overflow: TextOverflow.ellipsis,
+        child: Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: v.onLine == null ? null : () => v.onLine!(h.firstChangedLine, false),
+                child: Text(
+                  '@@ −${h.oldStart},${h.oldCount} +${h.newStart},${h.newCount} @@ ${h.section}',
+                  style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.accent),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
-          ),
-          if (v.hunkActions != null) ...v.hunkActions!(h),
-        ]),
+            if (v.hunkActions != null) ...v.hunkActions!(h),
+          ],
+        ),
       );
     }
     final l = line!;
@@ -112,27 +122,36 @@ class _Row {
       onTap: v.onLine == null || target == null ? null : () => v.onLine!(target, l.kind == LineKind.del),
       child: Container(
         color: bg,
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _gutter('${l.oldLine ?? ''}', gutter),
-          _gutter('${l.newLine ?? ''}', gutter),
-          SizedBox(width: 18, child: Text(sign, textAlign: TextAlign.center, style: T.code.copyWith(color: signColor))),
-          Expanded(
-            child: Text(
-              l.text.replaceAll('\t', '    ') + (l.noEol ? '  ⏎̸' : ''),
-              style: T.code,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _gutter('${l.oldLine ?? ''}', gutter),
+            _gutter('${l.newLine ?? ''}', gutter),
+            SizedBox(
+              width: 18,
+              child: Text(
+                sign,
+                textAlign: TextAlign.center,
+                style: T.code.copyWith(color: signColor),
+              ),
             ),
-          ),
-        ]),
+            Expanded(child: Text(l.text.replaceAll('\t', '    ') + (l.noEol ? '  ⏎̸' : ''), style: T.code)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _gutter(String n, Color bg) => Container(
-        width: 44,
-        color: bg,
-        padding: const EdgeInsets.only(right: 6),
-        child: Text(n, textAlign: TextAlign.right, style: T.code.copyWith(color: C.faint)),
-      );
+    width: 44,
+    color: bg,
+    padding: const EdgeInsets.only(right: 6),
+    child: Text(
+      n,
+      textAlign: TextAlign.right,
+      style: T.code.copyWith(color: C.faint),
+    ),
+  );
 }
 
 /// A diff line: pointer cursor and a faint highlight on hover when clickable.
@@ -158,10 +177,15 @@ class _ClickLineState extends State<_ClickLine> {
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Stack(children: [
-          widget.child,
-          if (_hover) Positioned.fill(child: IgnorePointer(child: Container(color: C.accent.withValues(alpha: .07)))),
-        ]),
+        child: Stack(
+          children: [
+            widget.child,
+            if (_hover)
+              Positioned.fill(
+                child: IgnorePointer(child: Container(color: C.accent.withValues(alpha: .07))),
+              ),
+          ],
+        ),
       ),
     );
   }

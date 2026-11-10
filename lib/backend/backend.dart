@@ -59,9 +59,11 @@ class Backend {
 
   /// Subscribe; returns each domain's snapshot. Events after it arrive on [events].
   Future<Map<String, Map<String, Object?>>> attach(List<String> domains) async {
-    final r = asMap(await _lua('nvimos', 'attach', [
-      {'chan': chan, 'domains': domains},
-    ]));
+    final r = asMap(
+      await _lua('nvimos', 'attach', [
+        {'chan': chan, 'domains': domains},
+      ]),
+    );
     final seq = asMap(r['seq']);
     final snaps = asMap(r['snapshot']);
     for (final d in domains) {
@@ -105,7 +107,8 @@ class Backend {
 
   // Editor ------------------------------------------------------------------------------------
 
-  Future<List<String>> getText(int buf) async => asList(asMap(await _lua('nvimos', 'get_text', [buf]))['lines']).map(str).toList();
+  Future<List<String>> getText(int buf) async =>
+      asList(asMap(await _lua('nvimos', 'get_text', [buf]))['lines']).map(str).toList();
 
   /// Edit a working-tree file (relative to the repo root) at a 1-based line.
   Future<void> open(String path, int line) => _lua('nvimos', 'open', [path, line, 0]);

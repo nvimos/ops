@@ -54,10 +54,17 @@ class Task {
 
   /// Sections other than the ones rendered on their own.
   List<Section> get otherSections => sections
-      .where((s) =>
-          s.level == 2 &&
-          !{'description', 'acceptance criteria', 'verify', 'definition of done', 'original notes'}
-              .contains(s.title.toLowerCase()))
+      .where(
+        (s) =>
+            s.level == 2 &&
+            !{
+              'description',
+              'acceptance criteria',
+              'verify',
+              'definition of done',
+              'original notes',
+            }.contains(s.title.toLowerCase()),
+      )
       .toList();
 
   int get statusLine => front.keyLines['status'] ?? -1;

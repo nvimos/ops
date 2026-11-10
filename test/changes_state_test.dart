@@ -35,7 +35,13 @@ void main() {
 
     // Save a new file from Neovim: the list picks it up from the write hint.
     await s.backend!.rpc.request('nvim_command', ['edit new.txt']);
-    await s.backend!.rpc.request('nvim_buf_set_lines', [0, 0, -1, false, ['hello']]);
+    await s.backend!.rpc.request('nvim_buf_set_lines', [
+      0,
+      0,
+      -1,
+      false,
+      ['hello'],
+    ]);
     await s.backend!.rpc.request('nvim_command', ['write']);
     await until(() => st.unstaged.any((f) => f.path == 'new.txt'));
 

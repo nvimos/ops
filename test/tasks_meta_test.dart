@@ -12,7 +12,10 @@ void main() {
   String rel(FileSystemEntity f) => f.path.replaceAll('\\', '/').substring(root.path.replaceAll('\\', '/').length + 1);
 
   test('every Backlog.md task parses with an id, title and known status', () {
-    final files = Directory('${root.path}/backlog').listSync(recursive: true).whereType<File>().where((f) => f.path.contains('task-'));
+    final files = Directory('${root.path}/backlog')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.contains('task-'));
     final (statuses, _) = parseBacklogConfig(read(File('${root.path}/backlog/config.yml')));
     var n = 0;
     for (final f in files) {
@@ -41,7 +44,9 @@ void main() {
 
   test('legacy notes yield items, some marked untested', () {
     final items = [
-      for (final f in Directory('${root.path}/legacy').listSync().whereType<File>().where((f) => f.path.endsWith('.md')))
+      for (final f in Directory(
+        '${root.path}/legacy',
+      ).listSync().whereType<File>().where((f) => f.path.endsWith('.md')))
         ...parseLegacy(rel(f).substring(7), read(f)),
     ];
     expect(items.length, greaterThan(50));

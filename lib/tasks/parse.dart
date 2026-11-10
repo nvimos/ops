@@ -66,7 +66,9 @@ Spec parseSpec(String capability, Doc doc) {
   return Spec(
     capability,
     doc,
-    purpose == null ? '' : doc.lines.sublist(purpose.start + 1, purpose.end).where((l) => l.trim().isNotEmpty).join(' '),
+    purpose == null
+        ? ''
+        : doc.lines.sublist(purpose.start + 1, purpose.end).where((l) => l.trim().isNotEmpty).join(' '),
     reqs == null ? [] : parseRequirements(doc.lines, reqs.start + 1, reqs.end).map((e) => e.$1).toList(),
   );
 }
@@ -97,17 +99,19 @@ List<Change> parseChanges(Map<String, List<String>> files, Map<String, DateTime>
       if (t != null && t.isAfter(newest)) newest = t;
     }
     Doc? doc(String name) => e.value[name] == null ? null : Doc('$dir/$name', e.value[name]!);
-    out.add(Change(
-      id: archived && dm != null ? dm.group(2)! : folder,
-      dir: dir,
-      archived: archived,
-      archiveDate: archived && dm != null ? DateTime.tryParse(dm.group(1)!) : null,
-      proposal: doc('proposal.md'),
-      tasks: doc('tasks.md'),
-      design: doc('design.md'),
-      deltas: deltas,
-      mtime: newest,
-    ));
+    out.add(
+      Change(
+        id: archived && dm != null ? dm.group(2)! : folder,
+        dir: dir,
+        archived: archived,
+        archiveDate: archived && dm != null ? DateTime.tryParse(dm.group(1)!) : null,
+        proposal: doc('proposal.md'),
+        tasks: doc('tasks.md'),
+        design: doc('design.md'),
+        deltas: deltas,
+        mtime: newest,
+      ),
+    );
   }
   return out;
 }
@@ -159,8 +163,7 @@ List<Milestone> monthlyMilestones(List<Change> changes) {
   }
   final sorted = months.toList()..sort();
   return [
-    for (final m in sorted)
-      Milestone(m, DateTime(int.parse(m.substring(0, 4)), int.parse(m.substring(5)) + 1, 0)),
+    for (final m in sorted) Milestone(m, DateTime(int.parse(m.substring(0, 4)), int.parse(m.substring(5)) + 1, 0)),
   ];
 }
 
