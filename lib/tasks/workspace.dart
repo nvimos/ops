@@ -282,6 +282,17 @@ class Workspace extends ChangeNotifier {
     return names.contains('main') ? 'main' : (names.contains('master') ? 'master' : (branches?.current ?? 'main'));
   }
 
+  /// Link a task to a branch by hand (null unlinks); counts its commits.
+  Future<void> linkBranch(Task t, String? branch) async {
+    if (branch == null) {
+      links.remove(t.id);
+    } else {
+      links[t.id] = branch;
+    }
+    await _countAhead();
+    _notify();
+  }
+
   Future<void> _countAhead() async {
     final b = session.backend;
     if (b == null) return;
@@ -301,9 +312,15 @@ class Workspace extends ChangeNotifier {
 
   Task? taskFor(Change c) => c.taskId == null ? null : task(c.taskId!);
 
-  /// The agent branch of a task: its id (task-17, task_17) or its change's id in the branch name.
+  /// Branches linked by hand (task id -> branch); they win over the name rules.
+  final links = <String, String>{};
+
+  /// The agent branch of a task: linked by hand, else its id (task-17, task_17) or its change's id
+  /// in the branch name.
   String? branchFor(Task t) {
     final list = branches?.list ?? [];
+    final manual = links[t.id];
+    if (manual != null && list.any((b) => b.name == manual)) return manual;
     final n = t.number;
     final re = RegExp('task[-_]?$n(?!\\d)', caseSensitive: false);
     final change = changeFor(t);

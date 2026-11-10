@@ -19,6 +19,7 @@ abstract class TaskActions {
   Future<void> setPriority(Task t, String priority);
   Future<void> toggleCheck(String path, Check c);
   Future<void> review(Task t, String branch);
+  Future<void> linkBranch(Task t, String? branch);
 }
 
 class TaskDetail extends StatelessWidget {
@@ -89,7 +90,21 @@ class TaskDetail extends StatelessWidget {
                     Prop(
                       'Branch',
                       branch == null
-                          ? const Text('none linked (name a branch task-<n>)', style: T.small)
+                          ? PopupMenuButton<String>(
+                              tooltip: 'Link a branch',
+                              color: C.surface2,
+                              onSelected: (b) => actions.linkBranch(t, b),
+                              itemBuilder: (_) => [
+                                for (final b in ws.branches?.list ?? [])
+                                  if (b.name != ws.defaultBranch)
+                                    PopupMenuItem(
+                                      value: b.name,
+                                      height: 32,
+                                      child: Text(b.name, style: T.body),
+                                    ),
+                              ],
+                              child: const Text('Link a branch…', style: TextStyle(fontSize: 12, color: C.accent)),
+                            )
                           : Row(
                               children: [
                                 Expanded(
@@ -107,6 +122,14 @@ class TaskDetail extends StatelessWidget {
                                   Text(
                                     '${ws.ahead[branch]} commit${ws.ahead[branch] == 1 ? '' : 's'} ahead',
                                     style: T.tiny,
+                                  ),
+                                if (ws.links[t.id] == branch)
+                                  IconButton(
+                                    tooltip: 'Unlink',
+                                    visualDensity: VisualDensity.compact,
+                                    iconSize: 14,
+                                    onPressed: () => actions.linkBranch(t, null),
+                                    icon: const Icon(Icons.link_off, color: C.muted),
                                   ),
                                 const SizedBox(width: 8),
                                 SmallButton(

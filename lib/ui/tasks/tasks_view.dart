@@ -110,7 +110,9 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) session.jobs.addListener(_onJobs);
+      if (!mounted) return;
+      session.jobs.addListener(_onJobs);
+      ws.links.addAll(prefs.branchLinks(_repoKey));
     });
   }
 
@@ -360,6 +362,12 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   @override
   Future<void> review(Task t, String branch) async => widget.onReview?.call(t, branch);
+
+  @override
+  Future<void> linkBranch(Task t, String? branch) async {
+    await ws.linkBranch(t, branch);
+    prefs.setBranchLinks(_repoKey, Map.of(ws.links));
+  }
 
   // Rows --------------------------------------------------------------------------------------
 
