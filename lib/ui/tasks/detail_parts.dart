@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 import '../widgets.dart';
+import 'rich.dart';
 
 /// Shared pieces of the detail panels.
 class PanelHeader extends StatelessWidget {
@@ -27,11 +28,13 @@ class PanelHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(
-                kicker,
-                style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.muted),
+              Expanded(
+                child: Text(
+                  kicker,
+                  style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.muted),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              const Spacer(),
               ...actions,
               IconButton(
                 tooltip: 'Close (Esc)',
@@ -43,7 +46,12 @@ class PanelHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          SelectableText(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, height: 1.3)),
+          SelectionArea(
+            child: RichLine(
+              title,
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, height: 1.3, color: C.text),
+            ),
+          ),
         ],
       ),
     );

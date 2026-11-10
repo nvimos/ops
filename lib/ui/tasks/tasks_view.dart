@@ -14,11 +14,12 @@ import 'detail_parts.dart';
 import 'dialogs.dart';
 import 'icons.dart';
 import 'legacy_detail.dart';
+import 'milestone_detail.dart';
 import 'rich.dart';
 import 'spec_detail.dart';
 import 'task_detail.dart';
 
-enum TView { inbox, tasks, changes, specs }
+enum TView { inbox, tasks, changes, specs, legacy, milestones }
 
 /// A row of the main list: a group header or an item that opens in the detail panel.
 class ListRow {
@@ -371,6 +372,30 @@ class TasksViewState extends State<TasksView> implements TaskActions {
               for (final t in groups[g]!) ListRow.item(t.id, (sel) => _TaskRow(t, ws, sel)),
             ],
         ];
+      case TView.legacy:
+        final items = ws.legacy
+            .where((l) => _matches('${l.file} ${l.section} ${l.text} ${l.notes.join(' ')}'))
+            .toList();
+        final groups = <String>[];
+        for (final l in items) {
+          if (!groups.contains(l.group)) groups.add(l.group);
+        }
+        // Years first, newest on top; then the other notes files by name.
+        bool year(String g) => RegExp(r'^\d{4}$').hasMatch(g);
+        groups.sort((a, b) => year(a) != year(b) ? (year(a) ? -1 : 1) : (year(a) ? b.compareTo(a) : a.compareTo(b)));
+        return [
+          for (final g in groups) ...[
+            ListRow.header(g, items.where((l) => l.group == g).length),
+            for (final l in items.where((l) => l.group == g))
+              ListRow.item(LegacyKey(l.file, l.line), (sel) => _LegacyRow(l, promotedAs(l))),
+          ],
+        ];
+      case TView.milestones:
+        final names = [openMilestone, ...ws.milestones.reversed.map((m) => m.name)];
+        return [
+          ListRow.header(ws.milestonesFromFile ? 'milestones.md' : 'By month of archiving', names.length),
+          for (final n in names.where((n) => _matches(n))) ListRow.item(MilestoneKey(n), (sel) => _MilestoneRow(n, ws)),
+        ];
       case TView.specs:
         return [
           for (final sp in ws.specs)
@@ -397,6 +422,8 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     if (view == TView.inbox) return 'Inbox';
     if (view == TView.changes) return 'Changes';
     if (view == TView.specs) return 'Specs';
+    if (view == TView.legacy) return 'Legacy notes';
+    if (view == TView.milestones) return 'Milestones';
     if (labelFilter != null) return labelFilter!;
     return switch (statusFilter) {
       'open' => 'Open tasks',
@@ -477,6 +504,9 @@ class TasksViewState extends State<TasksView> implements TaskActions {
           onOpen: () => openInNeovim(sp.doc.path, r.start + 1),
         );
       }
+    }
+    if (sel is MilestoneKey) {
+      return MilestoneDetail(name: sel.name, ws: ws, onClose: close, onChange: openChange);
     }
     if (sel is LegacyKey) {
       final l = legacyAt(sel);
@@ -589,6 +619,20 @@ class TasksViewState extends State<TasksView> implements TaskActions {
           view == TView.specs,
           () => setState(() => view = TView.specs),
           n: ws.specs.fold<int>(0, (n, s) => n + s.requirements.length),
+        ),
+        item(
+          'Milestones',
+          Icons.flag_outlined,
+          view == TView.milestones,
+          () => setState(() => view = TView.milestones),
+          n: ws.milestones.length + 1,
+        ),
+        item(
+          'Legacy notes',
+          Icons.history,
+          view == TView.legacy,
+          () => setState(() => view = TView.legacy),
+          n: ws.legacy.length,
         ),
         if (ws.labels.isNotEmpty) ...[
           const Padding(
@@ -885,6 +929,75 @@ class _SpecRow extends StatelessWidget {
           const SizedBox(width: 10),
         ],
         if (n > 0) Text('$n change${n == 1 ? '' : 's'}', style: T.tiny),
+      ],
+    );
+  }
+}
+
+class _LegacyRow extends StatelessWidget {
+  const _LegacyRow(this.l, this.promoted);
+
+  final LegacyItem l;
+  final String? promoted;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) => Row(
+        children: [
+          Icon(
+            l.done ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
+            size: 15,
+            color: l.done ? C.faint : C.muted,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichLine(l.text, maxLines: 1, style: T.body.copyWith(color: l.done ? C.muted : C.text)),
+          ),
+          if (l.untested) ...[const SizedBox(width: 8), const Pill('untested', color: C.yellow)],
+          if (promoted != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              promoted!,
+              style: const TextStyle(fontSize: 11, fontFamily: mono, color: C.accent),
+            ),
+          ],
+          if (box.maxWidth > 560) ...[
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 160,
+              child: Text(l.section, style: T.tiny, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MilestoneRow extends StatelessWidget {
+  const _MilestoneRow(this.name, this.ws);
+
+  final String name;
+  final Workspace ws;
+
+  @override
+  Widget build(BuildContext context) {
+    final list = milestoneChanges(ws, name);
+    final m = ws.milestones.where((m) => m.name == name).firstOrNull;
+    return Row(
+      children: [
+        Icon(
+          name == openMilestone ? Icons.outlined_flag : Icons.flag,
+          size: 15,
+          color: name == openMilestone ? C.yellow : C.accent,
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(name, style: T.body)),
+        if (m?.date != null) ...[Text(fmtDate(m!.date!), style: T.tiny), const SizedBox(width: 12)],
+        Text('${list.length} changes', style: T.tiny),
+        const SizedBox(width: 10),
+        Progress(list.where((c) => c.stage == 'Completed').length, list.length, width: 50),
       ],
     );
   }
