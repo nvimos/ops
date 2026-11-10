@@ -19,6 +19,12 @@ class PrState extends ChangeNotifier {
   bool loading = false;
   String? error;
   int _gen = 0;
+  bool _disposed = false;
+
+  @override
+  void notifyListeners() {
+    if (!_disposed) super.notifyListeners();
+  }
 
   DiffFile? get selectedFile => diff?.files.where((f) => f.path == selected).firstOrNull;
 
@@ -81,6 +87,8 @@ class PrState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _gen++;
     session.gitChanged.removeListener(refresh);
     super.dispose();
   }
