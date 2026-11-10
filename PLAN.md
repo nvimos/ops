@@ -40,6 +40,22 @@ plugin, `~/es/nvimos-poc-backend` (see its PLAN.md for the protocol).
 - Status bar: connection state, Neovim's current file and cursor (live).
 - Mouse first, keyboard optional. Side-by-side diff and syntax colors come later.
 
+## Tasks mode ("Folio")
+
+Spec: `~/es/nvimos-meta/poc-nvim-backend/flutter-project-man.md`. A Linear-style workspace for the
+repo's OpenSpec and Backlog.md files: sidebar, issue list, detail panel from the right, inbox with
+"Needs attention", requirement cards with Added/Modified/Removed pills, no raw Markdown, keyboard
+J/K/Enter/Esc/C and /.
+
+- `tasks/parse/`: pure Dart parsers with unit tests: Backlog.md task (YAML header, sections,
+  checklists), OpenSpec change (proposal, tasks.md Build/Verify, design, spec deltas split on
+  ADDED/MODIFIED/REMOVED), living spec, legacy notes, `index.tsv`.
+- `tasks/repo.dart`: loads files through the backend's `files.*`, caches models, links tasks and
+  changes, refreshes on git hints; CLI aggregates (`openspec list --json`) merged when available.
+- `tasks/edit.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
+  proposal) sent as `files.set_lines`, archive as `files.move`, promote as `files.create`.
+- UI: sidebar (Inbox, Tasks, Changes, Specs, Legacy, Milestones), list with grouping, detail panel.
+
 ## Steps (one commit each)
 
 1. `flutter create --platforms=windows`, app shell with the sidebar and an empty main area.
@@ -53,7 +69,14 @@ plugin, `~/es/nvimos-poc-backend` (see its PLAN.md for the protocol).
 9. Changes view: file stage/unstage/discard.
 10. Hunk stage/unstage/discard.
 11. Commit.
-12. README: how to run (`nvim --listen 127.0.0.1:6666`, `flutter run -d windows`).
+12. Tasks: parsers with unit tests.
+13. Tasks: repo loading and the list + detail panel (read-only), Linear-style shell.
+14. Tasks: status, priority and checkbox edits; keyboard.
+15. Tasks: inbox with "Needs attention".
+16. Tasks: branch link and Review tie-in with the Pull request view.
+17. Tasks: archive into spec, spec browser with "changes that touched this".
+18. Tasks: legacy viewer with Promote to task; milestones.
+19. README: how to run (`nvim --listen 127.0.0.1:6666`, `flutter run -d windows`).
 
 ## Open
 
