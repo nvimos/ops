@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import '../backend/models.dart';
 import '../state/session.dart';
+import 'edits.dart';
+import 'markdown.dart';
 import 'model.dart';
 import 'parse.dart';
 
@@ -37,6 +39,11 @@ class Workspace extends ChangeNotifier {
   bool _disposed = false;
   int _gen = 0;
   bool _again = false;
+  Map<String, List<String>> _files = {};
+  Map<String, DateTime> _mtimes = {};
+
+  /// Raw lines of a loaded planning file (or null).
+  List<String>? file(String path) => _files[path];
 
   static const dirs = ['backlog', 'openspec', 'legacy'];
 
@@ -64,39 +71,14 @@ class Workspace extends ChangeNotifier {
     try {
       final entries = await b.listFiles(dirs);
       final wanted = entries.where((e) => e.path.endsWith('.md') || e.path.endsWith('.yml')).toList();
-      final texts = await b.readFiles([...wanted.map((e) => e.path), 'milestones.md']);
+      final texts = await b.readFiles([...wanted.map((e) => e.path), 'milestones.md', 'index.tsv']);
       if (gen != _gen) return;
-      final mtimes = {for (final e in entries) e.path: e.mtime};
-      final files = {
+      _mtimes = {for (final e in entries) e.path: e.mtime};
+      _files = {
         for (final t in texts)
           if (t.exists) t.path: t.lines,
       };
-
-      final cfg = files['backlog/config.yml'];
-      if (cfg != null) {
-        final (st, name) = parseBacklogConfig(cfg);
-        statuses = st;
-        projectName = name;
-      }
-      tasks = [
-        for (final e in files.entries)
-          if (RegExp(r'^backlog/(archive/)?tasks/task-').hasMatch(e.key))
-            parseTask(e.key, e.value, mtime: mtimes[e.key]),
-      ]..sort((a, b) => a.number.compareTo(b.number));
-      changes = parseChanges(files, mtimes)..sort((a, b) => _num(a.id).compareTo(_num(b.id)));
-      specs = [
-        for (final e in files.entries)
-          if (RegExp(r'^openspec/specs/([^/]+)/spec\.md$').hasMatch(e.key))
-            parseSpec(e.key.split('/')[2], Doc(e.key, e.value)),
-      ]..sort((a, b) => a.capability.compareTo(b.capability));
-      legacy = [
-        for (final e in files.entries)
-          if (e.key.startsWith('legacy/') && e.key.endsWith('.md')) ...parseLegacy(e.key.substring(7), e.value),
-      ];
-      final ms = files['milestones.md'];
-      milestonesFromFile = ms != null;
-      milestones = ms != null ? parseMilestones(ms) : monthlyMilestones(changes);
-
+      _rebuild();
       branches = await b.branches();
       await _countAhead();
       if (gen != _gen) return;
@@ -114,6 +96,104 @@ class Workspace extends ChangeNotifier {
         }
       }
     }
+  }
+
+  /// Parse every model from the file contents in memory.
+  void _rebuild() {
+    final files = _files;
+    final cfg = files['backlog/config.yml'];
+    if (cfg != null) {
+      final (st, name) = parseBacklogConfig(cfg);
+      statuses = st;
+      projectName = name;
+    }
+    tasks = [
+      for (final e in files.entries)
+        if (RegExp(r'^backlog/(archive/)?tasks/task-').hasMatch(e.key))
+          parseTask(e.key, e.value, mtime: _mtimes[e.key]),
+    ]..sort((a, b) => a.number.compareTo(b.number));
+    changes = parseChanges(files, _mtimes)..sort((a, b) => _num(a.id).compareTo(_num(b.id)));
+    specs = [
+      for (final e in files.entries)
+        if (RegExp(r'^openspec/specs/([^/]+)/spec\.md$').hasMatch(e.key))
+          parseSpec(e.key.split('/')[2], Doc(e.key, e.value)),
+    ]..sort((a, b) => a.capability.compareTo(b.capability));
+    legacy = [
+      for (final e in files.entries)
+        if (e.key.startsWith('legacy/') && e.key.endsWith('.md')) ...parseLegacy(e.key.substring(7), e.value),
+    ];
+    final ms = files['milestones.md'];
+    milestonesFromFile = ms != null;
+    milestones = ms != null ? parseMilestones(ms) : monthlyMilestones(changes);
+  }
+
+  // Edits -------------------------------------------------------------------------------------
+
+  /// Apply edits to a file: in memory first (the UI updates at once), then through Neovim. If the
+  /// write is refused (the file changed, unsaved buffer), reload and return the error.
+  Future<String?> edit(String path, List<LineEdit> edits) async {
+    final lines = _files[path];
+    if (lines == null) return '$path is not loaded';
+    _files[path] = applyEdits(lines, edits);
+    _rebuild();
+    _notify();
+    final err = await session.run((b) => b.setLines(path, edits));
+    if (err != null) await load();
+    return err;
+  }
+
+  /// Status of a task, kept in sync in its change's proposal and in index.tsv.
+  Future<String?> setTaskStatus(Task t, String status) async {
+    if (t.status == status) return null;
+    final err = await edit(t.path, [taskStatusEdit(t, status)]);
+    if (err != null) return err;
+    final c = changeFor(t);
+    final ce = c == null ? null : changeStatusEdit(c, status);
+    if (ce != null) {
+      final e = await edit(c!.proposal!.path, [ce]);
+      if (e != null) return e;
+    }
+    final index = _files['index.tsv'];
+    final ie = index == null ? null : indexStatusEdit(index, t.id, status);
+    if (ie != null) return edit('index.tsv', [ie]);
+    return null;
+  }
+
+  Future<String?> setTaskPriority(Task t, String priority) =>
+      t.priority == priority ? Future.value(null) : edit(t.path, [taskPriorityEdit(t, priority)]);
+
+  Future<String?> toggleCheck(String path, Check c) {
+    final lines = _files[path];
+    if (lines == null || c.line >= lines.length) return Future.value('$path changed; refresh');
+    return edit(path, [toggleCheckEdit(lines, c)]);
+  }
+
+  int get nextTaskNumber => tasks.fold<int>(0, (n, t) => t.number > n ? t.number : n) + 1;
+
+  /// Create a task file (Backlog.md format). Returns (error, new task id).
+  Future<(String?, String)> createTask({
+    required String title,
+    String status = 'To Do',
+    List<String> labels = const [],
+    List<String> description = const [],
+    List<String> originalNotes = const [],
+  }) async {
+    final n = nextTaskNumber;
+    final (path, lines) = newTaskFile(
+      number: n,
+      title: title,
+      status: status,
+      labels: labels,
+      description: description,
+      originalNotes: originalNotes,
+    );
+    final err = await session.run((b) => b.create(path, lines));
+    if (err == null) {
+      _files[path] = lines;
+      _rebuild();
+      _notify();
+    }
+    return (err, 'TASK-$n');
   }
 
   static int _num(String id) => int.tryParse(RegExp(r'^\d+').firstMatch(id)?.group(0) ?? '') ?? 1 << 30;

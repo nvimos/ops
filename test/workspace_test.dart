@@ -63,4 +63,48 @@ void main() {
     s.dispose();
     await nvim.stop();
   });
+
+  test('edits: status in task, proposal and index.tsv; checkbox; priority; create; stale edit refused', () async {
+    final repo = await planRepo();
+    await File('${repo.path}/index.tsv').writeAsString(
+      ['task\tstatus\tchange\ttitle\tfile', 'TASK-1\tTo Do\t1-first\tfirst\tx.md', ''].join('\n'),
+    );
+    await git(repo, ['add', '.']);
+    await git(repo, ['commit', '-q', '-m', 'index']);
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final ws = Workspace(s);
+    await until(() => ws.loaded);
+    String read(String p) => File('${repo.path}/$p').readAsStringSync();
+
+    expect(await ws.setTaskStatus(ws.task('TASK-1')!, 'In Progress'), isNull);
+    expect(ws.task('TASK-1')!.status, 'In Progress'); // in memory at once
+    expect(read('backlog/tasks/task-1 - first.md'), contains('status: In Progress'));
+    expect(read('openspec/changes/1-first/proposal.md'), contains('Status: In Progress (backlog TASK-1)'));
+    expect(read('index.tsv'), contains('TASK-1\tIn Progress\t'));
+
+    final check = ws.task('TASK-1')!.verify.single;
+    expect(await ws.toggleCheck(ws.task('TASK-1')!.path, check), isNull);
+    expect(read('backlog/tasks/task-1 - first.md'), contains('- [x] try it'));
+
+    expect(await ws.setTaskPriority(ws.task('TASK-2')!, 'high'), isNull);
+    expect(read('backlog/tasks/task-2 - second.md'), contains('priority: high'));
+
+    final (err, id) = await ws.createTask(title: 'third: new', labels: ['x']);
+    expect([err, id], [null, 'TASK-3']);
+    expect(File('${repo.path}/backlog/tasks/task-3 - third-new.md').existsSync(), isTrue);
+
+    // Someone changes the file behind the app's back: the edit is refused, nothing is lost.
+    final t2 = ws.task('TASK-2')!;
+    await File('${repo.path}/${t2.path}').writeAsString(read(t2.path).replaceFirst('status: In Progress', 'status: Done'));
+    final stale = await ws.setTaskStatus(t2, 'Needs Test');
+    expect(stale, contains('changed since'));
+    await until(() => ws.task('TASK-2')?.status == 'Done');
+
+    ws.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
 }

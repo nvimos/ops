@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../tasks/markdown.dart';
 import '../../tasks/model.dart';
@@ -8,6 +9,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'change_detail.dart';
 import 'detail_parts.dart';
+import 'dialogs.dart';
 import 'icons.dart';
 import 'rich.dart';
 import 'task_detail.dart';
@@ -71,13 +73,171 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   void openInNeovim(String path, int line) async => _snack(await session.run((b) => b.open(path, line)));
 
   @override
-  Future<void> setStatus(Task t, String status) async => _snack('read-only for now');
+  Future<void> setStatus(Task t, String status) async => _snack(await ws.setTaskStatus(t, status));
 
   @override
-  Future<void> setPriority(Task t, String priority) async => _snack('read-only for now');
+  Future<void> setPriority(Task t, String priority) async => _snack(await ws.setTaskPriority(t, priority));
 
   @override
-  Future<void> toggleCheck(String path, Check c) async => _snack('read-only for now');
+  Future<void> toggleCheck(String path, Check c) async => _snack(await ws.toggleCheck(path, c));
+
+  // Keyboard ----------------------------------------------------------------------------------
+
+  final focus = FocusNode(debugLabel: 'tasks');
+  final filterFocus = FocusNode(debugLabel: 'tasks filter');
+  final filter = TextEditingController();
+  final scroll = ScrollController();
+  static const rowHeight = 36.0;
+
+  @override
+  void dispose() {
+    focus.dispose();
+    filterFocus.dispose();
+    filter.dispose();
+    scroll.dispose();
+    super.dispose();
+  }
+
+  Task? get selectedTask => selected is String ? ws.task(selected as String) : null;
+
+  /// Move the selection by [delta] items (J/K), opening the item in the panel.
+  void move(int delta) {
+    final items = rows().where((r) => !r.isHeader).map((r) => r.key).toList();
+    if (items.isEmpty) return;
+    final i = items.indexOf(selected);
+    final next = i < 0 ? (delta > 0 ? 0 : items.length - 1) : (i + delta).clamp(0, items.length - 1);
+    setState(() => selected = items[next]);
+    final all = rows();
+    final index = all.indexWhere((r) => r.key == items[next]);
+    if (scroll.hasClients && index >= 0) {
+      final top = index * rowHeight, bottom = top + rowHeight;
+      final view = scroll.position.viewportDimension, off = scroll.offset;
+      if (top < off) scroll.jumpTo(top);
+      if (bottom > off + view) scroll.jumpTo(bottom - view);
+    }
+  }
+
+  void cycleStatus() {
+    final t = selectedTask;
+    if (t == null) return;
+    final i = ws.statuses.indexOf(t.status);
+    setStatus(t, ws.statuses[(i + 1) % ws.statuses.length]);
+  }
+
+  void cyclePriority() {
+    final t = selectedTask;
+    if (t == null) return;
+    const order = ['', 'low', 'medium', 'high'];
+    final i = order.indexOf(t.priority.toLowerCase());
+    setPriority(t, order[(i + 1) % order.length]);
+  }
+
+  KeyEventResult onKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final k = e.logicalKey;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    if (filterFocus.hasFocus) {
+      if (k == LogicalKeyboardKey.escape || k == LogicalKeyboardKey.enter || k == LogicalKeyboardKey.arrowDown) {
+        focus.requestFocus();
+        if (k == LogicalKeyboardKey.arrowDown) move(1);
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    if (ctrl && k == LogicalKeyboardKey.keyK) {
+      openPalette();
+      return KeyEventResult.handled;
+    }
+    if (ctrl || HardwareKeyboard.instance.isAltPressed) return KeyEventResult.ignored;
+    switch (k) {
+      case LogicalKeyboardKey.keyJ || LogicalKeyboardKey.arrowDown:
+        move(1);
+      case LogicalKeyboardKey.keyK || LogicalKeyboardKey.arrowUp:
+        move(-1);
+      case LogicalKeyboardKey.enter:
+        if (selected == null) move(1);
+      case LogicalKeyboardKey.escape:
+        if (selected != null) close();
+      case LogicalKeyboardKey.slash:
+        filterFocus.requestFocus();
+      case LogicalKeyboardKey.keyC:
+        createTask();
+      case LogicalKeyboardKey.keyS:
+        cycleStatus();
+      case LogicalKeyboardKey.keyP:
+        cyclePriority();
+      default:
+        return KeyEventResult.ignored;
+    }
+    return KeyEventResult.handled;
+  }
+
+  Future<void> createTask({String title = '', List<String> labels = const [], List<String> notes = const []}) async {
+    final r = await showDialog<NewTask>(
+      context: context,
+      builder: (_) => NewTaskDialog(statuses: ws.statuses, title: title, labels: labels),
+    );
+    focus.requestFocus();
+    if (r == null || r.title.trim().isEmpty) return;
+    final (err, id) = await ws.createTask(
+      title: r.title.trim(),
+      status: r.status,
+      labels: r.labels,
+      description: r.description.isEmpty ? [] : r.description.split('\n'),
+      originalNotes: notes,
+    );
+    _snack(err);
+    if (err == null) {
+      setState(() {
+        view = TView.tasks;
+        selected = id;
+      });
+    }
+  }
+
+  Future<void> openPalette() async {
+    final entries = <PaletteEntry>[
+      PaletteEntry('New task', 'C', Icons.add, createTask),
+      PaletteEntry(
+        'Open tasks',
+        'view',
+        Icons.inbox_outlined,
+        () => setState(() {
+          view = TView.tasks;
+          statusFilter = 'open';
+          labelFilter = null;
+        }),
+      ),
+      for (final s in ws.statuses)
+        PaletteEntry(
+          s,
+          'view',
+          Icons.circle_outlined,
+          () => setState(() {
+            view = TView.tasks;
+            statusFilter = s;
+            labelFilter = null;
+          }),
+        ),
+      PaletteEntry('Changes', 'view', Icons.description_outlined, () => setState(() => view = TView.changes)),
+      if (selectedTask != null)
+        for (final s in ws.statuses)
+          PaletteEntry('Set status: $s', selectedTask!.id, Icons.flag_outlined, () => setStatus(selectedTask!, s)),
+      if (selectedTask != null)
+        PaletteEntry(
+          'Open ${selectedTask!.id} in Neovim',
+          'file',
+          Icons.open_in_new,
+          () => openInNeovim(selectedTask!.path, 1),
+        ),
+      for (final t in ws.tasks) PaletteEntry('${t.id}  ${t.title}', t.status, Icons.task_alt, () => openTask(t.id)),
+      for (final c in ws.changes.where((c) => !c.archived))
+        PaletteEntry(c.title, 'change', Icons.description_outlined, () => openChange(c)),
+    ];
+    final picked = await showDialog<PaletteEntry>(context: context, builder: (_) => Palette(entries));
+    focus.requestFocus();
+    picked?.run();
+  }
 
   @override
   Future<void> review(Task t, String branch) async => widget.onReview?.call(t, branch);
@@ -151,43 +311,48 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: ws,
-      builder: (context, _) {
-        if (!ws.loaded) return Empty(ws.error ?? 'Loading planning files…');
-        final rs = rows();
-        return LayoutBuilder(
-          builder: (context, box) {
-            final panel = ((box.maxWidth - 221) * .45).clamp(360.0, 600.0);
-            return Row(
-              children: [
-                SizedBox(width: 220, child: _sidebar()),
-                const VerticalDivider(width: 1),
-                Expanded(child: _list(rs)),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  width: selected == null ? 0 : panel,
-                  decoration: const BoxDecoration(
-                    color: C.surface,
-                    border: Border(left: BorderSide(color: C.border)),
-                  ),
-                  child: selected == null
-                      ? const SizedBox.shrink()
-                      : ClipRect(
-                          child: OverflowBox(
-                            alignment: Alignment.topLeft,
-                            minWidth: panel,
-                            maxWidth: panel,
-                            child: _detail(),
+    return Focus(
+      focusNode: focus,
+      autofocus: true,
+      onKeyEvent: onKey,
+      child: ListenableBuilder(
+        listenable: ws,
+        builder: (context, _) {
+          if (!ws.loaded) return Empty(ws.error ?? 'Loading planning files…');
+          final rs = rows();
+          return LayoutBuilder(
+            builder: (context, box) {
+              final panel = ((box.maxWidth - 221) * .45).clamp(360.0, 600.0);
+              return Row(
+                children: [
+                  SizedBox(width: 220, child: _sidebar()),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _list(rs)),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    width: selected == null ? 0 : panel,
+                    decoration: const BoxDecoration(
+                      color: C.surface,
+                      border: Border(left: BorderSide(color: C.border)),
+                    ),
+                    child: selected == null
+                        ? const SizedBox.shrink()
+                        : ClipRect(
+                            child: OverflowBox(
+                              alignment: Alignment.topLeft,
+                              minWidth: panel,
+                              maxWidth: panel,
+                              child: _detail(),
+                            ),
                           ),
-                        ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -326,6 +491,8 @@ class TasksViewState extends State<TasksView> implements TaskActions {
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 220, maxHeight: 28),
                   child: TextField(
+                    controller: filter,
+                    focusNode: filterFocus,
                     style: T.body,
                     onChanged: (v) => setState(() => query = v),
                     decoration: const InputDecoration(
@@ -367,13 +534,15 @@ class TasksViewState extends State<TasksView> implements TaskActions {
           child: rs.isEmpty
               ? const Empty('Nothing here.')
               : ListView.builder(
+                  controller: scroll,
+                  itemExtent: rowHeight,
                   itemCount: rs.length,
                   itemBuilder: (context, i) {
                     final r = rs[i];
                     if (r.isHeader) {
                       return Container(
                         color: C.surface,
-                        padding: const EdgeInsets.fromLTRB(14, 7, 14, 7),
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
                         child: Row(
                           children: [
                             if (view == TView.tasks && groupBy == 'status') ...[
@@ -391,7 +560,10 @@ class TasksViewState extends State<TasksView> implements TaskActions {
                     final sel = r.key == selected;
                     return HoverRow(
                       selected: sel,
-                      onTap: () => setState(() => selected = sel ? null : r.key),
+                      onTap: () {
+                        focus.requestFocus();
+                        setState(() => selected = sel ? null : r.key);
+                      },
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
                       child: SizedBox(height: 36, child: r.build!(sel)),
                     );
