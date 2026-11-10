@@ -22,9 +22,11 @@ class TestNvim {
   }
 
   /// Start Neovim in [cwd] (default: a new temp dir).
-  static Future<TestNvim> start({Directory? cwd}) async {
+  static Future<TestNvim> start({Directory? cwd}) async => startOn(await freePort(), cwd: cwd);
+
+  /// Start Neovim on a given port.
+  static Future<TestNvim> startOn(int port, {Directory? cwd}) async {
     final dir = cwd ?? await Directory.systemTemp.createTemp('nvimos_test_');
-    final port = await freePort();
     final p = await Process.start('nvim', [
       '--headless', '--clean', '-n', '-i', 'NONE',
       '--listen', '127.0.0.1:$port',
