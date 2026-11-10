@@ -262,3 +262,77 @@ class _PaletteState extends State<Palette> {
     );
   }
 }
+
+/// "New change": one sentence; an agent drafts the proposal, tasks, deltas and the task.
+class NewChangeDialog extends StatefulWidget {
+  const NewChangeDialog({super.key});
+
+  @override
+  State<NewChangeDialog> createState() => _NewChangeDialogState();
+}
+
+class _NewChangeDialogState extends State<NewChangeDialog> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: C.surface,
+      alignment: const Alignment(0, -.5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: C.border),
+      ),
+      child: SizedBox(
+        width: 600,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('New change', style: T.small),
+              const SizedBox(height: 4),
+              const Text(
+                'Describe it in a sentence. Claude Code drafts the proposal, tasks, spec deltas and the Backlog.md '
+                'task in the background; you review them here when it is done.',
+                style: T.tiny,
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _text,
+                autofocus: true,
+                minLines: 2,
+                maxLines: 5,
+                style: const TextStyle(fontSize: 15),
+                decoration: const InputDecoration(
+                  hintText: 'e.g. the aerial sidebar follows the file shown in the source window',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  SmallButton('Cancel', onPressed: () => Navigator.pop(context)),
+                  const SizedBox(width: 8),
+                  SmallButton(
+                    'Draft with an agent',
+                    icon: Icons.auto_awesome,
+                    primary: true,
+                    onPressed: () => Navigator.pop(context, _text.text.trim()),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

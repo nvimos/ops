@@ -151,5 +151,19 @@ class Backend {
       _files('set_lines', [path, edits.map((e) => e.toMap()).toList()]);
   Future<void> move(String from, String to) => _files('move', [from, to]);
   Future<void> create(String path, List<String> lines) => _files('create', [path, lines]);
+  // Jobs ---------------------------------------------------------------------------------------
+
+  /// Start claude / openspec / backlog without blocking Neovim; returns the job id. Its end comes as
+  /// a `jobs` `finished` event.
+  Future<int> startJob(String cmd, List<String> args, {String? stdin, String? label}) async => intOr(
+    await _lua('nvimos.jobs', 'start', [
+      cmd,
+      args,
+      {'stdin': ?stdin, 'label': ?label},
+    ]),
+  );
+
+  Future<void> cancelJob(int id) => _lua('nvimos.jobs', 'cancel', [id]);
+
   Future<CliResult> cli(String cmd, List<String> args) async => CliResult(asMap(await _files('cli', [cmd, args])));
 }
