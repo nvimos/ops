@@ -92,13 +92,23 @@ class TaskDetail extends StatelessWidget {
                           ? const Text('none linked (name a branch task-<n>)', style: T.small)
                           : Row(
                               children: [
-                                Flexible(
-                                  child: LinkChip(icon: Icons.call_split, label: branch),
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: LinkChip(
+                                      icon: Icons.call_split,
+                                      label: branch,
+                                      onTap: () => actions.review(t, branch),
+                                    ),
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 if ((ws.ahead[branch] ?? 0) > 0)
-                                  Text('${ws.ahead[branch]} commits ahead', style: T.tiny),
-                                const Spacer(),
+                                  Text(
+                                    '${ws.ahead[branch]} commit${ws.ahead[branch] == 1 ? '' : 's'} ahead',
+                                    style: T.tiny,
+                                  ),
+                                const SizedBox(width: 8),
                                 SmallButton(
                                   'Review',
                                   icon: Icons.merge_type,

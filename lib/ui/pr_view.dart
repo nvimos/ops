@@ -7,13 +7,14 @@ import '../tasks/model.dart';
 import '../tasks/workspace.dart';
 import 'diff_view.dart';
 import 'file_tree.dart';
+import 'tasks/review_panel.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 /// Two branches as a pull request: pickers and commits on the left, files and the diff on the
 /// right, like GitHub's "Files changed" tab.
 class PrView extends StatefulWidget {
-  const PrView({super.key, this.state, this.reviewing, this.workspace, this.onStopReview});
+  const PrView({super.key, this.state, this.reviewing, this.workspace, this.onStopReview, this.onOpenTask});
 
   /// Shared state (the Tasks mode opens a review for a branch); created here when null.
   final PrState? state;
@@ -22,6 +23,7 @@ class PrView extends StatefulWidget {
   final Task? reviewing;
   final Workspace? workspace;
   final VoidCallback? onStopReview;
+  final void Function(String id)? onOpenTask;
 
   @override
   State<PrView> createState() => _PrViewState();
@@ -61,9 +63,12 @@ class _PrViewState extends State<PrView> {
                   children: [
                     const Icon(Icons.task_alt, size: 15, color: C.accent),
                     const SizedBox(width: 8),
-                    Text(
-                      t.id,
-                      style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.muted),
+                    InkWell(
+                      onTap: () => widget.onOpenTask?.call(t.id),
+                      child: Text(
+                        t.id,
+                        style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.accent),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -79,6 +84,20 @@ class _PrViewState extends State<PrView> {
                   SizedBox(width: 300, child: _Sidebar(pr: pr)),
                   const VerticalDivider(width: 1),
                   Expanded(child: _main(pr)),
+                  if (t != null && widget.workspace != null) ...[
+                    const VerticalDivider(width: 1),
+                    SizedBox(
+                      width: 300,
+                      child: ReviewPanel(
+                        ws: widget.workspace!,
+                        taskId: t.id,
+                        onOpenTask: widget.onOpenTask,
+                        onError: (e) {
+                          if (e != null) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e)));
+                        },
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
