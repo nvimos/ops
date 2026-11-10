@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../state/prefs.dart';
+import '../../tasks/inbox.dart';
 import '../../tasks/markdown.dart';
 import '../../tasks/model.dart';
 import '../../tasks/workspace.dart';
@@ -11,10 +13,11 @@ import 'change_detail.dart';
 import 'detail_parts.dart';
 import 'dialogs.dart';
 import 'icons.dart';
+import 'legacy_detail.dart';
 import 'rich.dart';
 import 'task_detail.dart';
 
-enum TView { tasks, changes }
+enum TView { inbox, tasks, changes }
 
 /// A row of the main list: a group header or an item that opens in the detail panel.
 class ListRow {
@@ -40,12 +43,39 @@ class TasksView extends StatefulWidget {
 }
 
 class TasksViewState extends State<TasksView> implements TaskActions {
-  TView view = TView.tasks;
+  TView view = TView.inbox;
+  final prefs = Prefs.load();
+  int? cursor; // index into the current items, so J/K work when an item shows up twice
   String? statusFilter = 'open'; // 'open', a status, or null for all
   String? labelFilter;
   String groupBy = 'status';
   String query = '';
-  Object? selected; // Task id (String) or Change dir (ChangeKey)
+  Object? selected; // Task id (String), ChangeKey or LegacyKey
+
+  String get _repoKey => session.repo?.root ?? 'repo';
+
+  /// When the inbox was last marked seen; the first visit of a repo counts as seen now.
+  DateTime get lastSeen {
+    final t = prefs.lastSeen(_repoKey);
+    if (t != null) return t;
+    final now = DateTime.now();
+    prefs.setLastSeen(_repoKey, now);
+    return now;
+  }
+
+  void markSeen() => setState(() => prefs.setLastSeen(_repoKey, DateTime.now()));
+
+  LegacyItem? legacyAt(LegacyKey k) => ws.legacy.where((l) => l.file == k.file && l.line == k.line).firstOrNull;
+
+  /// A task created from this legacy item (its original notes start with the item's line).
+  String? promotedAs(LegacyItem l) =>
+      ws.tasks.where((t) => t.originalNotes.isNotEmpty && t.originalNotes.first.contains(l.text)).firstOrNull?.id;
+
+  Future<void> promote(LegacyItem l) => createTask(
+    title: l.text.replaceAll(RegExp(r'\s*\(([0-9a-f]{7,10}(, )?)+\)'), '').replaceAll(RegExp(r';?\s*untested\s*$'), ''),
+    labels: ['legacy', l.group],
+    notes: ['- [${l.done ? 'x' : ' '}] ${l.text}', ...l.notes],
+  );
 
   Workspace get ws => widget.ws;
   Session get session => SessionScope.read(context);
@@ -102,13 +132,22 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   /// Move the selection by [delta] items (J/K), opening the item in the panel.
   void move(int delta) {
-    final items = rows().where((r) => !r.isHeader).map((r) => r.key).toList();
-    if (items.isEmpty) return;
-    final i = items.indexOf(selected);
-    final next = i < 0 ? (delta > 0 ? 0 : items.length - 1) : (i + delta).clamp(0, items.length - 1);
-    setState(() => selected = items[next]);
     final all = rows();
-    final index = all.indexWhere((r) => r.key == items[next]);
+    final positions = [
+      for (var i = 0; i < all.length; i++)
+        if (!all[i].isHeader) i,
+    ];
+    if (positions.isEmpty) return;
+    var i = cursor != null && cursor! < positions.length && all[positions[cursor!]].key == selected
+        ? cursor!
+        : positions.indexWhere((p) => all[p].key == selected);
+    final next = i < 0 ? (delta > 0 ? 0 : positions.length - 1) : (i + delta).clamp(0, positions.length - 1);
+    i = next;
+    setState(() {
+      cursor = next;
+      selected = all[positions[next]].key;
+    });
+    final index = positions[next];
     if (scroll.hasClients && index >= 0) {
       final top = index * rowHeight, bottom = top + rowHeight;
       final view = scroll.position.viewportDimension, off = scroll.offset;
@@ -255,6 +294,24 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   List<ListRow> rows() {
     switch (view) {
+      case TView.inbox:
+        final items = inbox(ws, lastSeen)
+            .where((i) => _matches('${i.task?.title ?? ''} ${i.change?.title ?? ''} ${i.legacy?.text ?? ''} ${i.why}'))
+            .toList();
+        return [
+          for (final section in [sinceSection, ...attentionSections])
+            if (items.any((i) => i.section == section)) ...[
+              ListRow.header(section, items.where((i) => i.section == section).length),
+              for (final i in items.where((i) => i.section == section))
+                ListRow.item(
+                  i.task?.id ??
+                      (i.change != null
+                          ? ChangeKey(i.change!.dir)
+                          : (i.legacy != null ? LegacyKey(i.legacy!.file, i.legacy!.line) : i.branch?.name)),
+                  (sel) => _InboxRow(i),
+                ),
+            ],
+        ];
       case TView.tasks:
         final tasks = visibleTasks;
         final groups = <String, List<Task>>{};
@@ -298,6 +355,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   }
 
   String get title {
+    if (view == TView.inbox) return 'Inbox';
     if (view == TView.changes) return 'Changes';
     if (labelFilter != null) return labelFilter!;
     return switch (statusFilter) {
@@ -366,6 +424,19 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       final c = ws.changes.where((c) => c.dir == sel.dir).firstOrNull;
       if (c != null) return ChangeDetail(change: c, ws: ws, actions: this);
     }
+    if (sel is LegacyKey) {
+      final l = legacyAt(sel);
+      if (l != null) {
+        return LegacyDetail(
+          item: l,
+          onClose: close,
+          onPromote: () => promote(l),
+          onOpen: () => openInNeovim('legacy/${l.file}', l.line + 1),
+          promotedAs: promotedAs(l),
+          onTask: openTask,
+        );
+      }
+    }
     return const Empty('Gone: the file moved or was deleted.');
   }
 
@@ -426,8 +497,16 @@ class TasksViewState extends State<TasksView> implements TaskActions {
           ),
         ),
         item(
+          'Inbox',
+          Icons.notifications_none,
+          view == TView.inbox,
+          () => setState(() => view = TView.inbox),
+          n: inbox(ws, lastSeen).length,
+        ),
+        const SizedBox(height: 8),
+        item(
           'Open tasks',
-          Icons.inbox_outlined,
+          Icons.task_alt,
           isTasks('open'),
           () => showTasks('open'),
           n: count((t) => !t.archived && t.status != 'Done' && t.status != 'Dropped'),
@@ -504,6 +583,10 @@ class TasksViewState extends State<TasksView> implements TaskActions {
                   ),
                 ),
               ),
+              if (view == TView.inbox) ...[
+                const SizedBox(width: 10),
+                SmallButton('Mark all seen', icon: Icons.done_all, onPressed: markSeen),
+              ],
               if (view == TView.tasks) ...[
                 const SizedBox(width: 10),
                 PopupMenuButton<String>(
@@ -682,6 +765,42 @@ class _ChangeRow extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _InboxRow extends StatelessWidget {
+  const _InboxRow(this.i);
+
+  final InboxItem i;
+
+  @override
+  Widget build(BuildContext context) {
+    final (Widget icon, String id, String title) = switch (i) {
+      InboxItem(task: final t?) => (StatusIcon(t.status), t.id, t.title),
+      InboxItem(change: final c?) => (StatusIcon(c.stage), 'change', c.title),
+      InboxItem(legacy: final l?) => (const Icon(Icons.history, size: 15, color: C.yellow), l.group, l.text),
+      InboxItem(branch: final b?) => (const Icon(Icons.call_split, size: 15, color: C.green), 'branch', b.subject),
+      _ => (const SizedBox(width: 14), '', ''),
+    };
+    return Row(
+      children: [
+        icon,
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 62,
+          child: Text(
+            id,
+            style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.faint),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Expanded(child: RichLine(title, maxLines: 1)),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(i.why, style: T.tiny, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right),
+        ),
+      ],
     );
   }
 }
