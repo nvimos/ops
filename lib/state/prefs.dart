@@ -34,6 +34,17 @@ class Prefs {
     _save();
   }
 
+  /// Branches linked to tasks by hand: task id -> branch.
+  Map<String, String> branchLinks(String repo) =>
+      (((_data['branchLinks'] as Map?)?[repo] as Map?) ?? {}).map((k, v) => MapEntry('$k', '$v'));
+
+  void setBranchLinks(String repo, Map<String, String> links) {
+    final m = ((_data['branchLinks'] as Map?) ?? {}).cast<String, Object?>();
+    m[repo] = links;
+    _data['branchLinks'] = m;
+    _save();
+  }
+
   void _save() {
     final f = _file;
     if (f == null) return;
