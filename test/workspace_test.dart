@@ -107,4 +107,29 @@ void main() {
     s.dispose();
     await nvim.stop();
   });
+
+  test('archive merges deltas into the living spec, marks the task Done and moves the folder', () async {
+    final repo = await planRepo();
+    await File('${repo.path}/openspec/changes/1-first/specs/sidebar/spec.md').create(recursive: true);
+    await File('${repo.path}/openspec/changes/1-first/specs/sidebar/spec.md').writeAsString(
+      ['## ADDED Requirements', '', '### Requirement: Follows the file', 'It SHALL follow :edit.', ''].join('\n'),
+    );
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final ws = Workspace(s);
+    await until(() => ws.loaded);
+    final c = ws.changes.single;
+    expect(await ws.archive(c, now: DateTime(2026, 11, 10)), isNull);
+    expect(Directory('${repo.path}/openspec/changes/archive/2026-11-10-1-first').existsSync(), isTrue);
+    expect(Directory('${repo.path}/openspec/changes/1-first').existsSync(), isFalse);
+    expect(ws.specs.single.requirements.single.name, 'Follows the file');
+    expect(ws.task('TASK-1')!.status, 'Done');
+    expect(ws.changes.single.archived, isTrue);
+    expect(ws.changesTouching('Follows the file').single.$1.archived, isTrue);
+    ws.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../backend/models.dart';
 import '../state/session.dart';
+import 'archive.dart';
 import 'edits.dart';
 import 'markdown.dart';
 import 'model.dart';
@@ -166,6 +167,48 @@ class Workspace extends ChangeNotifier {
     final lines = _files[path];
     if (lines == null || c.line >= lines.length) return Future.value('$path changed; refresh');
     return edit(path, [toggleCheckEdit(lines, c)]);
+  }
+
+  /// Archive a change: `openspec archive` when the CLI is installed; otherwise merge its deltas
+  /// into `openspec/specs/<capability>/spec.md`, mark it (and its task) Done, and move the folder to
+  /// `openspec/changes/archive/<date>-<id>`.
+  Future<String?> archive(Change c, {DateTime? now}) async {
+    final b = session.backend;
+    if (b == null) return 'not connected';
+    final version = await b.cli('openspec', ['--version']);
+    if (version.code == 0) {
+      final r = await b.cli('openspec', ['archive', c.id, '--yes']);
+      await load();
+      return r.code == 0 ? null : (r.stderr.isEmpty ? r.stdout : r.stderr).trim();
+    }
+    final t = taskFor(c);
+    if (t != null && t.status != 'Done') {
+      final err = await setTaskStatus(t, 'Done');
+      if (err != null) return err;
+    } else if (c.status != 'Done') {
+      final fresh = changes.firstWhere((x) => x.dir == c.dir, orElse: () => c);
+      final e = changeStatusEdit(fresh, 'Done');
+      if (e != null) {
+        final err = await edit(fresh.proposal!.path, [e]);
+        if (err != null) return err;
+      }
+    }
+    final byCap = <String, List<Delta>>{};
+    for (final d in c.deltas) {
+      byCap.putIfAbsent(d.capability, () => []).add(d);
+    }
+    for (final e in byCap.entries) {
+      final path = 'openspec/specs/${e.key}/spec.md';
+      final old = _files[path];
+      final merged = mergeDeltas(old, e.key, c.id, e.value);
+      final err = await session.run(
+        (b) => old == null ? b.create(path, merged) : b.setLines(path, [LineEdit(0, old.length, merged, expect: old)]),
+      );
+      if (err != null) return err;
+    }
+    final err = await session.run((b) => b.move(c.dir, archiveDir(c, now ?? DateTime.now())));
+    await load();
+    return err;
   }
 
   int get nextTaskNumber => tasks.fold<int>(0, (n, t) => t.number > n ? t.number : n) + 1;

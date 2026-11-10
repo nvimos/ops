@@ -15,9 +15,10 @@ import 'dialogs.dart';
 import 'icons.dart';
 import 'legacy_detail.dart';
 import 'rich.dart';
+import 'spec_detail.dart';
 import 'task_detail.dart';
 
-enum TView { inbox, tasks, changes }
+enum TView { inbox, tasks, changes, specs }
 
 /// A row of the main list: a group header or an item that opens in the detail panel.
 class ListRow {
@@ -70,6 +71,35 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   /// A task created from this legacy item (its original notes start with the item's line).
   String? promotedAs(LegacyItem l) =>
       ws.tasks.where((t) => t.originalNotes.isNotEmpty && t.originalNotes.first.contains(l.text)).firstOrNull?.id;
+
+  Future<void> archive(Change c) async {
+    final caps = {for (final d in c.deltas) d.capability};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+        backgroundColor: C.surface,
+        title: const Text('Archive this change?', style: T.title),
+        content: Text(
+          [
+            if (caps.isNotEmpty)
+              'Its ${c.deltas.length} requirement changes go into the living spec (${caps.join(', ')}).',
+            if (ws.taskFor(c) != null) '${ws.taskFor(c)!.id} is marked Done.',
+            'The folder moves to openspec/changes/archive/.',
+          ].join('\n'),
+          style: T.body,
+        ),
+        actions: [
+          SmallButton('Cancel', onPressed: () => Navigator.pop(d, false)),
+          SmallButton('Archive', primary: true, onPressed: () => Navigator.pop(d, true)),
+        ],
+      ),
+    );
+    focus.requestFocus();
+    if (ok != true) return;
+    final err = await ws.archive(c);
+    _snack(err);
+    if (err == null && mounted) setState(() => selected = null);
+  }
 
   Future<void> promote(LegacyItem l) => createTask(
     title: l.text.replaceAll(RegExp(r'\s*\(([0-9a-f]{7,10}(, )?)+\)'), '').replaceAll(RegExp(r';?\s*untested\s*$'), ''),
@@ -341,6 +371,15 @@ class TasksViewState extends State<TasksView> implements TaskActions {
               for (final t in groups[g]!) ListRow.item(t.id, (sel) => _TaskRow(t, ws, sel)),
             ],
         ];
+      case TView.specs:
+        return [
+          for (final sp in ws.specs)
+            if (sp.requirements.any((r) => _matches('${sp.capability} ${r.name} ${r.text}'))) ...[
+              ListRow.header(sp.capability, sp.requirements.length),
+              for (final r in sp.requirements.where((r) => _matches('${sp.capability} ${r.name} ${r.text}')))
+                ListRow.item(SpecKey(sp.capability, r.name), (sel) => _SpecRow(r, ws)),
+            ],
+        ];
       case TView.changes:
         final list = ws.changes.where((c) => _matches('${c.id} ${c.title}')).toList();
         return [
@@ -357,6 +396,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   String get title {
     if (view == TView.inbox) return 'Inbox';
     if (view == TView.changes) return 'Changes';
+    if (view == TView.specs) return 'Specs';
     if (labelFilter != null) return labelFilter!;
     return switch (statusFilter) {
       'open' => 'Open tasks',
@@ -422,7 +462,21 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     }
     if (sel is ChangeKey) {
       final c = ws.changes.where((c) => c.dir == sel.dir).firstOrNull;
-      if (c != null) return ChangeDetail(change: c, ws: ws, actions: this);
+      if (c != null) return ChangeDetail(change: c, ws: ws, actions: this, onArchive: archive);
+    }
+    if (sel is SpecKey) {
+      final sp = ws.specs.where((x) => x.capability == sel.capability).firstOrNull;
+      final r = sp?.requirements.where((x) => x.name == sel.requirement).firstOrNull;
+      if (sp != null && r != null) {
+        return SpecDetail(
+          spec: sp,
+          requirement: r,
+          ws: ws,
+          onClose: close,
+          onChange: openChange,
+          onOpen: () => openInNeovim(sp.doc.path, r.start + 1),
+        );
+      }
     }
     if (sel is LegacyKey) {
       final l = legacyAt(sel);
@@ -528,6 +582,13 @@ class TasksViewState extends State<TasksView> implements TaskActions {
           view == TView.changes,
           () => setState(() => view = TView.changes),
           n: ws.changes.where((c) => !c.archived).length,
+        ),
+        item(
+          'Specs',
+          Icons.account_tree_outlined,
+          view == TView.specs,
+          () => setState(() => view = TView.specs),
+          n: ws.specs.fold<int>(0, (n, s) => n + s.requirements.length),
         ),
         if (ws.labels.isNotEmpty) ...[
           const Padding(
@@ -800,6 +861,30 @@ class _InboxRow extends StatelessWidget {
         Flexible(
           child: Text(i.why, style: T.tiny, overflow: TextOverflow.ellipsis, textAlign: TextAlign.right),
         ),
+      ],
+    );
+  }
+}
+
+class _SpecRow extends StatelessWidget {
+  const _SpecRow(this.r, this.ws);
+
+  final Requirement r;
+  final Workspace ws;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = ws.changesTouching(r.name).length;
+    return Row(
+      children: [
+        const Icon(Icons.rule, size: 15, color: C.muted),
+        const SizedBox(width: 10),
+        Expanded(child: RichLine(r.name, maxLines: 1)),
+        if (r.scenarios.isNotEmpty) ...[
+          Text('${r.scenarios.length} scenario${r.scenarios.length == 1 ? '' : 's'}', style: T.tiny),
+          const SizedBox(width: 10),
+        ],
+        if (n > 0) Text('$n change${n == 1 ? '' : 's'}', style: T.tiny),
       ],
     );
   }
