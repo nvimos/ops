@@ -17,7 +17,7 @@ PORT    ?= 6666
 ##@ run
 
 nvim: ## start Neovim on 127.0.0.1:6666 (PORT=) with the backend plugin (added after the config, which may reset rtp)
-	nvim --listen 127.0.0.1:$(PORT) --cmd 'set rtp^=$(CURDIR)/../nvimos-poc-backend'
+	nvim --listen 127.0.0.1:$(PORT) -c 'set rtp^=$(CURDIR)/../nvimos-poc-backend | runtime plugin/nvimos.lua'
 
 run: ## run the app (debug); connects to 127.0.0.1:6666
 	$(FLUTTER) run -d windows
