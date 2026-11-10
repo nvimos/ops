@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 
+import '../state/pr.dart';
 import '../state/session.dart';
+import '../tasks/model.dart';
+import '../tasks/workspace.dart';
 import 'changes_view.dart';
 import 'connect.dart';
 import 'pr_view.dart';
+import 'tasks/tasks_view.dart';
 import 'theme.dart';
-import 'widgets.dart';
 
 enum Mode { pullRequest, changes, tasks }
 
-/// The window: a narrow mode rail, the mode's content, a status bar.
+/// The window: a narrow mode rail, the modes (kept alive), a status bar.
 class Shell extends StatefulWidget {
   const Shell({super.key});
 
@@ -19,33 +22,68 @@ class Shell extends StatefulWidget {
 
 class _ShellState extends State<Shell> {
   Mode _mode = Mode.pullRequest;
+  PrState? _pr;
+  Workspace? _ws;
+
+  /// The task whose branch the Pull request view is reviewing (its Verify list shows beside it).
+  Task? _reviewing;
+
+  @override
+  void dispose() {
+    _pr?.dispose();
+    _ws?.dispose();
+    super.dispose();
+  }
+
+  void _review(Task t, String branch) {
+    final pr = _pr!;
+    setState(() {
+      _reviewing = t;
+      _mode = Mode.pullRequest;
+    });
+    pr.pick(base: _ws!.defaultBranch, head: branch);
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
-    return Scaffold(
-      body: Column(children: [
-        Expanded(
-          child: Row(children: [
-            _ModeRail(mode: _mode, onSelect: (m) => setState(() => _mode = m)),
-            const VerticalDivider(width: 1),
-            Expanded(child: s.conn == Conn.connected ? _content() : const ConnectScreen()),
-          ]),
-        ),
-        const _StatusBar(),
-      ]),
-    );
-  }
-
-  Widget _content() {
-    switch (_mode) {
-      case Mode.pullRequest:
-        return const PrView();
-      case Mode.changes:
-        return const ChangesView();
-      case Mode.tasks:
-        return const Empty('Tasks: OpenSpec and Backlog.md');
+    final connected = s.conn == Conn.connected;
+    if (connected) {
+      _pr ??= PrState(s);
+      _ws ??= Workspace(s);
     }
+    return Scaffold(
+      body: Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                _ModeRail(mode: _mode, onSelect: (m) => setState(() => _mode = m)),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: !connected || _pr == null
+                      ? const ConnectScreen()
+                      : IndexedStack(
+                          index: _mode.index,
+                          children: [
+                            PrView(
+                              state: _pr,
+                              reviewing: _reviewing,
+                              workspace: _ws,
+                              onStopReview: () => setState(() => _reviewing = null),
+                            ),
+                            const ChangesView(),
+                            TasksView(ws: _ws!, onReview: _review),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+          const _StatusBar(),
+        ],
+      ),
+    );
   }
 }
 
@@ -78,12 +116,14 @@ class _ModeRail extends StatelessWidget {
     return Container(
       width: 48,
       color: C.surface,
-      child: Column(children: [
-        const SizedBox(height: 8),
-        item(Mode.pullRequest, Icons.merge_type, 'Pull request'),
-        item(Mode.changes, Icons.edit_note, 'Changes'),
-        item(Mode.tasks, Icons.view_kanban_outlined, 'Tasks'),
-      ]),
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          item(Mode.pullRequest, Icons.merge_type, 'Pull request'),
+          item(Mode.changes, Icons.edit_note, 'Changes'),
+          item(Mode.tasks, Icons.view_kanban_outlined, 'Tasks'),
+        ],
+      ),
     );
   }
 }
@@ -109,21 +149,25 @@ class _StatusBar extends StatelessWidget {
     return Container(
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: const BoxDecoration(color: C.surface, border: Border(top: BorderSide(color: C.border))),
-      child: Row(children: [
-        Icon(Icons.circle, size: 8, color: color),
-        const SizedBox(width: 6),
-        Text(label, style: T.tiny),
-        if (s.repo?.head != null) ...[
-          const SizedBox(width: 14),
-          const Icon(Icons.call_split, size: 12, color: C.muted),
-          const SizedBox(width: 4),
-          Text(s.repo!.head!, style: T.tiny),
+      decoration: const BoxDecoration(
+        color: C.surface,
+        border: Border(top: BorderSide(color: C.border)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.circle, size: 8, color: color),
+          const SizedBox(width: 6),
+          Text(label, style: T.tiny),
+          if (s.repo?.head != null) ...[
+            const SizedBox(width: 14),
+            const Icon(Icons.call_split, size: 12, color: C.muted),
+            const SizedBox(width: 4),
+            Text(s.repo!.head!, style: T.tiny),
+          ],
+          const Spacer(),
+          if (cur != null) Text('${_short(cur.name, s.repo?.root)}  ${cur.row}:${cur.col + 1}', style: T.tiny),
         ],
-        const Spacer(),
-        if (cur != null)
-          Text('${_short(cur.name, s.repo?.root)}  ${cur.row}:${cur.col + 1}', style: T.tiny),
-      ]),
+      ),
     );
   }
 }
