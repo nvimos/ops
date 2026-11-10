@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/session.dart';
+import 'changes_view.dart';
 import 'connect.dart';
 import 'pr_view.dart';
 import 'theme.dart';
@@ -41,7 +42,7 @@ class _ShellState extends State<Shell> {
       case Mode.pullRequest:
         return const PrView();
       case Mode.changes:
-        return const Empty('Changes: working tree vs HEAD');
+        return const ChangesView();
       case Mode.tasks:
         return const Empty('Tasks: OpenSpec and Backlog.md');
     }
