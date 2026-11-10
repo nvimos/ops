@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/session.dart';
 import 'connect.dart';
+import 'pr_view.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -38,7 +39,7 @@ class _ShellState extends State<Shell> {
   Widget _content() {
     switch (_mode) {
       case Mode.pullRequest:
-        return const Empty('Pull request: pick two branches');
+        return const PrView();
       case Mode.changes:
         return const Empty('Changes: working tree vs HEAD');
       case Mode.tasks:
