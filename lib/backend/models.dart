@@ -186,3 +186,18 @@ class LineEdit {
 
   Map<String, Object?> toMap() => {'first': first, 'last': last, 'lines': lines, if (expect != null) 'expect': expect};
 }
+
+/// A command started with the backend's jobs.start.
+class Job {
+  Job(Map<String, Object?> m)
+    : id = intOr(m['id']),
+      label = str(m['label']),
+      running = m['running'] == true,
+      code = m['code'] is int ? m['code'] as int : null,
+      stdout = str(m['stdout']),
+      stderr = str(m['stderr']);
+  final int id;
+  final String label, stdout, stderr;
+  final bool running;
+  final int? code;
+}

@@ -102,6 +102,53 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     if (err == null && mounted) setState(() => selected = null);
   }
 
+  /// Jobs this view started, waiting for their `finished` event.
+  final _waiting = <int>{};
+  Set<String> _changesBefore = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) session.jobs.addListener(_onJobs);
+    });
+  }
+
+  void _onJobs() {
+    for (final id in [..._waiting]) {
+      final j = session.jobs.value[id];
+      if (j == null || j.running) continue;
+      _waiting.remove(id);
+      if (j.code == 0) {
+        ws.load().then((_) {
+          final fresh = ws.changes.where((c) => !_changesBefore.contains(c.dir)).toList();
+          if (fresh.isNotEmpty && mounted) {
+            setState(() {
+              view = TView.changes;
+              selected = ChangeKey(fresh.first.dir);
+            });
+          }
+          _snack(fresh.isEmpty ? 'The agent finished but wrote no change.' : 'Drafted: ${fresh.first.title}');
+        });
+      } else {
+        final why = (j.stderr.isNotEmpty ? j.stderr : j.stdout).trim().split('\n').last;
+        _snack('The agent failed (${j.code}): $why');
+      }
+    }
+  }
+
+  Future<void> newChange() async {
+    final sentence = await showDialog<String>(context: context, builder: (_) => const NewChangeDialog());
+    focus.requestFocus();
+    if (sentence == null || sentence.isEmpty) return;
+    _changesBefore = {for (final c in ws.changes) c.dir};
+    final (err, id) = await ws.newChange(sentence);
+    if (err != null) return _snack(err);
+    if (id != null) _waiting.add(id);
+    _snack('An agent is drafting the change; it shows up here when done.');
+    setState(() {});
+  }
+
   Future<void> promote(LegacyItem l) => createTask(
     title: l.text.replaceAll(RegExp(r'\s*\(([0-9a-f]{7,10}(, )?)+\)'), '').replaceAll(RegExp(r';?\s*untested\s*$'), ''),
     labels: ['legacy', l.group],
@@ -152,6 +199,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   @override
   void dispose() {
+    session.jobs.removeListener(_onJobs);
     focus.dispose();
     filterFocus.dispose();
     filter.dispose();
@@ -268,6 +316,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Future<void> openPalette() async {
     final entries = <PaletteEntry>[
       PaletteEntry('New task', 'C', Icons.add, createTask),
+      PaletteEntry('New change (an agent drafts it)', 'agent', Icons.auto_awesome, newChange),
       PaletteEntry(
         'Open tasks',
         'view',
@@ -580,6 +629,23 @@ class TasksViewState extends State<TasksView> implements TaskActions {
             ],
           ),
         ),
+        for (final j in session.jobs.value.values.where((j) => j.running))
+          Tooltip(
+            message: '${j.label}\nclick to cancel',
+            child: HoverRow(
+              onTap: () => session.run((b) => b.cancelJob(j.id)),
+              padding: const EdgeInsets.fromLTRB(14, 6, 12, 6),
+              child: Row(
+                children: [
+                  const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 1.5)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text('Agent: ${j.label}', style: T.small, overflow: TextOverflow.ellipsis),
+                  ),
+                ],
+              ),
+            ),
+          ),
         item(
           'Inbox',
           Icons.notifications_none,
@@ -688,6 +754,10 @@ class TasksViewState extends State<TasksView> implements TaskActions {
                   ),
                 ),
               ),
+              if (view == TView.changes) ...[
+                const SizedBox(width: 10),
+                SmallButton('New change', icon: Icons.auto_awesome, onPressed: newChange),
+              ],
               if (view == TView.inbox) ...[
                 const SizedBox(width: 10),
                 SmallButton('Mark all seen', icon: Icons.done_all, onPressed: markSeen),

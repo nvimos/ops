@@ -211,6 +211,42 @@ class Workspace extends ChangeNotifier {
     return err;
   }
 
+  /// What the agent is asked to do for "New change".
+  String newChangePrompt(String sentence) {
+    final n = nextTaskNumber;
+    return [
+      'Draft an OpenSpec change for this, in this repo, and stop there (no code):',
+      '',
+      sentence.trim(),
+      '',
+      'Follow openspec/config.yaml and the layout of the other folders in openspec/changes/:',
+      '- openspec/changes/<id>/proposal.md with "# <title>", "Status: To Do (backlog TASK-$n)", ## Why,',
+      '  ## What Changes, ## Impact;',
+      '- openspec/changes/<id>/tasks.md with "## 1. Build" and "## 2. Verify" checklists, kept apart;',
+      '- spec deltas in openspec/changes/<id>/specs/<capability>/spec.md (## ADDED / MODIFIED / REMOVED',
+      '  Requirements, ### Requirement: and #### Scenario: blocks) only if behavior changes;',
+      '- the matching Backlog.md task backlog/tasks/task-$n - <slug>.md (front matter id: TASK-$n,',
+      '  title, status: To Do, created_date, labels, dependencies) with ## Description and ## Verify,',
+      '  like the other task files;',
+      '- the row for TASK-$n in index.tsv if the file exists.',
+      'Use <id> = "$n-<short-slug>". Touch nothing else.',
+    ].join('\n');
+  }
+
+  /// Start an agent (claude -p) that drafts a change and its task. Returns (error, job id).
+  Future<(String?, int?)> newChange(String sentence) async {
+    int? id;
+    final err = await session.run((b) async {
+      id = await b.startJob(
+        'claude',
+        ['-p', '--permission-mode', 'acceptEdits', '--allowedTools', 'Read,Write,Edit,Glob,Grep'],
+        stdin: newChangePrompt(sentence),
+        label: 'new change: ${sentence.trim()}',
+      );
+    });
+    return (err, id);
+  }
+
   int get nextTaskNumber => tasks.fold<int>(0, (n, t) => t.number > n ? t.number : n) + 1;
 
   /// Create a task file (Backlog.md format). Returns (error, new task id).

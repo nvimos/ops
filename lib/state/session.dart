@@ -24,6 +24,9 @@ class Session extends ChangeNotifier {
   /// Bumps when git state may have changed (hint from the backend); views re-query.
   final gitChanged = ValueNotifier<int>(0);
 
+  /// Jobs started through the backend (agents), by id; updated from `jobs` events.
+  final jobs = ValueNotifier<Map<int, Job>>({});
+
   /// Paths named by the last git hints (planning files for the Tasks mode).
   final changedPaths = ValueNotifier<Set<String>>({});
 
@@ -49,7 +52,7 @@ class Session extends ChangeNotifier {
     _notify();
     try {
       final b = await Backend.connect(_host, _port);
-      final snaps = await b.attach(['buffers', 'windows', 'git']);
+      final snaps = await b.attach(['buffers', 'windows', 'git', 'jobs']);
       backend = b;
       conn = Conn.connected;
       error = null;
@@ -87,6 +90,11 @@ class Session extends ChangeNotifier {
         if (ev.reason != 'win_closed') {
           cursor = Cursor(d);
           _notify();
+        }
+      case 'jobs':
+        if (ev.reason != 'snapshot') {
+          final j = Job(ev.data);
+          jobs.value = {...jobs.value, j.id: j};
         }
       case 'git':
         repo = RepoInfo(ev.data);
@@ -139,6 +147,7 @@ class Session extends ChangeNotifier {
     _drop();
     gitChanged.dispose();
     changedPaths.dispose();
+    jobs.dispose();
     super.dispose();
   }
 }
