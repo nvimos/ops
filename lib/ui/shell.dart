@@ -27,6 +27,12 @@ class _ShellState extends State<Shell> {
 
   /// The task whose branch the Pull request view is reviewing (its Verify list shows beside it).
   Task? _reviewing;
+  final _tasksKey = GlobalKey<TasksViewState>();
+
+  void _openTask(String id) {
+    setState(() => _mode = Mode.tasks);
+    _tasksKey.currentState?.openTask(id);
+  }
 
   @override
   void dispose() {
@@ -71,9 +77,10 @@ class _ShellState extends State<Shell> {
                               reviewing: _reviewing,
                               workspace: _ws,
                               onStopReview: () => setState(() => _reviewing = null),
+                              onOpenTask: _openTask,
                             ),
                             const ChangesView(),
-                            TasksView(ws: _ws!, onReview: _review),
+                            TasksView(key: _tasksKey, ws: _ws!, onReview: _review),
                           ],
                         ),
                 ),

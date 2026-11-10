@@ -21,7 +21,11 @@ void main() {
     final seen = DateTime(2026, 11, 1);
     final old = DateTime(2026, 10, 1), recent = DateTime(2026, 11, 9);
     ws.tasks = [
-      parseTask('backlog/tasks/task-1 - a.md', task(1, 'Needs Test', verify: ['- [ ] try', '- [x] done']), mtime: recent),
+      parseTask(
+        'backlog/tasks/task-1 - a.md',
+        task(1, 'Needs Test', verify: ['- [ ] try', '- [x] done']),
+        mtime: recent,
+      ),
       parseTask('backlog/tasks/task-2 - b.md', task(2, 'In Progress'), mtime: old),
       parseTask('backlog/tasks/task-3 - c.md', task(3, 'To Do'), mtime: old),
       parseTask('backlog/tasks/task-4 - d.md', task(4, 'Done'), mtime: old),
