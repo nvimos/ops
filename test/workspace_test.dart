@@ -66,9 +66,8 @@ void main() {
 
   test('edits: status in task, proposal and index.tsv; checkbox; priority; create; stale edit refused', () async {
     final repo = await planRepo();
-    await File('${repo.path}/index.tsv').writeAsString(
-      ['task\tstatus\tchange\ttitle\tfile', 'TASK-1\tTo Do\t1-first\tfirst\tx.md', ''].join('\n'),
-    );
+    await File('${repo.path}/index.tsv')
+        .writeAsString(['task\tstatus\tchange\ttitle\tfile', 'TASK-1\tTo Do\t1-first\tfirst\tx.md', ''].join('\n'));
     await git(repo, ['add', '.']);
     await git(repo, ['commit', '-q', '-m', 'index']);
     final nvim = await TestNvim.start(cwd: repo);
@@ -98,7 +97,8 @@ void main() {
 
     // Someone changes the file behind the app's back: the edit is refused, nothing is lost.
     final t2 = ws.task('TASK-2')!;
-    await File('${repo.path}/${t2.path}').writeAsString(read(t2.path).replaceFirst('status: In Progress', 'status: Done'));
+    await File('${repo.path}/${t2.path}')
+        .writeAsString(read(t2.path).replaceFirst('status: In Progress', 'status: Done'));
     final stale = await ws.setTaskStatus(t2, 'Needs Test');
     expect(stale, contains('changed since'));
     await until(() => ws.task('TASK-2')?.status == 'Done');
