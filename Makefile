@@ -4,8 +4,8 @@
 SHELL       := pwsh.exe
 .SHELLFLAGS := -NoProfile -NoLogo -Command
 
-FLUTTER_ROOT ?= H:/flutter
-export PUB_CACHE ?= H:/pub-cache
+FLUTTER_ROOT ?= C:/tools/flutter
+export PUB_CACHE ?= C:/tools/pub-cache
 FLUTTER := $(FLUTTER_ROOT)/bin/flutter.bat
 PORT    ?= 6666
 
@@ -27,8 +27,8 @@ build: ## build the release exe (build/windows/x64/runner/Release)
 
 ##@ test
 
-test: ## unit and integration tests (the RPC tests start a headless Neovim)
-	$(FLUTTER) test
+test: ## unit and integration tests (the RPC tests start a headless Neovim); 45 s per test
+	$(FLUTTER) test --timeout 45s
 
 analyze: ## static analysis
 	$(FLUTTER) analyze
