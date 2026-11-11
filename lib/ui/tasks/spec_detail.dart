@@ -16,6 +16,7 @@ class SpecDetail extends StatelessWidget {
     required this.requirement,
     required this.ws,
     required this.onClose,
+    this.widen,
     required this.onChange,
     required this.onOpen,
   });
@@ -24,6 +25,7 @@ class SpecDetail extends StatelessWidget {
   final Requirement requirement;
   final Workspace ws;
   final VoidCallback onClose;
+  final PanelWiden? widen;
   final void Function(Change c) onChange;
   final VoidCallback onOpen;
 
@@ -31,7 +33,7 @@ class SpecDetail extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      PanelHeader(kicker: 'spec ${spec.capability}', title: requirement.name, onClose: onClose),
+      PanelHeader(kicker: 'spec ${spec.capability}', title: requirement.name, onClose: onClose, widen: widen),
       Expanded(
         child: ListView(
           padding: const EdgeInsets.only(bottom: 30),

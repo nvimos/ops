@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/state/session.dart';
 import 'package:nvimos_poc/tasks/workspace.dart';
+import 'package:nvimos_poc/ui/tasks/tasks_nav.dart';
 import 'package:nvimos_poc/ui/tasks/tasks_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 
@@ -48,6 +49,24 @@ void main() {
     await tap('first');
     expect(find.text('TASK-1'), findsWidgets); // the detail panel's kicker
     expect(find.text('try it'), findsWidgets); // its Verify step
+
+    // Widen: the panel doubles over the list (the list keeps its width), and narrows again.
+    double panelWidth() => t.getSize(find.byType(DetailPanel)).width;
+    Future<void> settle() async {
+      await t.pump(const Duration(milliseconds: 300));
+      await t.pump(const Duration(milliseconds: 300));
+    }
+
+    await settle();
+    final normal = panelWidth();
+    final listWidth = t.getSize(find.byType(TaskListHeader)).width;
+    await t.tap(find.byIcon(Icons.open_in_full));
+    await settle();
+    expect(panelWidth(), closeTo(normal * 2, 1));
+    expect(t.getSize(find.byType(TaskListHeader)).width, listWidth);
+    await t.tap(find.byIcon(Icons.close_fullscreen));
+    await settle();
+    expect(panelWidth(), closeTo(normal, 1));
 
     // Keys: j moves to the next task, Esc closes the panel.
     key.currentState!.focus.requestFocus();

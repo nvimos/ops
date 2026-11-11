@@ -5,6 +5,30 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'rich.dart';
 
+/// Whether the detail panel is wide (over the list) and how to switch it.
+class PanelWiden {
+  const PanelWiden({required this.wide, required this.onToggle});
+
+  final bool wide;
+  final VoidCallback onToggle;
+}
+
+/// Makes the detail panel twice as wide, over the list, for long text; again narrows it.
+class WidenButton extends StatelessWidget {
+  const WidenButton(this.widen, {super.key});
+
+  final PanelWiden widen;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: widen.wide ? 'Narrow the panel' : 'Widen the panel over the list',
+    visualDensity: VisualDensity.compact,
+    iconSize: 18,
+    onPressed: widen.onToggle,
+    icon: Icon(widen.wide ? Icons.close_fullscreen : Icons.open_in_full, color: C.muted),
+  );
+}
+
 /// Shared pieces of the detail panels.
 class PanelHeader extends StatelessWidget {
   const PanelHeader({
@@ -13,12 +37,16 @@ class PanelHeader extends StatelessWidget {
     required this.title,
     required this.onClose,
     this.actions = const [],
+    this.widen,
   });
 
   final String kicker;
   final String title;
   final VoidCallback onClose;
   final List<Widget> actions;
+
+  /// The widen / narrow toggle, when the panel offers it.
+  final PanelWiden? widen;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +65,7 @@ class PanelHeader extends StatelessWidget {
                 ),
               ),
               ...actions,
+              if (widen != null) WidenButton(widen!),
               IconButton(
                 tooltip: 'Close (Esc)',
                 visualDensity: VisualDensity.compact,

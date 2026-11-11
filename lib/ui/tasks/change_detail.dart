@@ -77,7 +77,7 @@ class _ChangeDetailState extends State<ChangeDetail> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      PanelHeader(kicker: c.archived ? 'archived change' : 'change ${c.id}', title: c.title, onClose: widget.actions.close),
+      PanelHeader(kicker: c.archived ? 'archived change' : 'change ${c.id}', title: c.title, onClose: widget.actions.close, widen: widget.actions.widen),
       _ChangeProps(change: c, task: widget.ws.taskFor(c), onTask: widget.actions.openTask),
       _TabBar(tabs: ChangeTab.values.where((t) => t.shownFor(c)).toList(), selected: _tab, onSelect: _select),
       Expanded(child: _raw ? _RawView(_tab.docOf(c)) : _body()),
