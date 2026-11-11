@@ -9,17 +9,6 @@ import 'detail_parts.dart';
 import 'icons.dart';
 import 'rich.dart';
 
-/// Identifies a requirement of the living spec in the selection.
-class SpecKey {
-  const SpecKey(this.capability, this.requirement);
-  final String capability, requirement;
-  @override
-  bool operator ==(Object other) =>
-      other is SpecKey && other.capability == capability && other.requirement == requirement;
-  @override
-  int get hashCode => Object.hash(capability, requirement);
-}
-
 /// A requirement of the living spec, and every change that ever touched it.
 class SpecDetail extends StatelessWidget {
   const SpecDetail({

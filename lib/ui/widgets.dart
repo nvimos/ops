@@ -144,3 +144,17 @@ class Empty extends StatelessWidget {
     ),
   );
 }
+
+/// A small progress circle for "loading" and "running".
+class Spinner extends StatelessWidget {
+  const Spinner({super.key, this.size = 10});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: size,
+    child: const CircularProgressIndicator(strokeWidth: 1.5),
+  );
+}
