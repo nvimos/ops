@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../tasks/markdown.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'rich.dart';
@@ -186,3 +187,107 @@ class Progress extends StatelessWidget {
 Widget pillRow(List<Widget> children) => Wrap(spacing: 6, runSpacing: 4, children: children);
 
 Widget labelPill(String l) => Pill(l, color: C.muted);
+
+/// The panel header's "open the file in Neovim" button.
+class OpenInNeovimButton extends StatelessWidget {
+  const OpenInNeovimButton({super.key, required this.onTap, this.tip = 'Open the file in Neovim (o)'});
+
+  final VoidCallback onTap;
+  final String tip;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tip,
+    visualDensity: VisualDensity.compact,
+    iconSize: 17,
+    onPressed: onTap,
+    icon: const Icon(Icons.open_in_new, color: C.muted),
+  );
+}
+
+/// Accent text that acts like a link.
+class LinkText extends StatelessWidget {
+  const LinkText(this.text, {super.key, required this.onTap});
+
+  final String text;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: Text(text, style: const TextStyle(fontSize: 12, color: C.accent), overflow: TextOverflow.ellipsis),
+  );
+}
+
+/// A titled checklist with its progress; a click on an item toggles it.
+class ChecksSection extends StatelessWidget {
+  const ChecksSection({super.key, required this.title, required this.checks, required this.onCheck, this.onTask});
+
+  final String title;
+  final List<Check> checks;
+  final ValueChanged<Check> onCheck;
+  final ValueChanged<String>? onTask;
+
+  @override
+  Widget build(BuildContext context) => DetailSection(
+    title,
+    Column(
+      children: [
+        for (final c in checks)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 5),
+            child: CheckRow(c, onTap: () => onCheck(c), onTask: onTask),
+          ),
+      ],
+    ),
+    trailing: Progress(checks.where((c) => c.done).length, checks.length),
+  );
+}
+
+/// A value with its icon that opens a menu of the other values.
+class ChoiceMenu extends StatelessWidget {
+  const ChoiceMenu({
+    super.key,
+    required this.value,
+    required this.options,
+    required this.icon,
+    required this.label,
+    required this.tip,
+    required this.onPick,
+  });
+
+  final String value;
+  final List<String> options;
+  final Widget Function(String) icon;
+  final String Function(String) label;
+  final String tip;
+  final ValueChanged<String> onPick;
+
+  Widget _entry(String v, TextStyle style) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [icon(v), const SizedBox(width: 8), Text(label(v), style: style)],
+  );
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: tip,
+    color: C.surface2,
+    onSelected: onPick,
+    itemBuilder: (_) => [for (final v in options) PopupMenuItem(value: v, height: 32, child: _entry(v, T.body))],
+    child: _entry(value, T.body),
+  );
+}
+
+/// The bar of buttons at the bottom of a detail panel.
+class PanelFooter extends StatelessWidget {
+  const PanelFooter({super.key, required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+    decoration: const BoxDecoration(border: Border(top: BorderSide(color: C.border))),
+    child: Row(children: children),
+  );
+}

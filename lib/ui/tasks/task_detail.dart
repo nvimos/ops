@@ -22,8 +22,65 @@ abstract class TaskActions {
   Future<void> linkBranch(Task t, String? branch);
 }
 
+String priorityLabel(String p) => p.isEmpty ? 'No priority' : p[0].toUpperCase() + p.substring(1);
+
+/// A Backlog.md task: properties, then its sections, checklists and original notes.
 class TaskDetail extends StatelessWidget {
   const TaskDetail({super.key, required this.task, required this.ws, required this.actions});
+
+  final Task task;
+  final Workspace ws;
+  final TaskActions actions;
+
+  void _check(Check c) => actions.toggleCheck(task.path, c);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = task;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PanelHeader(
+          kicker: t.id,
+          title: t.title,
+          onClose: actions.close,
+          actions: [OpenInNeovimButton(onTap: () => actions.openInNeovim(t.path, 1))],
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.only(bottom: 30),
+            children: [
+              _TaskProps(task: t, ws: ws, actions: actions),
+              const Divider(height: 1),
+              ..._sections(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _sections() {
+    final t = task;
+    return [
+      if (t.description.isNotEmpty)
+        DetailSection('Description', Blocks(t.description, onTask: actions.openTask, onCheck: _check)),
+      for (final (title, checks) in [
+        ('Acceptance criteria', t.acceptance),
+        ('Verify', t.verify),
+        ('Definition of done', t.definitionOfDone),
+      ])
+        if (checks.isNotEmpty) ChecksSection(title: title, checks: checks, onCheck: _check, onTask: actions.openTask),
+      for (final s in t.otherSections)
+        DetailSection(s.title, Blocks(blocksIn(t.lines, s.start + 1, s.end), onTask: actions.openTask, onCheck: _check)),
+      if (t.originalNotes.isNotEmpty) _OriginalNotes(t.originalNotes),
+    ];
+  }
+}
+
+/// The properties block: status, priority, labels, links, branch, dates, file.
+class _TaskProps extends StatelessWidget {
+  const _TaskProps({required this.task, required this.ws, required this.actions});
 
   final Task task;
   final Workspace ws;
@@ -33,183 +90,113 @@ class TaskDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = task;
     final change = ws.changeFor(t);
-    final branch = ws.branchFor(t);
-    void onCheck(Check c) => actions.toggleCheck(t.path, c);
-    final ac = t.acceptance, verify = t.verify, dod = t.definitionOfDone;
-    final notes = t.originalNotes;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+      child: Column(
+        children: [
+          Prop('Status', _statusMenu()),
+          Prop('Priority', _priorityMenu()),
+          if (t.labels.isNotEmpty) Prop('Labels', pillRow(t.labels.map(labelPill).toList())),
+          if (change != null)
+            Prop('Change', LinkChip(icon: Icons.description_outlined, label: change.title, onTap: () => actions.openChange(change))),
+          if (t.dependencies.isNotEmpty) Prop('Blocked by', _dependencies()),
+          Prop('Branch', _BranchProp(task: t, ws: ws, actions: actions)),
+          if (t.created.isNotEmpty) Prop('Created', Text(t.created, style: T.small)),
+          Prop('File', LinkText(t.path, onTap: () => actions.openInNeovim(t.path, 1))),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusMenu() => ChoiceMenu(
+    value: task.status,
+    options: ws.statuses,
+    icon: StatusIcon.new,
+    label: (s) => s,
+    tip: 'Status (S)',
+    onPick: (s) => actions.setStatus(task, s),
+  );
+
+  Widget _priorityMenu() => ChoiceMenu(
+    value: task.priority,
+    options: priorities,
+    icon: PriorityIcon.new,
+    label: priorityLabel,
+    tip: 'Priority (P)',
+    onPick: (p) => actions.setPriority(task, p),
+  );
+
+  Widget _dependencies() => pillRow([
+    for (final d in task.dependencies) LinkChip(icon: Icons.link, label: d, onTap: () => actions.openTask(d)),
+  ]);
+}
+
+/// The task's branch with Review, commits ahead and Unlink; or a menu to link one.
+class _BranchProp extends StatelessWidget {
+  const _BranchProp({required this.task, required this.ws, required this.actions});
+
+  final Task task;
+  final Workspace ws;
+  final TaskActions actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final branch = ws.branchFor(task);
+    if (branch == null) return _LinkBranchMenu(branches: _candidates(), onPick: (b) => actions.linkBranch(task, b));
+    final ahead = ws.ahead[branch] ?? 0;
+    return Row(
       children: [
-        PanelHeader(
-          kicker: t.id,
-          title: t.title,
-          onClose: actions.close,
-          actions: [
-            Tooltip(
-              message: 'Open the task file in Neovim',
-              child: IconButton(
-                visualDensity: VisualDensity.compact,
-                iconSize: 17,
-                onPressed: () => actions.openInNeovim(t.path, 1),
-                icon: const Icon(Icons.open_in_new, color: C.muted),
-              ),
-            ),
-          ],
-        ),
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 30),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
-                child: Column(
-                  children: [
-                    Prop(
-                      'Status',
-                      _StatusMenu(value: t.status, options: ws.statuses, onPick: (s) => actions.setStatus(t, s)),
-                    ),
-                    Prop('Priority', _PriorityMenu(value: t.priority, onPick: (p) => actions.setPriority(t, p))),
-                    if (t.labels.isNotEmpty) Prop('Labels', pillRow(t.labels.map(labelPill).toList())),
-                    if (change != null)
-                      Prop(
-                        'Change',
-                        LinkChip(
-                          icon: Icons.description_outlined,
-                          label: change.title,
-                          onTap: () => actions.openChange(change),
-                        ),
-                      ),
-                    if (t.dependencies.isNotEmpty)
-                      Prop(
-                        'Blocked by',
-                        pillRow([
-                          for (final d in t.dependencies)
-                            LinkChip(icon: Icons.link, label: d, onTap: () => actions.openTask(d)),
-                        ]),
-                      ),
-                    Prop(
-                      'Branch',
-                      branch == null
-                          ? PopupMenuButton<String>(
-                              tooltip: 'Link a branch',
-                              color: C.surface2,
-                              onSelected: (b) => actions.linkBranch(t, b),
-                              itemBuilder: (_) => [
-                                for (final b in ws.branches?.list ?? [])
-                                  if (b.name != ws.defaultBranch)
-                                    PopupMenuItem(
-                                      value: b.name,
-                                      height: 32,
-                                      child: Text(b.name, style: T.body),
-                                    ),
-                              ],
-                              child: const Text('Link a branch…', style: TextStyle(fontSize: 12, color: C.accent)),
-                            )
-                          : Row(
-                              children: [
-                                Expanded(
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: LinkChip(
-                                      icon: Icons.call_split,
-                                      label: branch,
-                                      onTap: () => actions.review(t, branch),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                if ((ws.ahead[branch] ?? 0) > 0)
-                                  Text(
-                                    '${ws.ahead[branch]} commit${ws.ahead[branch] == 1 ? '' : 's'} ahead',
-                                    style: T.tiny,
-                                  ),
-                                if (ws.links[t.id] == branch)
-                                  IconButton(
-                                    tooltip: 'Unlink',
-                                    visualDensity: VisualDensity.compact,
-                                    iconSize: 14,
-                                    onPressed: () => actions.linkBranch(t, null),
-                                    icon: const Icon(Icons.link_off, color: C.muted),
-                                  ),
-                                const SizedBox(width: 8),
-                                SmallButton(
-                                  'Review',
-                                  icon: Icons.merge_type,
-                                  primary: true,
-                                  onPressed: () => actions.review(t, branch),
-                                ),
-                              ],
-                            ),
-                    ),
-                    if (t.created.isNotEmpty) Prop('Created', Text(t.created, style: T.small)),
-                    Prop(
-                      'File',
-                      InkWell(
-                        onTap: () => actions.openInNeovim(t.path, 1),
-                        child: Text(
-                          t.path,
-                          style: const TextStyle(fontSize: 12, color: C.accent),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              if (t.description.isNotEmpty)
-                DetailSection('Description', Blocks(t.description, onTask: actions.openTask, onCheck: onCheck)),
-              if (ac.isNotEmpty)
-                DetailSection(
-                  'Acceptance criteria',
-                  _Checks(ac, onCheck, actions.openTask),
-                  trailing: Progress(ac.where((c) => c.done).length, ac.length),
-                ),
-              if (verify.isNotEmpty)
-                DetailSection(
-                  'Verify',
-                  _Checks(verify, onCheck, actions.openTask),
-                  trailing: Progress(verify.where((c) => c.done).length, verify.length),
-                ),
-              if (dod.isNotEmpty)
-                DetailSection(
-                  'Definition of done',
-                  _Checks(dod, onCheck, actions.openTask),
-                  trailing: Progress(dod.where((c) => c.done).length, dod.length),
-                ),
-              for (final s in t.otherSections)
-                DetailSection(
-                  s.title,
-                  Blocks(blocksIn(t.lines, s.start + 1, s.end), onTask: actions.openTask, onCheck: onCheck),
-                ),
-              if (notes.isNotEmpty) _OriginalNotes(notes),
-            ],
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: LinkChip(icon: Icons.call_split, label: branch, onTap: () => actions.review(task, branch)),
           ),
         ),
+        if (ahead > 0) Text('  $ahead commit${ahead == 1 ? '' : 's'} ahead', style: T.tiny),
+        if (ws.links[task.id] == branch) _UnlinkButton(onTap: () => actions.linkBranch(task, null)),
+        const SizedBox(width: 8),
+        SmallButton('Review', icon: Icons.merge_type, primary: true, onPressed: () => actions.review(task, branch)),
       ],
     );
   }
+
+  List<String> _candidates() => [
+    for (final b in ws.branches?.list ?? []) if (b.name != ws.defaultBranch) b.name,
+  ];
 }
 
-class _Checks extends StatelessWidget {
-  const _Checks(this.checks, this.onCheck, this.onTask);
+class _LinkBranchMenu extends StatelessWidget {
+  const _LinkBranchMenu({required this.branches, required this.onPick});
 
-  final List<Check> checks;
-  final void Function(Check) onCheck;
-  final void Function(String) onTask;
+  final List<String> branches;
+  final ValueChanged<String> onPick;
 
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      for (final c in checks)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: CheckRow(c, onTap: () => onCheck(c), onTask: onTask),
-        ),
-    ],
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: 'Link a branch',
+    color: C.surface2,
+    onSelected: onPick,
+    itemBuilder: (_) => [for (final b in branches) PopupMenuItem(value: b, height: 32, child: Text(b, style: T.body))],
+    child: const Text('Link a branch…', style: TextStyle(fontSize: 12, color: C.accent)),
   );
 }
 
+class _UnlinkButton extends StatelessWidget {
+  const _UnlinkButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Unlink',
+    visualDensity: VisualDensity.compact,
+    iconSize: 14,
+    onPressed: onTap,
+    icon: const Icon(Icons.link_off, color: C.muted),
+  );
+}
+
+/// The notes the task was promoted from, folded until asked for.
 class _OriginalNotes extends StatefulWidget {
   const _OriginalNotes(this.lines);
 
@@ -222,103 +209,26 @@ class _OriginalNotes extends StatefulWidget {
 class _OriginalNotesState extends State<_OriginalNotes> {
   bool _open = false;
 
+  void _toggle() => setState(() => _open = !_open);
+
   @override
-  Widget build(BuildContext context) {
-    return DetailSection(
-      'Original notes',
-      _open
-          ? Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: C.surface2, borderRadius: BorderRadius.circular(5)),
-              child: SelectableText(widget.lines.join('\n'), style: T.code.copyWith(fontSize: 12, color: C.muted)),
-            )
-          : const SizedBox.shrink(),
-      trailing: InkWell(
-        onTap: () => setState(() => _open = !_open),
-        child: Text(
-          _open ? 'hide' : 'show ${widget.lines.length} lines',
-          style: const TextStyle(fontSize: 12, color: C.accent),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => DetailSection(
+    'Original notes',
+    _open ? _NotesBox(widget.lines) : const SizedBox.shrink(),
+    trailing: LinkText(_open ? 'hide' : 'show ${widget.lines.length} lines', onTap: _toggle),
+  );
 }
 
-class _StatusMenu extends StatelessWidget {
-  const _StatusMenu({required this.value, required this.options, required this.onPick});
+class _NotesBox extends StatelessWidget {
+  const _NotesBox(this.lines);
 
-  final String value;
-  final List<String> options;
-  final ValueChanged<String> onPick;
+  final List<String> lines;
 
   @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      tooltip: 'Status (S)',
-      color: C.surface2,
-      onSelected: onPick,
-      itemBuilder: (_) => [
-        for (final s in options)
-          PopupMenuItem(
-            value: s,
-            height: 32,
-            child: Row(
-              children: [
-                StatusIcon(s),
-                const SizedBox(width: 8),
-                Text(s, style: T.body),
-              ],
-            ),
-          ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          StatusIcon(value),
-          const SizedBox(width: 8),
-          Text(value, style: T.body),
-        ],
-      ),
-    );
-  }
-}
-
-class _PriorityMenu extends StatelessWidget {
-  const _PriorityMenu({required this.value, required this.onPick});
-
-  final String value;
-  final ValueChanged<String> onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    String label(String p) => p.isEmpty ? 'No priority' : p[0].toUpperCase() + p.substring(1);
-    return PopupMenuButton<String>(
-      tooltip: 'Priority (P)',
-      color: C.surface2,
-      onSelected: onPick,
-      itemBuilder: (_) => [
-        for (final p in priorities)
-          PopupMenuItem(
-            value: p,
-            height: 32,
-            child: Row(
-              children: [
-                PriorityIcon(p),
-                const SizedBox(width: 8),
-                Text(label(p), style: T.body),
-              ],
-            ),
-          ),
-      ],
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          PriorityIcon(value),
-          const SizedBox(width: 8),
-          Text(label(value), style: value.isEmpty ? T.small : T.body),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: C.surface2, borderRadius: BorderRadius.circular(5)),
+    child: SelectableText(lines.join('\n'), style: T.code.copyWith(fontSize: 12, color: C.muted)),
+  );
 }
