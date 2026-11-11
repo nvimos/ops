@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../rpc/client.dart';
+import '../timing/ui_timing.dart';
 import 'models.dart';
 
 /// An event from the backend plugin, in seq order per domain. A resync shows up as reason
@@ -54,8 +55,9 @@ class Backend {
   Stream<NvimEvent> get events => _events.stream;
   Future<void> get done => rpc.done;
 
+  /// Every backend call goes through here, so each one is timed as `rpc <module>.<fn>`.
   Future<Object?> _lua(String module, String fn, [List<Object?> args = const []]) =>
-      rpc.lua("return require('$module').$fn(...)", args);
+      UiTiming.instance.time('rpc $module.$fn', () => rpc.lua("return require('$module').$fn(...)", args));
 
   /// Subscribe; returns each domain's snapshot. Events after it arrive on [events].
   Future<Map<String, Map<String, Object?>>> attach(List<String> domains) async {

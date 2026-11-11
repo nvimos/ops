@@ -9,6 +9,7 @@ import 'edits.dart';
 import 'markdown.dart';
 import 'model.dart';
 import 'parse.dart';
+import '../timing/ui_timing.dart';
 
 /// Every planning file of the repo, parsed and linked. Files are read through Neovim (the backend's
 /// files.*), so unsaved edits in Neovim show up too. Reloads on git hints for the planning dirs.
@@ -43,6 +44,20 @@ class Workspace extends ChangeNotifier {
   Map<String, List<String>> _files = {};
   Map<String, DateTime> _mtimes = {};
 
+  /// Parsed models per file (changes per folder), so an edit re-parses only its own file.
+  final _taskOf = <String, Task>{};
+  final _specOf = <String, Spec>{};
+  final _legacyOf = <String, List<LegacyItem>>{};
+  final _changeOf = <String, Change?>{};
+
+  /// Edits made so far, and the edit count when each path was last edited: a load that started
+  /// before an edit keeps the edited text instead of the older one it read.
+  int _edits = 0;
+  final _editedAt = <String, int>{};
+
+  /// Our own writes, by path, and when: the git hint they cause doesn't need a reload.
+  final _ownWrites = <String, DateTime>{};
+
   /// Raw lines of a loaded planning file (or null).
   List<String>? file(String path) => _files[path];
 
@@ -52,9 +67,17 @@ class Workspace extends ChangeNotifier {
     final paths = session.changedPaths.value;
     final relevant =
         !loaded || paths.isEmpty || paths.any((p) => dirs.any((d) => p.startsWith('$d/') || p.contains('/$d/')));
-    if (!relevant) return;
+    if (!relevant || (loaded && paths.isNotEmpty && paths.every(_isOwnWrite))) return;
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 200), load);
+  }
+
+  /// A path the app itself wrote in the last few seconds (the hint may name it absolute).
+  bool _isOwnWrite(String p) {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: 3));
+    _ownWrites.removeWhere((_, t) => t.isBefore(cutoff));
+    final rel = p.replaceAll(r'\', '/');
+    return _ownWrites.keys.any((w) => rel == w || rel.endsWith('/$w'));
   }
 
   /// Reload everything. A call while a load runs queues one more load after it, so a stream of
@@ -66,7 +89,9 @@ class Workspace extends ChangeNotifier {
       _again = true;
       return;
     }
+    final span = UiTiming.instance.span('tasks.load');
     final gen = ++_gen;
+    final edits = _edits;
     loading = true;
     _notify();
     try {
@@ -74,11 +99,17 @@ class Workspace extends ChangeNotifier {
       final wanted = entries.where((e) => e.path.endsWith('.md') || e.path.endsWith('.yml')).toList();
       final texts = await b.readFiles([...wanted.map((e) => e.path), 'milestones.md', 'index.tsv']);
       if (gen != _gen) return;
-      _mtimes = {for (final e in entries) e.path: e.mtime};
-      _files = {
+      final fresh = {
         for (final t in texts)
           if (t.exists) t.path: t.lines,
       };
+      // Edited while this load ran: the edit is newer than what was read.
+      for (final MapEntry(key: p, value: at) in _editedAt.entries) {
+        if (at > edits && _files[p] != null) fresh[p] = _files[p]!;
+      }
+      _mtimes = {for (final e in entries) e.path: e.mtime};
+      _invalidate(fresh);
+      _files = fresh;
       _rebuild();
       branches = await b.branches();
       await _countAhead();
@@ -89,6 +120,7 @@ class Workspace extends ChangeNotifier {
       if (gen == _gen) error = '$e';
     } finally {
       if (gen == _gen) {
+        span.end();
         loading = false;
         _notify();
         if (_again) {
@@ -99,8 +131,46 @@ class Workspace extends ChangeNotifier {
     }
   }
 
-  /// Parse every model from the file contents in memory.
-  void _rebuild() {
+  /// Drop the parsed models of files whose text differs in [next], or that are gone.
+  void _invalidate(Map<String, List<String>> next) {
+    for (final p in {..._files.keys, ...next.keys}) {
+      final a = _files[p], b = next[p];
+      if (a == null || b == null || (!identical(a, b) && !listEquals(a, b))) _forget(p);
+    }
+  }
+
+  void _forget(String path) {
+    _taskOf.remove(path);
+    _specOf.remove(path);
+    _legacyOf.remove(path);
+    final dir = _changeDir(path);
+    if (dir != null) _changeOf.remove(dir);
+  }
+
+  static final _taskRe = RegExp(r'^backlog/(archive/)?tasks/task-');
+  static final _specRe = RegExp(r'^openspec/specs/([^/]+)/spec\.md$');
+  static final _changeRe = RegExp(r'^(openspec/changes/(?:archive/)?[^/]+)/');
+
+  /// The change folder a path belongs to (`openspec/changes/<id>` or `.../archive/<dated-id>`).
+  static String? _changeDir(String path) {
+    final d = _changeRe.firstMatch(path)?.group(1);
+    return d == 'openspec/changes/archive' ? null : d;
+  }
+
+  /// Forget the models of files that are gone.
+  void _prune(Map<String, List<String>> files) {
+    _taskOf.removeWhere((p, _) => !files.containsKey(p));
+    _specOf.removeWhere((p, _) => !files.containsKey(p));
+    _legacyOf.removeWhere((p, _) => !files.containsKey(p));
+    final dirs = {for (final p in files.keys) ?_changeDir(p)};
+    _changeOf.removeWhere((d, _) => !dirs.contains(d));
+  }
+
+  /// Build the models from the file contents in memory. Only files without a parsed model (new or
+  /// changed) are parsed again, so an edit costs one file, not the whole repo.
+  void _rebuild() => UiTiming.instance.sync('tasks.rebuild', _parseAll);
+
+  void _parseAll() {
     final files = _files;
     final cfg = files['backlog/config.yml'];
     if (cfg != null) {
@@ -108,21 +178,26 @@ class Workspace extends ChangeNotifier {
       statuses = st;
       projectName = name;
     }
-    tasks = [
-      for (final e in files.entries)
-        if (RegExp(r'^backlog/(archive/)?tasks/task-').hasMatch(e.key))
-          parseTask(e.key, e.value, mtime: _mtimes[e.key]),
-    ]..sort((a, b) => a.number.compareTo(b.number));
-    changes = parseChanges(files, _mtimes)..sort((a, b) => _num(a.id).compareTo(_num(b.id)));
-    specs = [
-      for (final e in files.entries)
-        if (RegExp(r'^openspec/specs/([^/]+)/spec\.md$').hasMatch(e.key))
-          parseSpec(e.key.split('/')[2], Doc(e.key, e.value)),
-    ]..sort((a, b) => a.capability.compareTo(b.capability));
-    legacy = [
-      for (final e in files.entries)
-        if (e.key.startsWith('legacy/') && e.key.endsWith('.md')) ...parseLegacy(e.key.substring(7), e.value),
-    ];
+    final changeFiles = <String, Map<String, List<String>>>{};
+    for (final MapEntry(key: p, value: lines) in files.entries) {
+      if (_taskRe.hasMatch(p)) {
+        _taskOf[p] ??= parseTask(p, lines, mtime: _mtimes[p]);
+      } else if (_specRe.hasMatch(p)) {
+        _specOf[p] ??= parseSpec(p.split('/')[2], Doc(p, lines));
+      } else if (p.startsWith('legacy/') && p.endsWith('.md')) {
+        _legacyOf[p] ??= parseLegacy(p.substring(7), lines);
+      } else if (_changeDir(p) case final dir? when !_changeOf.containsKey(dir)) {
+        changeFiles.putIfAbsent(dir, () => {})[p] = lines;
+      }
+    }
+    for (final MapEntry(key: dir, value: fs) in changeFiles.entries) {
+      _changeOf[dir] = parseChanges(fs, _mtimes).firstOrNull;
+    }
+    _prune(files);
+    tasks = _sortedBy(_taskOf.values, (t) => t.number);
+    changes = _sortedBy([for (final c in _changeOf.values) ?c], (c) => _num(c.id));
+    specs = _specOf.values.toList()..sort((a, b) => a.capability.compareTo(b.capability));
+    legacy = [for (final p in files.keys) ...?_legacyOf[p]];
     final ms = files['milestones.md'];
     milestonesFromFile = ms != null;
     milestones = ms != null ? parseMilestones(ms) : monthlyMilestones(changes);
@@ -135,11 +210,20 @@ class Workspace extends ChangeNotifier {
   Future<String?> edit(String path, List<LineEdit> edits) async {
     final lines = _files[path];
     if (lines == null) return '$path is not loaded';
+    final span = UiTiming.instance.span('tasks.edit');
     _files[path] = applyEdits(lines, edits);
+    _editedAt[path] = ++_edits;
+    _ownWrites[path] = DateTime.now();
+    _forget(path);
     _rebuild();
     _notify();
+    span.mark('optimistic');
+    span.markPainted();
     final err = await session.run((b) => b.setLines(path, edits));
+    _ownWrites[path] = DateTime.now(); // its git hint comes after the write
+    span.mark('saved');
     if (err != null) await load();
+    span.end();
     return err;
   }
 
@@ -269,10 +353,17 @@ class Workspace extends ChangeNotifier {
     final err = await session.run((b) => b.create(path, lines));
     if (err == null) {
       _files[path] = lines;
+      _forget(path);
       _rebuild();
       _notify();
     }
     return (err, 'TASK-$n');
+  }
+
+  /// Sort by a key computed once per item (task numbers come from parsing the front matter).
+  static List<T> _sortedBy<T>(Iterable<T> items, int Function(T) key) {
+    final keyed = [for (final x in items) (key(x), x)]..sort((a, b) => a.$1.compareTo(b.$1));
+    return [for (final k in keyed) k.$2];
   }
 
   static int _num(String id) => int.tryParse(RegExp(r'^\d+').firstMatch(id)?.group(0) ?? '') ?? 1 << 30;

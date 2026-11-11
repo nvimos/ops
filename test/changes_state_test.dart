@@ -26,7 +26,7 @@ void main() {
     expect(st.selected, 'a.txt');
     expect(st.diff!.hunks.length, 2);
 
-    expect(await st.act((b) => b.stageHunk('a.txt', st.diff!.hunks.first)), isNull);
+    expect(await st.act('stageHunk', (b) => b.stageHunk('a.txt', st.diff!.hunks.first)), isNull);
     await until(() => st.staged.length == 1 && st.unstaged.length == 1);
 
     expect(await st.commit('first hunk'), isNull);
@@ -67,8 +67,18 @@ void main() {
     await until(() => st.staged.length == 2 && st.unstaged.isEmpty);
     expect(fileKind(st.staged.firstWhere((f) => f.path == 'c.txt'), staged: true), 'added');
 
-    expect(await st.moveFile('c.txt', staged: true), isNull);
-    await until(() => st.staged.length == 1);
+    // Optimistic: the file is on the other side before git answers, and stays there.
+    final unstaging = st.moveFile('c.txt', staged: true);
+    expect(st.staged.length, 1);
+    expect(fileKind(st.unstaged.single, staged: false), 'untracked');
+    expect(await unstaging, isNull);
+    expect(st.staged.length, 1);
+
+    // A failed stage puts the file back once git has answered.
+    final failing = st.act('stage', (b) => b.stage('no/such/file'), optimistic: () => st.status = st.status!.withFiles([]));
+    expect(st.unstaged, isEmpty);
+    expect(await failing, isNotNull);
+    expect(st.unstaged.single.path, 'c.txt');
 
     st.select('a.txt', staged: true);
     await until(() => st.diff != null && st.selectedStaged);
