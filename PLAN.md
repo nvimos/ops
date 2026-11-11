@@ -192,11 +192,12 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `models.dart`: typed views of the plugin's maps (cursor, branches, commits, diffs, status, jobs)
 
 - `state/`: `ChangeNotifier`s, no framework
-  - `session.dart`: the connection, retries, and the live state every view shares:
+  - `session.dart`: the connection, Start Neovim, and the live state every view shares:
     current window and cursor, repo info, jobs, git change hints
   - `pr.dart`: Pull request state: branches, base and head, commits, the diff
   - `changes.dart`: Changes state: working tree status, the selected file's diff, actions
   - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json`
+  - `nvim_launcher.dart`: finds the backend checkout and starts Neovim in its own console
   - a git hint from the backend makes each state re-query what it shows
 
 - `tasks/`: the Tasks mode's data, pure Dart
@@ -226,14 +227,20 @@ Description of the UI.
   - shown in place of the current mode whenever the app is not connected, at startup and after Neovim goes away
   - the mode rail on the left and the status bar stay visible
   - the address comes from the first command-line argument, else `NVIMOS_ADDR`, else `127.0.0.1:6666`
-  - the app connects on startup without waiting for a click
-  - an address field with a Connect button; Enter in the field also connects
+  - the app tries to connect once on startup without waiting for a click
+  - an address field with a Retry button; Enter in the field also connects
   - a new address drops the current connection and connects there
   - while connecting, the button reads "Connecting…" and is disabled
   - a failed attempt shows a short reason under the field:
     "no Neovim listening on <address>", "the nvimos plugin is not loaded in this Neovim"
     or a backend API version mismatch
-  - after a failure or a lost connection the app retries every 2 seconds, forever
+  - after a failure or a lost connection the app does not retry by itself; Retry tries once more
+  - a Start Neovim button starts `nvim` in its own console window
+    - listening on the address, with the backend plugin loaded after the config, like `make nvim`
+    - the plugin checkout is `NVIMOS_BACKEND`, else `nvimos-poc-backend` next to a parent folder
+      of the working directory or of the exe
+    - the button reads "Starting Neovim…" while the app waits up to about 10 s for it to listen
+    - "nvim is not on PATH" or a missing plugin checkout show under the field
   - a lost connection shows "Neovim went away" and returns to this view
   - a box with the ways to start the backend, selectable for copying:
     `nvim --listen 127.0.0.1:6666`, `:NvimosServe` in a running Neovim,

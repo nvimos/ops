@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../rpc/client.dart';
+import 'nvim_launcher.dart';
 
 enum Conn { disconnected, connecting, connected }
 
@@ -17,6 +18,9 @@ class Session extends ChangeNotifier {
   int _port;
   Conn conn = Conn.disconnected;
   String? error;
+
+  /// True while [startNeovim] launches Neovim and waits for it to listen.
+  bool starting = false;
   Backend? backend;
   Cursor? cursor;
   RepoInfo? repo;
@@ -31,12 +35,11 @@ class Session extends ChangeNotifier {
   final changedPaths = ValueNotifier<Set<String>>({});
 
   StreamSubscription<NvimEvent>? _sub;
-  Timer? _retry;
   bool _disposed = false;
 
   String get address => '$_host:$_port';
 
-  /// Connect now, and keep retrying every 2 s while not connected.
+  /// Try to connect once; on failure [error] says why and the user retries.
   Future<void> connect({String? address}) async {
     if (address != null) {
       final i = address.lastIndexOf(':');
@@ -47,7 +50,6 @@ class Session extends ChangeNotifier {
       await _drop();
     }
     if (conn != Conn.disconnected) return;
-    _retry?.cancel();
     conn = Conn.connecting;
     _notify();
     try {
@@ -64,7 +66,6 @@ class Session extends ChangeNotifier {
     } catch (e) {
       conn = Conn.disconnected;
       error = e is NvimError ? e.short : _shortError(e);
-      _scheduleRetry();
     }
     _notify();
   }
@@ -77,10 +78,21 @@ class Session extends ChangeNotifier {
     return s;
   }
 
-  void _scheduleRetry() {
-    _retry?.cancel();
-    if (_disposed) return;
-    _retry = Timer(const Duration(seconds: 2), () => connect());
+  /// Start Neovim on [address] with the backend plugin, then connect once it listens
+  /// (up to about 10 s).
+  Future<void> startNeovim() async {
+    if (conn != Conn.disconnected || starting) return;
+    starting = true;
+    error = null;
+    _notify();
+    final failed = await launchNeovim(address);
+    if (failed != null) error = failed;
+    for (var i = 0; failed == null && i < 20 && conn != Conn.connected && !_disposed; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await connect();
+    }
+    starting = false;
+    _notify();
   }
 
   void _onEvent(NvimEvent ev) {
@@ -109,7 +121,6 @@ class Session extends ChangeNotifier {
     await _drop();
     error = 'Neovim went away';
     _notify();
-    _scheduleRetry();
   }
 
   Future<void> _drop() async {
@@ -148,7 +159,6 @@ class Session extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _retry?.cancel();
     _drop();
     gitChanged.dispose();
     changedPaths.dispose();

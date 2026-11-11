@@ -4,7 +4,7 @@ import '../state/session.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-/// Shown while not connected: address, Connect, and how to start Neovim.
+/// Shown while not connected: address, Retry, Start Neovim, and how to start it by hand.
 class ConnectScreen extends StatefulWidget {
   const ConnectScreen({super.key});
 
@@ -35,6 +35,13 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   void _connect() => SessionScope.read(context).connect(address: _addr.text.trim());
 
+  Future<void> _startNeovim() async {
+    final s = SessionScope.read(context);
+    final addr = _addr.text.trim();
+    if (addr != s.address) await s.connect(address: addr);
+    await s.startNeovim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
@@ -47,9 +54,11 @@ class _ConnectScreenState extends State<ConnectScreen> {
           children: [
             const Text('Connect to Neovim', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
-            const Text('Start Neovim with the nvimos plugin listening, then connect. The app retries every 2 seconds.', style: T.small),
+            const Text('Start Neovim with the nvimos plugin listening, then retry.', style: T.small),
             const SizedBox(height: 16),
-            AddressRow(controller: _addr, busy: s.conn == Conn.connecting, onConnect: _connect),
+            AddressRow(controller: _addr, busy: s.conn == Conn.connecting || s.starting, onConnect: _connect),
+            const SizedBox(height: 8),
+            StartButton(starting: s.starting, enabled: s.conn == Conn.disconnected, onStart: _startNeovim),
             if (s.error != null) ConnectError(s.error!),
             const SizedBox(height: 20),
             const CodeBox(_howTo),
@@ -60,7 +69,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
   }
 }
 
-/// The address field and the Connect button; Enter in the field connects too.
+/// The address field and the Retry button; Enter in the field connects too.
 class AddressRow extends StatelessWidget {
   const AddressRow({super.key, required this.controller, required this.busy, required this.onConnect});
 
@@ -73,8 +82,26 @@ class AddressRow extends StatelessWidget {
     children: [
       Expanded(child: TextField(controller: controller, style: T.body, onSubmitted: (_) => onConnect())),
       const SizedBox(width: 8),
-      SmallButton(busy ? 'Connecting…' : 'Connect', primary: true, onPressed: busy ? null : onConnect),
+      SmallButton(busy ? 'Connecting…' : 'Retry', primary: true, onPressed: busy ? null : onConnect),
     ],
+  );
+}
+
+/// Starts Neovim on the address with the backend plugin, then connects.
+class StartButton extends StatelessWidget {
+  const StartButton({super.key, required this.starting, required this.enabled, required this.onStart});
+
+  final bool starting, enabled;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) => Align(
+    alignment: Alignment.centerLeft,
+    child: SmallButton(
+      starting ? 'Starting Neovim…' : 'Start Neovim',
+      icon: Icons.play_arrow,
+      onPressed: starting || !enabled ? null : onStart,
+    ),
   );
 }
 
