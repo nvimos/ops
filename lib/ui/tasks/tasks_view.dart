@@ -199,8 +199,11 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   @override
   void close() => browser.close();
 
+  /// a: this project's tasks / every project's in the shared planning folder.
+  void toggleProjectOnly() => ws.setProjectOnly(!ws.projectOnly);
+
   @override
-  void openInNeovim(String path, int line) => session.run((b) => b.open(path, line)).then(_snack);
+  void openInNeovim(String path, int line) => session.run((b) => b.open(ws.absolute(path), line)).then(_snack);
 
   @override
   Future<void> setStatus(Task t, String status) async => _snack(await ws.setTaskStatus(t, status));
@@ -279,6 +282,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       LogicalKeyboardKey.keyC => createTask,
       LogicalKeyboardKey.keyS => cycleStatus,
       LogicalKeyboardKey.keyP => cyclePriority,
+      LogicalKeyboardKey.keyA when ws.project != null => toggleProjectOnly,
       _ => null,
     };
     if (action != null) {
@@ -333,6 +337,12 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Widget _nav() => TasksNav(
     browser: browser,
     projectName: ws.projectName,
+    scope: ScopeInfo(
+      source: ws.tracking?.elsewhere == true ? ws.tracking!.name : null,
+      project: ws.project,
+      projectOnly: ws.projectOnly,
+      onToggle: toggleProjectOnly,
+    ),
     loading: ws.loading,
     jobs: session.jobs.value.values.where((j) => j.running).toList(),
     onCancelJob: _cancelJob,

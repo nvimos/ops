@@ -168,6 +168,21 @@ List<Milestone> monthlyMilestones(List<Change> changes) {
 }
 
 /// `statuses: [...]` and `project_name:` of backlog/config.yml.
+/// `projects: [a, b]` in backlog/config.yml (not a Backlog.md key): the project labels of the repos
+/// that share this planning folder, for the project filter.
+List<String> parseBacklogProjects(List<String> lines) {
+  for (final l in lines) {
+    final m = RegExp(r'^projects:\s*\[(.*)\]').firstMatch(l);
+    if (m != null) {
+      return [
+        for (final e in m.group(1)!.split(','))
+          if (e.trim().isNotEmpty) e.trim().replaceAll(RegExp(r'''^["']|["']$'''), ''),
+      ];
+    }
+  }
+  return [];
+}
+
 (List<String>, String) parseBacklogConfig(List<String> lines) {
   var statuses = defaultStatuses;
   var name = '';

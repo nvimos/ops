@@ -178,6 +178,9 @@ class Backend {
   Future<String> cd(String path) async => str(await _lua('nvimos.dirs', 'set', [path]));
 
   /// Where the backend plugin lives, to start another Neovim with it.
+  /// Where the repo's planning lives: the repo root, or the folder its `.nvimos` names.
+  Future<Tracking> tracking() async => Tracking(asMap(await _lua('nvimos.tracking', 'info')));
+
   Future<String?> pluginRoot() async {
     final r = await _lua('nvimos.dirs', 'plugin_root');
     return r is String ? r : null;

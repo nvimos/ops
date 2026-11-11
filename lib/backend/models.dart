@@ -221,3 +221,23 @@ class Job {
   final bool running;
   final int? code;
 }
+
+/// The planning folder of the repo (tracking.lua): the repo root, or the folder `.nvimos` names,
+/// and this repo's project name there (for the project filter).
+class Tracking {
+  Tracking(Map<String, Object?> m)
+    : root = str(m['root']),
+      repoRoot = str(m['repo_root']),
+      project = m['project'] is String ? m['project'] as String : null,
+      file = m['file'] is String ? m['file'] as String : null,
+      missing = m['missing'] is String ? m['missing'] as String : null;
+
+  final String root, repoRoot;
+  final String? project, file, missing;
+
+  /// The planning folder is outside the repo (shared by several repos, maybe).
+  bool get elsewhere => root.toLowerCase() != repoRoot.toLowerCase();
+
+  /// The folder's last path part, for the header.
+  String get name => root.split('/').where((p) => p.isNotEmpty).lastOrNull ?? root;
+}

@@ -61,6 +61,7 @@ const keyTable = [
       ('Esc', 'close the detail panel'),
       ('c / s / p', 'new task, cycle status, cycle priority'),
       ('Ctrl+K', 'command palette'),
+      ('a', 'this project / all projects (shared planning folder)'),
     ],
   ),
   (
@@ -93,9 +94,9 @@ List<List<int>> splitColumns(List<int> heights, int columns) {
 class HelpView extends StatelessWidget {
   const HelpView({super.key});
 
-  @override
   static const _columnWidth = 360.0;
 
+  @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -103,7 +104,6 @@ class HelpView extends StatelessWidget {
       Expanded(child: LayoutBuilder(builder: (context, box) => _columns(box.maxWidth))),
     ],
   );
-}
 
   Widget _columns(double width) {
     final count = (width ~/ _columnWidth).clamp(1, keyTable.length);
@@ -131,6 +131,7 @@ class _KeyColumn extends StatelessWidget {
       children: [for (final i in groups) _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2)],
     ),
   );
+}
 
 class _KeyGroup extends StatelessWidget {
   const _KeyGroup({required this.title, required this.keys});
