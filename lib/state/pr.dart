@@ -85,8 +85,12 @@ class PrState extends ChangeNotifier {
       if (gen != _gen) return;
       branches = br;
       final names = br.list.map((x) => x.name).toList();
+      // Base: the checked-out branch; main or master only when HEAD is detached.
       if (base == null || base!.isEmpty) {
-        base = names.contains('main') ? 'main' : (names.contains('master') ? 'master' : br.current);
+        final cur = br.current;
+        base = cur != null && names.contains(cur)
+            ? cur
+            : (names.contains('main') ? 'main' : (names.contains('master') ? 'master' : cur));
       }
       if (head == null || head!.isEmpty) {
         final others = br.list.where((x) => x.name != base).toList()..sort((a, b) => b.date.compareTo(a.date));

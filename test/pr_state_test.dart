@@ -8,6 +8,23 @@ import 'session_test.dart' show until;
 import 'support/nvim.dart';
 
 void main() {
+  test('the base is the checked-out branch, not main', () async {
+    final repo = await makeRepo();
+    await git(repo, ['checkout', '-q', '-b', 'feature']);
+    await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');
+    await git(repo, ['commit', '-q', '-am', 'feature edit']);
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final pr = PrState(s);
+    await until(() => !pr.loading && pr.branches != null);
+    expect([pr.base, pr.head], ['feature', 'main']);
+    pr.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
   test('picks main and the newest other branch, loads commits and diff, refreshes on git hints', () async {
     final repo = await makeRepo();
     await git(repo, ['checkout', '-q', '-b', 'agent/x']);
