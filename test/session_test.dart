@@ -12,7 +12,7 @@ Future<void> until(bool Function() cond, {Duration timeout = const Duration(seco
 }
 
 void main() {
-  test('connects, follows the cursor, reconnects after Neovim restarts', () async {
+  test('connects, follows the cursor, connects again on retry after Neovim restarts', () async {
     final repo = await makeRepo();
     var nvim = await TestNvim.start(cwd: repo);
     await nvim.connect().then((r) => r.close());
@@ -29,19 +29,27 @@ void main() {
     await until(() => s.conn != Conn.connected);
     expect(s.error, isNotNull);
 
-    // Same port again: the session's retry picks it up.
+    // Same port again: no retry of its own, the user's Retry connects.
     nvim = await TestNvim.startOn(port, cwd: repo);
-    await until(() => s.conn == Conn.connected, timeout: const Duration(seconds: 15));
+    await nvim.connect().then((r) => r.close());
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    expect(s.conn, Conn.disconnected);
+    await s.connect();
+    expect(s.conn, Conn.connected);
     s.dispose();
     await nvim.stop();
   });
 
-  test('a wrong address reports an error and keeps retrying', () async {
+  test('a wrong address reports an error and tries only once', () async {
     final port = await TestNvim.freePort();
     final s = Session(port: port);
+    var connecting = 0;
+    s.addListener(() => connecting += s.conn == Conn.connecting ? 1 : 0);
     await s.connect();
     expect(s.conn, Conn.disconnected);
     expect(s.error, contains('no Neovim listening'));
+    await Future<void>.delayed(const Duration(milliseconds: 2500));
+    expect(connecting, 1);
     s.dispose();
   });
 }
