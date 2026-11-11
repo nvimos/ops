@@ -7,29 +7,7 @@ import '../widgets.dart';
 import 'detail_parts.dart';
 import 'icons.dart';
 import 'rich.dart';
-
-/// Identifies a milestone in the selection ('' = the open one).
-class MilestoneKey {
-  const MilestoneKey(this.name);
-  final String name;
-  @override
-  bool operator ==(Object other) => other is MilestoneKey && other.name == name;
-  @override
-  int get hashCode => name.hashCode;
-}
-
-const openMilestone = 'Next';
-
-/// Changes of a milestone: archived ones between the previous milestone and this one, or for the
-/// open milestone everything not archived yet.
-List<Change> milestoneChanges(Workspace ws, String name) {
-  if (name == openMilestone) return ws.changes.where((c) => !c.archived).toList();
-  final m = ws.milestones.where((m) => m.name == name).firstOrNull;
-  if (m == null) return [];
-  return ws.changesIn(m)..sort((a, b) => b.archiveDate!.compareTo(a.archiveDate!));
-}
-
-String fmtDate(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+import '../../tasks/browser.dart';
 
 class MilestoneDetail extends StatelessWidget {
   const MilestoneDetail({

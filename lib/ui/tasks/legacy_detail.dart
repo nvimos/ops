@@ -7,16 +7,6 @@ import 'detail_parts.dart';
 import 'rich.dart';
 
 /// Identifies a legacy item in the selection.
-class LegacyKey {
-  const LegacyKey(this.file, this.line);
-  final String file;
-  final int line;
-  @override
-  bool operator ==(Object other) => other is LegacyKey && other.file == file && other.line == line;
-  @override
-  int get hashCode => Object.hash(file, line);
-}
-
 /// A bullet of the old notes, read-only, with Promote to task.
 class LegacyDetail extends StatelessWidget {
   const LegacyDetail({
