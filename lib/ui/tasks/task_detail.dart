@@ -102,7 +102,11 @@ class _TaskProps extends StatelessWidget {
           if (t.dependencies.isNotEmpty) Prop('Blocked by', _dependencies()),
           Prop('Branch', _BranchProp(task: t, ws: ws, actions: actions)),
           if (t.created.isNotEmpty) Prop('Created', Text(t.created, style: T.small)),
-          Prop('File', LinkText(t.path, onTap: () => actions.openInNeovim(t.path, 1))),
+          Prop('File', LinkText(
+              t.path,
+              tooltip: 'open in Neovim; Ctrl+click: in a new nvim-qt',
+              onTap: () => actions.openInNeovim(t.path, 1),
+            )),
         ],
       ),
     );

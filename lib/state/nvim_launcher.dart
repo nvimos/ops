@@ -81,6 +81,21 @@ Future<String?> launchNeovim(String address, {NvimKind kind = NvimKind.console})
   }
 }
 
+/// The command line that opens [file] at [line] in a new nvim-qt, on its own (no server, no plugin).
+List<String> qtOpenArgs(String file, int line, {List<String>? qt}) => [...qt ?? qtArgs(), '--', '+$line', file];
+
+/// Open [file] (absolute) at [line] in a new nvim-qt window; returns why it could not, or null.
+Future<String?> openInQt(String file, int line) async {
+  final where = await Process.run('where', ['nvim-qt']);
+  if (where.exitCode != 0) return 'nvim-qt is not on PATH';
+  try {
+    await Process.start('nvim-qt', qtOpenArgs(file, line), mode: ProcessStartMode.detached);
+    return null;
+  } on ProcessException catch (e) {
+    return 'could not start nvim-qt: ${e.message}';
+  }
+}
+
 /// PowerShell that stops every `nvim.exe` of this user started with `--headless` and prints how many.
 const stopHeadlessScript = r"""
 $me = [Environment]::UserName

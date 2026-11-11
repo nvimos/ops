@@ -62,6 +62,7 @@ const keyTable = [
       ('c / s / p', 'new task, cycle status, cycle priority'),
       ('Ctrl+K', 'command palette'),
       ('a', 'this project / all projects (shared planning folder)'),
+      ('Ctrl+click a file', 'open it in a new nvim-qt'),
     ],
   ),
   (
