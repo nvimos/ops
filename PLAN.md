@@ -118,6 +118,7 @@ Tasks
 | `c`                | new task                                                |
 | `s`                | cycle the status                                        |
 | `p`                | cycle the priority                                      |
+| `a`                | this project / all projects (shared planning folder)    |
 | `Esc`              | close the detail panel                                  |
 
 Directories
@@ -196,15 +197,15 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
     current window and cursor, repo info, jobs, git change hints
   - `pr.dart`: Pull request state: branches, base and head, commits, the diff
   - `changes.dart`: Changes state: working tree status, the selected file's diff, actions
-  - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json`
   - `nvim_launcher.dart`: finds the backend checkout and starts Neovim in its own console
+  - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json`
   - a git hint from the backend makes each state re-query what it shows
 
 - `tasks/`: the Tasks mode's data, pure Dart
   - `parse.dart`, `markdown.dart`, `model.dart`: Backlog.md tasks, OpenSpec changes,
     living specs, legacy notes, milestones
   - `workspace.dart`: loads the planning files through the backend, links them,
-    reloads on git hints
+    reloads on git hints, filters them by project
   - `edits.dart`: line-level edits that refuse to apply if the file changed meanwhile
   - `archive.dart`, `inbox.dart`: archiving a change into its spec, the inbox
 
@@ -259,6 +260,9 @@ Description of the UI.
     like an HTML `title` tooltip.
 - one icon per mode, top to bottom: Pull request, Changes, Tasks, Directories, Help
 - Help lists every key the app has; it works without a connection too
+  - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
+    so every key fits on one screen; the groups keep their order and the columns even out in height
+  - a narrow pane gets fewer columns and scrolls
 - collapsed: icons only, hovering shows the mode name as a tooltip;
   expanded: hovering shows the brief explanation (see above)
 - the selected mode has an accent bar on its left edge and a brighter icon
@@ -267,9 +271,6 @@ Description of the UI.
 - visible at all times, also while not connected; a mode picked then shows once the app connects
 - modes stay alive in the background, so switching back keeps their selection and scroll position
 - no repo name and no current branch here; the current branch is in the status bar.
-  - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
-    so every key fits on one screen; the groups keep their order and the columns even out in height
-  - a narrow pane gets fewer columns and scrolls
 - Directories mode, a folder icon
   - its icon comes after all other mode icons, not anchored to the bottom of the rail
   - see "Directories mode" below
@@ -382,6 +383,19 @@ keyboard J/K/Enter/Esc/C and /.
   else merge its deltas into the living spec (`tasks/archive.dart`) and move the folder
   as `files.move`; new tasks and promoted legacy notes are written as `files.create`.
 - UI: sidebar (Inbox, Tasks, Changes, Specs, Legacy, Milestones), list with grouping, detail panel.
+- Planning folder: the repo root, or the folder a `.nvimos` file at the repo root names
+  - `.nvimos` holds `key = value` lines, `#` comments:
+    `tracking = ../nvimos-meta` (`~`, absolute, or relative to the repo root) and `project = frontend`
+  - the backend's `tracking.lua` reads it; `files.*`, the CLI and the planning watcher work in that folder
+  - no `.nvimos`, or its folder is missing: the repo root, as before
+  - Open in Neovim opens the file by its absolute path when the folder is outside the repo
+- Project filter: several repos (the nvim config, the backend, this app) share one planning folder
+  - a task belongs to the project when it has the project's label,
+    or none of the labels listed as `projects: [...]` in `backlog/config.yml` (shared)
+  - a change goes with its task; a change without a task, the specs and legacy notes always show
+  - on by default when `.nvimos` names a project; `a` or the pill in the sidebar shows every project's tasks
+  - the sidebar header says "from <folder>" when the planning folder is outside the repo
+  - new tasks get the project label; task numbers count every project's tasks, so they don't collide
 
 #### Directories mode
 

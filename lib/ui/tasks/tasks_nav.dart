@@ -12,6 +12,7 @@ class TasksNav extends StatelessWidget {
     super.key,
     required this.browser,
     required this.projectName,
+    required this.scope,
     required this.loading,
     required this.jobs,
     required this.onCancelJob,
@@ -19,6 +20,7 @@ class TasksNav extends StatelessWidget {
 
   final TaskBrowser browser;
   final String projectName;
+  final ScopeInfo scope;
   final bool loading;
   final List<Job> jobs;
   final ValueChanged<Job> onCancelJob;
@@ -55,6 +57,7 @@ class TasksNav extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       children: [
         ProjectHeader(name: projectName, loading: loading),
+        if (scope.shown) ProjectScope(scope),
         for (final j in jobs) JobRow(job: j, onCancel: () => onCancelJob(j)),
         _item(inbox, icon: Icons.notifications_none),
         const SizedBox(height: 8),
@@ -145,6 +148,50 @@ class ProjectHeader extends StatelessWidget {
         Expanded(child: Text(name.isEmpty ? 'Folio' : name, style: T.title, overflow: TextOverflow.ellipsis)),
         if (loading) const Spinner(),
       ],
+    ),
+  );
+}
+
+/// What the scope line under the project header shows: where the planning comes from, this repo's
+/// project there, and whether only its tasks show.
+class ScopeInfo {
+  const ScopeInfo({this.source, this.project, this.projectOnly = true, this.onToggle});
+
+  /// The planning folder's name when it is outside the repo, else null.
+  final String? source;
+  final String? project;
+  final bool projectOnly;
+  final VoidCallback? onToggle;
+
+  bool get shown => source != null || project != null;
+}
+
+/// "from nvimos-meta", and a pill that switches between this project's tasks and all of them.
+class ProjectScope extends StatelessWidget {
+  const ProjectScope(this.info, {super.key});
+
+  final ScopeInfo info;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 0, 12, 10),
+    child: Wrap(
+      spacing: 8,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        if (info.source != null) Text('from ${info.source}', style: T.small),
+        if (info.project != null) _toggle(),
+      ],
+    ),
+  );
+
+  Widget _toggle() => Tooltip(
+    message: 'a: this project / all projects',
+    child: InkWell(
+      onTap: info.onToggle,
+      borderRadius: BorderRadius.circular(10),
+      child: Pill(info.projectOnly ? info.project! : 'all projects', color: C.accent, filled: info.projectOnly),
     ),
   );
 }

@@ -34,12 +34,14 @@ void main() {
       files[rel(f)] = read(f);
     }
     final changes = parseChanges(files, {});
-    expect(changes.length, greaterThan(40));
+    // OpenSpec holds only the changes that need a design (2026-11-11); the rest is Backlog.md.
+    expect(changes.length, greaterThan(3));
     for (final c in changes) {
       expect(c.taskId, startsWith('TASK-'), reason: c.dir);
       expect(c.checkGroups, isNotEmpty, reason: c.dir);
     }
-    expect(changes.where((c) => c.archived).length, greaterThan(10));
+    expect(changes.where((c) => c.archived), isNotEmpty);
+    expect(changes.where((c) => c.deltas.isNotEmpty), isNotEmpty);
   }, skip: skip);
 
   test('legacy notes yield items, some marked untested', () {
