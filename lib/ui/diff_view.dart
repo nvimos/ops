@@ -23,6 +23,7 @@ class DiffView extends StatelessWidget {
     this.side,
     this.sideBySide = false,
     this.wrap = true,
+    this.hunk = -1,
   });
 
   final DiffFile file;
@@ -34,6 +35,9 @@ class DiffView extends StatelessWidget {
   /// Long lines wrap; off: they stay on one line (unified: scroll sideways; side-by-side: clipped).
   final bool wrap;
   final Widget? side;
+
+  /// The current hunk (]c / [c): scrolled into view and highlighted; -1 for none.
+  final int hunk;
 
   @override
   Widget build(BuildContext context) {
@@ -115,8 +119,8 @@ LineLook lookOf(LineKind k) => switch (k) {
 // Organisms -----------------------------------------------------------------------------------------
 
 /// The scrolling rows, or a message for binary and empty diffs. Unwrapped unified lines get a
-/// sideways scroll as wide as the longest line.
-class _DiffBody extends StatelessWidget {
+/// sideways scroll as wide as the longest line. Scrolls the current hunk into view.
+class _DiffBody extends StatefulWidget {
   const _DiffBody({required this.file, required this.rows, required this.view});
 
   final DiffFile file;
@@ -124,19 +128,64 @@ class _DiffBody extends StatelessWidget {
   final DiffView view;
 
   @override
+  State<_DiffBody> createState() => _DiffBodyState();
+}
+
+class _DiffBodyState extends State<_DiffBody> {
+  final _scroll = ScrollController();
+  final _hunkKey = GlobalKey();
+
+  /// A rough row height, to bring a far hunk near before it is built and can be scrolled exactly.
+  static const _approxRow = 18.0;
+
+  @override
+  void didUpdateWidget(_DiffBody old) {
+    super.didUpdateWidget(old);
+    if (widget.view.hunk != old.view.hunk || widget.file != old.file) _showHunk();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  int get _hunkRow {
+    var n = -1;
+    for (final (i, r) in widget.rows.indexed) {
+      if (r is HunkRow && ++n == widget.view.hunk) return i;
+    }
+    return -1;
+  }
+
+  void _showHunk() {
+    final row = _hunkRow;
+    if (row < 0 || !_scroll.hasClients) return;
+    final ctx = _hunkKey.currentContext;
+    if (ctx == null) _scroll.jumpTo((row * _approxRow).clamp(0, _scroll.position.maxScrollExtent));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final c = _hunkKey.currentContext;
+      if (c != null) Scrollable.ensureVisible(c, alignment: .1);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final w = widget, rows = w.rows, file = w.file;
     if (file.binary) return const Empty('Binary file');
     if (rows.isEmpty) return Empty(file.status == 'renamed' ? 'Renamed without changes' : 'No textual changes');
+    final current = _hunkRow;
     final list = ListView.builder(
+      controller: _scroll,
       padding: const EdgeInsets.only(bottom: 40),
       itemCount: rows.length,
-      itemBuilder: (context, i) => _RowView(row: rows[i], view: view),
+      itemBuilder: (context, i) => _RowView(key: i == current ? _hunkKey : null, row: rows[i], view: w.view, current: i == current),
     );
-    if (view.wrap || view.sideBySide) return SelectionArea(child: list);
+    if (w.view.wrap || w.view.sideBySide) return SelectionArea(child: list);
     return SelectionArea(child: _Sideways(longest: _longest(), child: list));
   }
 
-  int _longest() => file.hunks.expand((h) => h.lines).fold(0, (n, l) => math.max(n, _shown(l).length));
+  int _longest() => widget.file.hunks.expand((h) => h.lines).fold(0, (n, l) => math.max(n, _shown(l).length));
 }
 
 /// [child] as wide as [longest] characters of code (at least the viewport), scrolled sideways.
@@ -211,14 +260,22 @@ class _FileTitle extends StatelessWidget {
 
 /// Picks the widget for one [DiffRow].
 class _RowView extends StatelessWidget {
-  const _RowView({required this.row, required this.view});
+  const _RowView({super.key, required this.row, required this.view, this.current = false});
 
   final DiffRow row;
   final DiffView view;
 
+  /// The current hunk's header.
+  final bool current;
+
   @override
   Widget build(BuildContext context) => switch (row) {
-    HunkRow(:final hunk) => _HunkHeader(hunk: hunk, onLine: view.onLine, actions: view.hunkActions?.call(hunk) ?? []),
+    HunkRow(:final hunk) => _HunkHeader(
+      hunk: hunk,
+      current: current,
+      onLine: view.onLine,
+      actions: view.hunkActions?.call(hunk) ?? [],
+    ),
     LineRow(:final line) => _UnifiedLine(line: line, wrap: view.wrap, onLine: view.onLine),
     PairRow(:final left, :final right) => IntrinsicHeight(
       child: Row(
@@ -234,17 +291,18 @@ class _RowView extends StatelessWidget {
 }
 
 class _HunkHeader extends StatelessWidget {
-  const _HunkHeader({required this.hunk, required this.onLine, required this.actions});
+  const _HunkHeader({required this.hunk, required this.onLine, required this.actions, this.current = false});
 
   final Hunk hunk;
   final OnDiffLine? onLine;
   final List<Widget> actions;
+  final bool current;
 
   @override
   Widget build(BuildContext context) {
     final h = hunk;
     return Container(
-      color: C.surface2,
+      color: current ? C.accent.withValues(alpha: .18) : C.surface2,
       padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
       child: Row(
         children: [

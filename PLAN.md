@@ -56,7 +56,7 @@ An agent may follow it or implement something better.
 
 ### Keys
 
-Draft, from vim, fugitive and vifm conventions. "today" marks keys the app already has.
+From vim, fugitive and vifm conventions; all built. The Help mode (`?`) lists them in the app.
 Keys act on the focused pane; while a text field has focus, keys type into it,
 except Esc (leave the field) and Enter (confirm).
 
@@ -69,21 +69,22 @@ Global
 | `M-]` / `M-[`      | next / previous mode (next is down the rail)            |
 | `M-1` … `M-5`      | mode by its place on the rail                           |
 | `Ctrl+B`           | expand / collapse the sidebar                           |
-| `Ctrl+K`           | command palette: every action and record (today: Tasks) |
+| `Ctrl+K`           | command palette: every action and record (Tasks)        |
 | `?`                | the Help mode: this key table                           |
-| `Tab` / `S-Tab`    | focus next / previous pane                              |
-| `/`                | filter the focused list (today: Tasks)                  |
+| `Tab` / `S-Tab`    | next / previous pane: PR files, commits, diff; Changes  |
+|                    | files and message; Tasks and Directories list and filter |
+| `/`                | filter the list (Tasks, Directories)                    |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
 
 Any list (files, commits, branches, dirs, tasks)
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `j` / `k`, arrows  | next / previous item (today: Tasks)                     |
+| `j` / `k`, arrows  | next / previous item                                    |
 | `gg` / `G`         | first / last item                                       |
 | `Ctrl+D` / `Ctrl+U`| half a page down / up                                   |
-| `Enter`            | open or pick the item (today: Tasks)                    |
-| `l` / `h`          | expand / collapse a folder                              |
+| `Enter`            | open or pick the item                                   |
+| `l` / `h`          | unfold / fold the selected file's folder (PR files)     |
 | `zR` / `zM`        | expand / collapse all folders                           |
 | `o`                | open the item in Neovim, like a click                   |
 
@@ -103,20 +104,21 @@ Changes
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `-`                | stage or unstage the file or hunk under the cursor      |
+| `]c` / `[c`        | next / previous hunk; the keys below then act on it     |
+| `-`                | stage or unstage the current hunk, or the file          |
 | `s` / `u`          | stage / unstage                                         |
 | `X`                | discard (asks first)                                    |
 | `cc`               | focus the commit message                                |
-| `Ctrl+Enter`       | commit (in the message field)                           |
+| `Ctrl+Enter`       | commit (in the message field); `Esc` back to the files  |
 
 Tasks
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `c`                | new task (today)                                        |
-| `s`                | cycle the status (today)                                |
-| `p`                | cycle the priority (today)                              |
-| `Esc`              | close the detail panel (today)                          |
+| `c`                | new task                                                |
+| `s`                | cycle the status                                        |
+| `p`                | cycle the priority                                      |
+| `Esc`              | close the detail panel                                  |
 
 Directories
 

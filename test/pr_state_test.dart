@@ -84,6 +84,33 @@ void main() {
     pr.toggleAllDirs();
     expect(pr.collapsedDirs, {'sub'});
 
+    // Keys: Tab cycles files -> commits -> diff; j/k move in the active pane; Enter on a commit
+    // narrows to it; ]c moves the hunk; h folds the selected file's folder.
+    expect(pr.pane, PrPane.files);
+    pr.nextPane(1);
+    expect(pr.pane, PrPane.commits);
+    pr.moveCursor(1);
+    expect(pr.commitCursor, 1);
+    pr.moveCursor(5);
+    expect(pr.commitCursor, 1); // clamped to the last commit
+    pr.enter();
+    await until(() => !pr.loading && pr.narrowed != null && pr.diff!.files.length == 1);
+    pr.showAllCommits();
+    await until(() => !pr.loading && pr.diff!.files.length == 2);
+    pr.nextPane(1);
+    expect(pr.pane, PrPane.diff);
+    pr.nextPane(1);
+    expect(pr.pane, PrPane.files);
+    pr.select('sub/c.txt');
+    pr.moveHunk(1);
+    expect(pr.hunk, 0);
+    pr.moveHunk(1);
+    expect(pr.hunk, 0); // one hunk only
+    pr.foldSelected(fold: true);
+    expect(pr.collapsedDirs, {'sub'});
+    pr.foldSelected(fold: false);
+    expect(pr.collapsedDirs, isEmpty);
+
     // Any revision git accepts.
     pr.pick(base: 'agent/x~1', head: 'agent/x');
     await until(() => !pr.loading && pr.base == 'agent/x~1');

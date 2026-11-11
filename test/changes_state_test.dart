@@ -72,10 +72,28 @@ void main() {
 
     st.select('a.txt', staged: true);
     await until(() => st.diff != null && st.selectedStaged);
-    expect(await st.moveHunk(st.diff!.hunks.single), isNull);
+    expect(await st.toggleHunk(st.diff!.hunks.single), isNull);
     await until(() => !st.staged.any((f) => f.path == 'a.txt'));
 
     expect(await st.openLine(2, isOld: true), isNull); // deletions have no line in the work tree
+
+    // Keys: j/k walk the files in list order; ]c makes a hunk current; s stages it; u does
+    // nothing on the unstaged side.
+    await until(() => st.unstaged.length == 2); // a.txt (unstaged again) and c.txt
+    st.select('a.txt', staged: false);
+    await until(() => st.diff != null && st.diff!.hunks.isNotEmpty);
+    st.moveSelection(1);
+    expect(st.selected, 'c.txt');
+    st.moveSelection(-1);
+    expect(st.selected, 'a.txt');
+    await until(() => st.diff != null && st.diff!.hunks.isNotEmpty);
+    st.moveHunk(1);
+    expect(st.hunk, 0);
+    expect(await st.unstageCurrent(), isNull);
+    expect(st.staged, isEmpty);
+    expect(await st.stageCurrent(), isNull);
+    await until(() => st.staged.any((f) => f.path == 'a.txt'));
+
     st.dispose();
     s.dispose();
     await nvim.stop();

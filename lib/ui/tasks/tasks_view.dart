@@ -275,7 +275,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       LogicalKeyboardKey.keyK || LogicalKeyboardKey.arrowUp => () => move(-1),
       LogicalKeyboardKey.enter when browser.selected == null => () => move(1),
       LogicalKeyboardKey.escape when browser.selected != null => close,
-      LogicalKeyboardKey.slash => filterFocus.requestFocus,
+      LogicalKeyboardKey.slash || LogicalKeyboardKey.tab => filterFocus.requestFocus,
       LogicalKeyboardKey.keyC => createTask,
       LogicalKeyboardKey.keyS => cycleStatus,
       LogicalKeyboardKey.keyP => cyclePriority,
@@ -288,11 +288,10 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     return _keys.press(e.character) ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
-  /// In the filter: Esc or Enter go back to the list, arrow down also moves into it.
+  /// In the filter: Esc, Enter or Tab go back to the list, arrow down also moves into it.
   KeyEventResult _filterKey(LogicalKeyboardKey k) {
-    if (k != LogicalKeyboardKey.escape && k != LogicalKeyboardKey.enter && k != LogicalKeyboardKey.arrowDown) {
-      return KeyEventResult.ignored;
-    }
+    const back = [LogicalKeyboardKey.escape, LogicalKeyboardKey.enter, LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.tab];
+    if (!back.contains(k)) return KeyEventResult.ignored;
     focus.requestFocus();
     if (k == LogicalKeyboardKey.arrowDown) move(1);
     return KeyEventResult.handled;

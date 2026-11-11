@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../backend/models.dart';
 import '../state/changes.dart';
@@ -6,6 +7,7 @@ import '../state/session.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
+import 'key_sequence.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -18,12 +20,31 @@ class ChangesView extends StatefulWidget {
   const ChangesView({super.key});
 
   @override
-  State<ChangesView> createState() => _ChangesViewState();
+  State<ChangesView> createState() => ChangesViewState();
 }
 
-class _ChangesViewState extends State<ChangesView> {
+class ChangesViewState extends State<ChangesView> {
   ChangesState? _state;
   final _message = TextEditingController();
+
+  /// The shell gives the keyboard here when the mode is shown.
+  final focus = FocusNode(debugLabel: 'changes');
+  final _messageFocus = FocusNode(debugLabel: 'commit message');
+  static const _far = 1 << 20;
+  late final _keys = KeySequence({
+    'j': () => st.moveSelection(1),
+    'k': () => st.moveSelection(-1),
+    'gg': () => st.moveSelection(-_far),
+    'G': () => st.moveSelection(_far),
+    ']c': () => st.moveHunk(1),
+    '[c': () => st.moveHunk(-1),
+    '-': _toggleCurrent,
+    's': _stageCurrent,
+    'u': _unstageCurrent,
+    'X': _discardCurrent,
+    'cc': _messageFocus.requestFocus,
+    'o': _openCurrent,
+  });
 
   ChangesState get st => _state!;
 
@@ -35,6 +56,9 @@ class _ChangesViewState extends State<ChangesView> {
 
   @override
   void dispose() {
+    _keys.dispose();
+    focus.dispose();
+    _messageFocus.dispose();
     _state?.dispose();
     _message.dispose();
     super.dispose();
@@ -57,7 +81,7 @@ class _ChangesViewState extends State<ChangesView> {
     if (await confirmDiscard(context, 'All unstaged changes in $path.')) _report(await st.discardFile(path));
   }
 
-  Future<void> _moveHunk(Hunk h) async => _report(await st.moveHunk(h));
+  Future<void> _moveHunk(Hunk h) async => _report(await st.toggleHunk(h));
 
   Future<void> _discardHunk(Hunk h) async {
     if (await confirmDiscard(context, 'This hunk of ${st.selected}.')) _report(await st.discardHunk(h));
@@ -66,16 +90,56 @@ class _ChangesViewState extends State<ChangesView> {
   Future<void> _openLine(int line, bool isOld) async => _report(await st.openLine(line, isOld: isOld));
 
   Future<void> _commit() async {
+    if (st.staged.isEmpty || st.busy) return;
     final err = await st.commit(_message.text);
     if (err == null) _message.clear();
     _report(err);
   }
 
+  Future<void> _toggleCurrent() async => _report(await st.toggleCurrent());
+
+  Future<void> _stageCurrent() async => _report(await st.stageCurrent());
+
+  Future<void> _unstageCurrent() async => _report(await st.unstageCurrent());
+
+  /// X: discard the current hunk, or the whole file; unstaged changes only, after asking.
+  Future<void> _discardCurrent() async {
+    if (st.selected == null || st.selectedStaged) return;
+    final h = st.currentHunk;
+    h != null ? await _discardHunk(h) : await _discardSelected();
+  }
+
+  Future<void> _openCurrent() => _openLine(st.currentLine, false);
+
+  void _leaveMessage() => focus.requestFocus();
+
+  // Keys: j/k, gg/G, ]c/[c, -, s, u, X, cc, o; Tab goes to the commit message and back.
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final hw = HardwareKeyboard.instance;
+    if (_messageFocus.hasFocus || hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+    final action = switch (e.logicalKey) {
+      LogicalKeyboardKey.arrowDown => () => st.moveSelection(1),
+      LogicalKeyboardKey.arrowUp => () => st.moveSelection(-1),
+      LogicalKeyboardKey.tab => _messageFocus.requestFocus,
+      _ => null,
+    };
+    if (action != null) {
+      action();
+      return KeyEventResult.handled;
+    }
+    return _keys.press(e.character) ? KeyEventResult.handled : KeyEventResult.ignored;
+  }
+
   // Layout -------------------------------------------------------------------------------------
 
   @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
+  Widget build(BuildContext context) => Focus(
+    focusNode: focus,
+    onKeyEvent: _onKey,
+    child: ListenableBuilder(
       listenable: st,
       builder: (context, _) => Row(
         children: [
@@ -84,8 +148,8 @@ class _ChangesViewState extends State<ChangesView> {
           Expanded(child: _main()),
         ],
       ),
-    );
-  }
+    ),
+  );
 
   Widget _sidebar() {
     final branch = st.status?.branch ?? '';
@@ -104,9 +168,11 @@ class _ChangesViewState extends State<ChangesView> {
       onMoveAll: _moveAll,
       commitBox: CommitBox(
         controller: _message,
+        focus: _messageFocus,
         label: 'Commit $n file${n == 1 ? '' : 's'} to $branch',
         enabled: n > 0 && !st.busy,
         onCommit: _commit,
+        onLeave: _leaveMessage,
       ),
     );
   }
@@ -119,6 +185,7 @@ class _ChangesViewState extends State<ChangesView> {
     return ChangesDiff(
       file: f,
       staged: st.selectedStaged,
+      hunk: st.hunk,
       onLine: _openLine,
       onMoveFile: _moveSelected,
       onDiscardFile: _discardSelected,
@@ -270,10 +337,12 @@ class ChangesDiff extends StatelessWidget {
     required this.onDiscardFile,
     required this.onMoveHunk,
     required this.onDiscardHunk,
+    this.hunk = -1,
   });
 
   final DiffFile file;
   final bool staged;
+  final int hunk;
   final void Function(int line, bool isOld) onLine;
   final VoidCallback onMoveFile;
   final VoidCallback onDiscardFile;
@@ -288,6 +357,7 @@ class ChangesDiff extends StatelessWidget {
     ];
     return DiffView(
       file: file,
+      hunk: hunk,
       onLine: onLine,
       headerActions: [
         for (final a in fileActions)
@@ -306,19 +376,23 @@ class ChangesDiff extends StatelessWidget {
 }
 
 /// Message field and the Commit button.
+/// Ctrl+Enter in the message commits; Esc (or Tab) goes back to the file list.
 class CommitBox extends StatelessWidget {
   const CommitBox({
     super.key,
     required this.controller,
+    required this.focus,
     required this.label,
     required this.enabled,
     required this.onCommit,
+    required this.onLeave,
   });
 
   final TextEditingController controller;
+  final FocusNode focus;
   final String label;
   final bool enabled;
-  final VoidCallback onCommit;
+  final VoidCallback onCommit, onLeave;
 
   @override
   Widget build(BuildContext context) {
@@ -327,12 +401,20 @@ class CommitBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
-            controller: controller,
-            minLines: 2,
-            maxLines: 6,
-            style: T.body,
-            decoration: const InputDecoration(hintText: 'Commit message'),
+          CallbackShortcuts(
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.enter, control: true): onCommit,
+              const SingleActivator(LogicalKeyboardKey.escape): onLeave,
+              const SingleActivator(LogicalKeyboardKey.tab): onLeave,
+            },
+            child: TextField(
+              controller: controller,
+              focusNode: focus,
+              minLines: 2,
+              maxLines: 6,
+              style: T.body,
+              decoration: const InputDecoration(hintText: 'Commit message  (cc, Ctrl+Enter commits)'),
+            ),
           ),
           const SizedBox(height: 8),
           SmallButton(label, primary: true, onPressed: enabled ? onCommit : null),
