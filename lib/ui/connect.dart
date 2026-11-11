@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../state/nvim_launcher.dart';
 import '../state/session.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -35,12 +36,14 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   void _connect() => SessionScope.read(context).connect(address: _addr.text.trim());
 
-  Future<void> _startNeovim() async {
+  Future<void> _startNeovim(NvimKind kind) async {
     final s = SessionScope.read(context);
     final addr = _addr.text.trim();
     if (addr != s.address) await s.connect(address: addr);
-    await s.startNeovim();
+    await s.startNeovim(kind: kind);
   }
+
+  void _stopHeadless() => SessionScope.read(context).stopHeadlessNeovims();
 
   @override
   Widget build(BuildContext context) {
@@ -56,10 +59,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
             const SizedBox(height: 6),
             const Text('Start Neovim with the nvimos plugin listening, then retry.', style: T.small),
             const SizedBox(height: 16),
-            AddressRow(controller: _addr, busy: s.conn == Conn.connecting || s.starting, onConnect: _connect),
+            AddressRow(controller: _addr, busy: s.conn == Conn.connecting || s.starting != null, onConnect: _connect),
             const SizedBox(height: 8),
-            StartButton(starting: s.starting, enabled: s.conn == Conn.disconnected, onStart: _startNeovim),
+            StartButtons(
+              starting: s.starting,
+              enabled: s.conn == Conn.disconnected,
+              onStart: _startNeovim,
+              onStopHeadless: _stopHeadless,
+            ),
             if (s.error != null) ConnectError(s.error!),
+            if (s.notice != null) ConnectNotice(s.notice!),
             const SizedBox(height: 20),
             const CodeBox(_howTo),
           ],
@@ -87,21 +96,65 @@ class AddressRow extends StatelessWidget {
   );
 }
 
-/// Starts Neovim on the address with the backend plugin, then connects.
-class StartButton extends StatelessWidget {
-  const StartButton({super.key, required this.starting, required this.enabled, required this.onStart});
+/// Start Neovim on the address with the backend plugin (console, nvim-qt or headless), then connect;
+/// and stop every headless Neovim.
+class StartButtons extends StatelessWidget {
+  const StartButtons({
+    super.key,
+    required this.starting,
+    required this.enabled,
+    required this.onStart,
+    required this.onStopHeadless,
+  });
 
-  final bool starting, enabled;
-  final VoidCallback onStart;
+  /// The kind being started, if any.
+  final NvimKind? starting;
+  final bool enabled;
+  final ValueChanged<NvimKind> onStart;
+  final VoidCallback onStopHeadless;
+
+  static const _buttons = [
+    (NvimKind.console, 'Start Neovim', Icons.play_arrow, 'nvim in its own console window'),
+    (NvimKind.qt, 'Start nvim-qt', Icons.web_asset, 'the nvim-qt GUI'),
+    (NvimKind.headless, 'Start headless', Icons.dns_outlined, 'nvim --headless, detached: no window, keeps running after the app quits'),
+  ];
+
+  Widget _start((NvimKind, String, IconData, String) b) {
+    final (kind, label, icon, tip) = b;
+    return Tooltip(
+      message: tip,
+      child: SmallButton(
+        starting == kind ? 'Starting…' : label,
+        icon: icon,
+        onPressed: starting == null && enabled ? () => onStart(kind) : null,
+      ),
+    );
+  }
 
   @override
-  Widget build(BuildContext context) => Align(
-    alignment: Alignment.centerLeft,
-    child: SmallButton(
-      starting ? 'Starting Neovim…' : 'Start Neovim',
-      icon: Icons.play_arrow,
-      onPressed: starting || !enabled ? null : onStart,
-    ),
+  Widget build(BuildContext context) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (final b in _buttons) _start(b),
+      Tooltip(
+        message: 'stop every nvim --headless of this user (from the process list)',
+        child: SmallButton('Stop headless', icon: Icons.stop, danger: true, onPressed: starting == null ? onStopHeadless : null),
+      ),
+    ],
+  );
+}
+
+/// A neutral outcome under the address field.
+class ConnectNotice extends StatelessWidget {
+  const ConnectNotice(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: SelectableText(text, style: T.small),
   );
 }
 

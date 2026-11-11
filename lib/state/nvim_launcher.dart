@@ -28,23 +28,75 @@ List<String> nvimArgs(String address, String backendDir) => [
   'runtime plugin/nvimos.lua',
 ];
 
-/// Start Neovim in its own console window; returns why it could not, or null.
-Future<String?> launchNeovim(String address) async {
+/// How [launchNeovim] starts Neovim.
+enum NvimKind {
+  /// `nvim` in its own console window.
+  console('nvim', 'Neovim'),
+
+  /// `nvim-qt`, the GUI; its embedded nvim gets the arguments after `--`.
+  qt('nvim-qt', 'nvim-qt'),
+
+  /// `nvim --headless`, detached from the app: no window, no terminal, and it keeps running after
+  /// the app quits. [stopHeadless] ends them.
+  headless('nvim', 'headless Neovim');
+
+  const NvimKind(this.exe, this.label);
+
+  final String exe, label;
+}
+
+/// nvim-qt's own options, as the user starts it: dark title bar, and the config's stylesheet
+/// (`%LOCALAPPDATA%\nvim\nvim-qt.qss`) when it exists.
+List<String> qtArgs({Map<String, String>? env, bool Function(String path)? exists}) {
+  final local = (env ?? Platform.environment)['LOCALAPPDATA'];
+  final qss = local == null ? null : '$local\\nvim\\nvim-qt.qss';
+  final has = exists ?? (String p) => File(p).existsSync();
+  return ['-platform', 'windows:darkmode=1', if (qss != null && has(qss)) ...['-stylesheet', qss]];
+}
+
+/// The command line for [kind]: (executable, arguments). [qt] replaces [qtArgs] (tests).
+(String, List<String>) nvimCommand(NvimKind kind, String address, String backendDir, {List<String>? qt}) {
+  final args = nvimArgs(address, backendDir);
+  return switch (kind) {
+    // `start` gives Neovim a console; the app has none. The first quoted argument is the title.
+    NvimKind.console => ('cmd', ['/c', 'start', 'nvimos nvim', 'nvim', ...args]),
+    NvimKind.qt => ('nvim-qt', [...qt ?? qtArgs(), '--', ...args]),
+    NvimKind.headless => ('nvim', ['--headless', ...args]),
+  };
+}
+
+/// Start Neovim as [kind], listening on [address] with the backend plugin; returns why it could not,
+/// or null.
+Future<String?> launchNeovim(String address, {NvimKind kind = NvimKind.console}) async {
   final backend = findBackendDir();
   if (backend == null) return 'nvimos-poc-backend not found; set NVIMOS_BACKEND';
-  final where = await Process.run('where', ['nvim']);
-  if (where.exitCode != 0) return 'nvim is not on PATH';
+  final where = await Process.run('where', [kind.exe]);
+  if (where.exitCode != 0) return '${kind.exe} is not on PATH';
+  final (exe, args) = nvimCommand(kind, address, backend);
   try {
-    // `start` gives Neovim a console; the app has none. The first quoted argument is the title.
-    await Process.start('cmd', [
-      '/c',
-      'start',
-      'nvimos nvim',
-      'nvim',
-      ...nvimArgs(address, backend),
-    ], mode: ProcessStartMode.detached);
+    await Process.start(exe, args, mode: ProcessStartMode.detached);
     return null;
   } on ProcessException catch (e) {
-    return 'could not start nvim: ${e.message}';
+    return 'could not start ${kind.exe}: ${e.message}';
+  }
+}
+
+/// PowerShell that stops every `nvim.exe` of this user started with `--headless` and prints how many.
+const stopHeadlessScript = r"""
+$me = [Environment]::UserName
+$p = @(Get-CimInstance Win32_Process -Filter "Name='nvim.exe'" |
+  Where-Object { $_.CommandLine -match '--headless' -and (Invoke-CimMethod -InputObject $_ -MethodName GetOwner).User -eq $me })
+$p | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+$p.Count
+""";
+
+/// Stop every headless Neovim of this user (found in the process list); returns (how many, error).
+Future<(int, String?)> stopHeadless() async {
+  try {
+    final r = await Process.run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', stopHeadlessScript]);
+    if (r.exitCode != 0) return (0, 'could not stop headless Neovim: ${'${r.stderr}'.trim()}');
+    return (int.tryParse('${r.stdout}'.trim().split('\n').last.trim()) ?? 0, null);
+  } on ProcessException catch (e) {
+    return (0, 'could not stop headless Neovim: ${e.message}');
   }
 }

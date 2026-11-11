@@ -236,12 +236,21 @@ Description of the UI.
     "no Neovim listening on <address>", "the nvimos plugin is not loaded in this Neovim"
     or a backend API version mismatch
   - after a failure or a lost connection the app does not retry by itself; Retry tries once more
-  - a Start Neovim button starts `nvim` in its own console window
-    - listening on the address, with the backend plugin loaded after the config, like `make nvim`
+  - buttons that start Neovim, then connect
+    - Start Neovim: `nvim` in its own console window
+    - Start nvim-qt: the GUI, with `-platform windows:darkmode=1` and the config's
+      `%LOCALAPPDATA%
+vim
+vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
+    - Start headless: `nvim --headless`, detached from the app: no window, no terminal,
+      keeps running after the app quits
+    - each listens on the address, with the backend plugin loaded after the config, like `make nvim`
     - the plugin checkout is `NVIMOS_BACKEND`, else `nvimos-poc-backend` next to a parent folder
       of the working directory or of the exe
-    - the button reads "Starting Neovim…" while the app waits up to about 10 s for it to listen
-    - "nvim is not on PATH" or a missing plugin checkout show under the field
+    - the pressed button reads "Starting…" while the app waits up to about 10 s for it to listen
+    - "nvim is not on PATH" (or nvim-qt) or a missing plugin checkout show under the field
+  - a Stop headless button stops every `nvim.exe --headless` of this user, found in the process list
+    - "stopped <n> headless Neovim" or "no headless Neovim running" shows under the field
   - a lost connection shows "Neovim went away" and returns to this view
   - a box with the ways to start the backend, selectable for copying:
     `nvim --listen 127.0.0.1:6666`, `:NvimosServe` in a running Neovim,
