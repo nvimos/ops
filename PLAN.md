@@ -41,6 +41,8 @@ An agent may follow it or implement something better.
 
 - The app is continuously in sync with a running Neovim instance that serves as the backend.
 - Any errors from the backend should replace their view or ui-element and be selectable text (the trace).
+  - errors from actions (stage, commit, archive, ...) show as a short snackbar
+    with a Details link that opens the selectable trace
 
 - The Mouse is the main input device. All actions are mousable.
 
@@ -94,28 +96,47 @@ Initial one shot vibe code decisions (this section will disappear, it serves as 
 
 This section describes where the code lives and what the responsibilities of the different directories are
 
+Everything is under `lib/`; `main.dart` reads the address and starts the app.
+
 - `rpc/`
-  - msgpack-RPC client over a TCP socket
-  - requests with ids
-  - responses
-  - notifications as a stream
-  - uses the `msgpack_dart` package or a small encoder of its own
-  - `dart_nvim_api` only if it's maintained
+  - `client.dart`: msgpack-RPC client over a TCP socket
+    - requests with ids, responses, notifications as a stream
+    - `NvimError` for errors Neovim returns (full message and a `short` form)
+  - `msgpack.dart`: its own msgpack encoder and streaming decoder, no package
 
 - `backend/`
-  - typed wrapper around the plugin: `attach`, `resync`, `getText`, `open`, `show`, `git.*`
-  - turns `nvimos` notifications into typed events
-  - checks `seq` per domain
-  - resyncs on a gap
+  - `backend.dart`: typed wrapper around the plugin, one RPC connection
+    - checks the backend API version on connect
+    - `attach`, `getText`, `open`, `show`
+    - `git.*`: branches, log, diff, status, stage/unstage/discard (file and hunk), checkout, commit
+    - `files.*`: list, read, set lines, move, create, run a CLI
+    - `jobs.*`: start and cancel
+    - turns `nvimos` notifications into typed events, checks `seq` per domain, resyncs on a gap
+  - `models.dart`: typed views of the plugin's maps (cursor, branches, commits, diffs, status, jobs)
 
-- `model/`
-  - buffers, current window and cursor, diagnostics,
-    git state (branches, status, PR diff)
-  - a git `changed` hint re-queries what the current view shows, debounced.
+- `state/`: `ChangeNotifier`s, no framework
+  - `session.dart`: the connection, retries, and the live state every view shares:
+    current window and cursor, repo info, jobs, git change hints
+  - `pr.dart`: Pull request state: branches, base and head, commits, the diff
+  - `changes.dart`: Changes state: working tree status, the selected file's diff, actions
+  - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json`
+  - a git hint from the backend makes each state re-query what it shows
+
+- `tasks/`: the Tasks mode's data, pure Dart
+  - `parse.dart`, `markdown.dart`, `model.dart`: Backlog.md tasks, OpenSpec changes,
+    living specs, legacy notes, milestones
+  - `workspace.dart`: loads the planning files through the backend, links them,
+    reloads on git hints
+  - `edits.dart`: line-level edits that refuse to apply if the file changed meanwhile
+  - `archive.dart`, `inbox.dart`: archiving a change into its spec, the inbox
 
 - `ui/`
-  - the views below (aka Modes)
-  - state management with plain `ChangeNotifier`s, no framework.
+  - `shell.dart`: the window, mode rail, status bar
+  - `connect.dart`, `pr_view.dart`, `changes_view.dart`, `tasks/`: the views below (aka Modes)
+  - `diff_view.dart`, `file_tree.dart`, `widgets.dart`, `theme.dart`: shared pieces
+
+- `test/`: unit tests per state and parser; `test/support/nvim.dart` runs a headless Neovim
+  with the backend for the RPC and backend tests.
 
 ## The UI
 
@@ -160,11 +181,7 @@ Description of the UI.
 - no repo name and no current branch here; the current branch is in the status bar.
 - Directories mode, a folder icon
   - its icon comes after all other mode icons, not anchored to the bottom of the rail
-  - the view lists the start dirs of the genja-startdirs plugin,
-    in the same order as its Telescope picker (`:Telescope mydirs`, by frecency)
-  - the list is filterable;
-    when the filter leaves one item, it is selected and becomes the Active Directory.
-  - clicking an item in this list selects it as the Active Directory 
+  - see "Directories mode" below
 - }}}
 
 ### Status bar
@@ -197,6 +214,8 @@ Description of the UI.
 - base and head pickers 
   - {{{
   - commit/branch list that is used by git to show the diffs, the  `base..head` parameter
+  - lists the local branches; any revision git accepts can also be typed:
+    a sha, a tag, `HEAD~3`
   - the list is filterable. when only one item is left by filter, it is automatically selected and the focus moves to the next picker
   - when both pickers are selected, we show the diff view
   - }}}
@@ -215,7 +234,9 @@ Description of the UI.
   - hovering a row shows short sha, author and age ("3h ago", "2d ago")
   - at most 6 items/rows tall, scrolls beyond that
     - if the file list and commits are competing for vertical space the list of commits only shows 3 items and remains scrollable
-  - rows don't react to clicks; picking a commit does nothing yet
+  - clicking a row narrows the file tree and the diff to that one commit;
+    clicking it again or Esc returns to the full `base..head` range
+    - today rows don't react to clicks
   - reloaded together with the diff when a picker changes or git state changes.
   - }}}
 
@@ -224,10 +245,11 @@ Description of the UI.
 
 - the commits and files/dirs panels should have a button to make them the "dominant item"
   - when dominant they take as much space as they can vertically, but not forcing the other elements out completely
+  - the dominant choice and the collapsed state last for the session; every start begins with files dominant
 
 - diff views (next main panel)
   - {{{
-  - switching view keeps the active file / line and show that same position after switching
+  - switching view keeps the active file and shows it after switching
   - both view have a row of actions or toggles at the top
     - toggle line wrapping
     - expand/collapse all dirs. current file/dir stays expanded up to the relevant level
@@ -238,6 +260,9 @@ Description of the UI.
   - Side-by-side diff and syntax colors come later.
   - }}}
 - Click a file or hunk line: Neovim opens that line in the current buffer
+  - head checked out: the working tree file
+  - head not checked out: a read-only copy of the file at head (deleted lines: at the merge base)
+  - the current buffer has unsaved changes: open in a new window instead
 
 
 #### Changes ("WIP")
@@ -254,17 +279,36 @@ sidebar, issue list, detail panel from the right, inbox with
 no raw Markdown,
 keyboard J/K/Enter/Esc/C and /.
 
-- `tasks/parse/`: pure Dart parsers with unit tests: Backlog.md task (YAML header, sections,
-  checklists), OpenSpec change (proposal, tasks.md Build/Verify, design, spec deltas split on
-  ADDED/MODIFIED/REMOVED), living spec, legacy notes, `index.tsv`.
-- `tasks/repo.dart`: loads files through the backend's `files.*`, caches models, links tasks and
-  changes, refreshes on git hints; CLI aggregates (`openspec list --json`) merged when available.
-- `tasks/edit.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
-  proposal) sent as `files.set_lines`, archive as `files.move`, promote as `files.create`.
+- `tasks/parse.dart`, `tasks/markdown.dart`: pure Dart parsers with unit tests: Backlog.md task
+  (YAML header, sections, checklists), OpenSpec change (proposal, tasks.md Build/Verify, design,
+  spec deltas split on ADDED/MODIFIED/REMOVED/RENAMED), living spec, legacy notes, `index.tsv`.
+- `tasks/workspace.dart`: loads the `backlog/`, `openspec/` and `legacy/` files through the
+  backend's `files.*` (unsaved Neovim edits show too), links tasks and changes, reloads on git hints.
+- `tasks/edits.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
+  proposal) sent as `files.set_lines`; each refuses if the line changed meanwhile.
+- archiving a change (`Workspace.archive`): `openspec archive` when the CLI is installed,
+  else merge its deltas into the living spec (`tasks/archive.dart`) and move the folder
+  as `files.move`; new tasks and promoted legacy notes are written as `files.create`.
 - UI: sidebar (Inbox, Tasks, Changes, Specs, Legacy, Milestones), list with grouping, detail panel.
 
 #### Directories mode
 
+- {{{
+- works only while connected; disconnected, the view says so
+- lists the start dirs of the genja-startdirs plugin,
+  in the same order as its Telescope picker (`:Telescope mydirs`, by frecency)
+  - without genja-startdirs: the dirs of Neovim's recent files (`v:oldfiles`), most recent first
+  - the backend provides the list, the app reads no files itself
+- picking a dir doesn't count as a use; frecency stays as Neovim records it
+- the list is filterable;
+  when the filter leaves one item, it is selected and becomes the Active Directory.
+- clicking an item selects it as the Active Directory
+- the Active Directory
+  - default: the connected Neovim does `:cd` there; the backend follows the cwd,
+    sends a new git snapshot and every mode reloads
+  - a toggle in this view, "New Neovim per directory": picking a dir starts a new Neovim
+    instance there and the app connects to it
+- }}}
 
 
 ## non-functional remarks
@@ -280,7 +324,6 @@ _not strictly normative_
 
 _not strictly normative_ 
 
-- Branch review click target: read-only branch copy (default) or check out the branch first.
 - Flutter on exFAT (`H:`): if builds fail on symlinks or file locks, move the SDK to an NTFS drive.
 
 ### Steps (one commit each)
