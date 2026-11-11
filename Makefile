@@ -9,7 +9,7 @@ export PUB_CACHE ?= C:/tools/pub-cache
 FLUTTER := $(FLUTTER_ROOT)/bin/flutter.bat
 PORT    ?= 6666
 
-.PHONY: help run build test analyze nvim timings measure
+.PHONY: help run live build test analyze nvim timings measure
 
 # `make help` prints the `##@` lines as section headers and `target: ## text` as entries.
 .DEFAULT_GOAL := help
@@ -21,6 +21,9 @@ nvim: ## start Neovim on 127.0.0.1:6666 (PORT=) with the backend plugin (added a
 
 run: ## run the app (debug); connects to 127.0.0.1:6666
 	$(FLUTTER) run -d windows
+
+live: ## run the app (debug) and hot-reload it on every save under lib/ (RESTART=1: hot restart)
+	pwsh -NoProfile -File tool/live.ps1 -Flutter '$(FLUTTER)' $(if $(RESTART),-Restart,)
 
 build: ## build the release exe (build/windows/x64/runner/Release)
 	$(FLUTTER) build windows --release
