@@ -69,6 +69,19 @@ void showActionError(BuildContext context, String? err) {
   );
 }
 
+/// A short note that the app did something by itself, with Undo.
+void showAutoStatus(BuildContext context, String text, {required VoidCallback onUndo}) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(text),
+      duration: const Duration(seconds: 6),
+      action: SnackBarAction(label: 'Undo', onPressed: onUndo),
+    ),
+  );
+}
+
 Future<void> showErrorDetails(BuildContext context, String err) => showDialog<void>(
   context: context,
   builder: (c) => AlertDialog(

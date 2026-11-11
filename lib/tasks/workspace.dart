@@ -6,6 +6,7 @@ import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../state/session.dart';
 import 'archive.dart';
+import 'auto_status.dart';
 import 'edits.dart';
 import 'markdown.dart';
 import 'model.dart';
@@ -321,10 +322,46 @@ class Workspace extends ChangeNotifier {
   Future<String?> setTaskPriority(Task t, String priority) =>
       t.priority == priority ? Future.value(null) : edit(t.path, [taskPriorityEdit(t, priority)]);
 
-  Future<String?> toggleCheck(String path, Check c) {
+  /// The last status the app set by itself after a tick (see [toggleCheck]); the view offers Undo.
+  final autoStatus = ValueNotifier<AutoStatus?>(null);
+
+  /// Toggle a checkbox. Ticking the last open box of a task (or of its change's tasks.md) moves the
+  /// task on: to Needs Test when only hand checks are left, to Done when nothing is.
+  Future<String?> toggleCheck(String path, Check c) async {
     final lines = _files[path];
-    if (lines == null || c.line >= lines.length) return Future.value('$path changed; refresh');
-    return edit(path, [toggleCheckEdit(lines, c)]);
+    if (lines == null || c.line >= lines.length) return '$path changed; refresh';
+    final err = await edit(path, [toggleCheckEdit(lines, c)]);
+    if (err != null || c.done) return err;
+    return _autoStatus(path);
+  }
+
+  /// After a tick in [path]: the task's checks, or its change's Build / Verify groups.
+  Future<String?> _autoStatus(String path) async {
+    final task = _taskOf[path];
+    final change = task == null ? allChanges.where((c) => c.tasks?.path == path).firstOrNull : null;
+    final t = task ?? (change == null ? null : taskFor(change));
+    if (t == null) return null;
+    final groups = change?.checkGroups ?? [];
+    bool isVerify(String title) => title.toLowerCase().contains('verify');
+    final next = autoStatusAfterTick(
+      status: t.status,
+      build: task != null
+          ? [...task.acceptance, ...task.definitionOfDone]
+          : [for (final (title, cs) in groups) if (!isVerify(title)) ...cs],
+      verify: task != null ? task.verify : [for (final (title, cs) in groups) if (isVerify(title)) ...cs],
+      statuses: statuses,
+    );
+    if (next == null) return null;
+    final from = t.status;
+    final err = await setTaskStatus(t, next);
+    if (err == null) autoStatus.value = AutoStatus(t.id, from, next);
+    return err;
+  }
+
+  /// Undo an [AutoStatus]: put the task's status back.
+  Future<String?> undoAutoStatus(AutoStatus a) async {
+    final t = task(a.taskId);
+    return t == null ? null : setTaskStatus(t, a.from);
   }
 
   /// Archive a change: `openspec archive` when the CLI is installed; otherwise merge its deltas
@@ -543,6 +580,7 @@ class Workspace extends ChangeNotifier {
     _gen++;
     _debounce?.cancel();
     session.gitChanged.removeListener(_onGit);
+    autoStatus.dispose();
     super.dispose();
   }
 }
