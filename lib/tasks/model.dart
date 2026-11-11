@@ -29,7 +29,8 @@ class Task {
   List<String> get dependencies => front.list('dependencies');
   String get created => front.str('created_date');
   int get ordinal => int.tryParse(front.str('ordinal')) ?? 0;
-  int get number => int.tryParse(id.replaceAll(RegExp(r'\D'), '')) ?? 0;
+  late final int number = int.tryParse(id.replaceAll(_nonDigit, '')) ?? 0;
+  static final _nonDigit = RegExp(r'\D');
 
   Section? section(String name) => findSection(sections, (t) => t == name.toLowerCase(), level: 2);
 

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../backend/models.dart';
+import '../timing/ui_timing.dart';
 import 'session.dart';
 
 /// Unified or side-by-side diff.
@@ -63,7 +64,9 @@ class PrState extends ChangeNotifier {
 
   /// Reload branches, then commits and diff for the picked pair (keeps the selection).
   /// [base] and [head] may be any revision git accepts; only unknown branch names are replaced.
-  Future<void> refresh() async {
+  Future<void> refresh() => UiTiming.instance.time('pr.refresh', _refresh);
+
+  Future<void> _refresh() async {
     final b = session.backend;
     if (b == null) return;
     final gen = ++_gen;

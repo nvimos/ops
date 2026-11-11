@@ -207,6 +207,8 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `edits.dart`: line-level edits that refuse to apply if the file changed meanwhile
   - `archive.dart`, `inbox.dart`: archiving a change into its spec, the inbox
 
+- `timing/ui_timing.dart`: UI timing instrumentation (see Performance)
+
 - `ui/`
   - `shell.dart`: the window, mode rail, status bar
   - `connect.dart`, `pr_view.dart`, `changes_view.dart`, `tasks/`: the views below (aka Modes)
@@ -395,6 +397,22 @@ keyboard J/K/Enter/Esc/C and /.
 
 A Note on cloning or imitating Github Desktop and Linear. The author is grateful to both companies for creating those
 products and their vision, of how things work, with utmost humility and gratitude.
+
+## Performance
+
+- a click shows its result in the next frame; the backend answer follows
+  - Tasks checkboxes, status and priority: the edit applies in memory, only the edited file is parsed again
+  - the reload that our own write sets off is skipped; a reload that started before an edit keeps the edit
+  - Changes stage and unstage of whole files: the file moves to the other list at once;
+    the status after git answers keeps it there or puts it back, and the error shows
+  - hunk staging waits for git: the other hunks' line numbers shift
+- UI timing instrumentation, on in debug and profile builds, off in release; `NVIMOS_TIMING=1` / `0` overrides
+  - hooked where actions already pass, not in click handlers:
+    every backend call (`rpc <module>.<fn>`), the state actions (`tasks.edit`, `changes.stage`, ...)
+    with their phases (`/optimistic`, `/paint`, `/git`, `/saved`), and every pointer down to the next frame
+  - per action: count, p50, p95, max in ms
+  - written to `%APPDATA%/nvimos/ui-timing.json` every minute and on quit: the last 30 sessions and totals
+  - `test/timing_measure_test.dart` prints the timings of Tasks clicks in a 300-task repo
 
 ##  implementation details
 

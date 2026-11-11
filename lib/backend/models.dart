@@ -116,15 +116,35 @@ class StatusFile {
       unstaged = m['unstaged'] == true,
       untracked = m['untracked'] == true,
       conflicted = m['conflicted'] == true;
+
+  StatusFile._(this.path, this.orig, this.index, this.worktree, this.staged, this.unstaged, this.untracked, this.conflicted);
+
   final String path, index, worktree;
   final String? orig;
   final bool staged, unstaged, untracked, conflicted;
+
+  /// The same file staged or unstaged as a whole, as git status would show it (a guess the next
+  /// status replaces).
+  StatusFile moved({required bool toStaged}) {
+    if (toStaged) {
+      final kind = untracked ? 'A' : (worktree.trim().isEmpty ? index : worktree);
+      return StatusFile._(path, orig, kind, ' ', true, false, false, false);
+    }
+    final added = index == 'A';
+    final kind = unstaged ? worktree : (added ? '?' : index);
+    return StatusFile._(path, orig, ' ', kind, false, !added, added, false);
+  }
 }
 
 class Status {
   Status(Map<String, Object?> m)
     : branch = m['branch'] is String ? m['branch'] as String : null,
       files = asList(m['files']).map((e) => StatusFile(asMap(e))).toList();
+
+  Status._(this.branch, this.files);
+
+  Status withFiles(List<StatusFile> files) => Status._(branch, files);
+
   final String? branch;
   final List<StatusFile> files;
 }

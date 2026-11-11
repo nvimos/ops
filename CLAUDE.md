@@ -36,6 +36,16 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   with `ErrorPane` in place of the view, a failed action with `showActionError` (short snackbar,
   Details opens the selectable trace).
 
+## Performance
+
+- A click changes the state at once (optimistic), then calls the backend; the refresh after it
+  keeps the change or puts it back. Don't make a click wait on an RPC to redraw.
+- Measure before optimizing: `UiTiming.instance` (`lib/timing/ui_timing.dart`) has `span`,
+  `sync`, `time`; give a new state action a span named `<area>.<action>`. Plain tests see the
+  samples in `UiTiming.instance.samples` / `summary()`.
+- Watch per-item work in loops over hundreds of files: a getter that builds a `RegExp` or
+  re-parses (as `Task.number` did) inside a sort costs whole frames.
+
 ## Keys
 
 - The shell owns app-wide keys (Alt+] / Alt+[ / Alt+1..5, Ctrl+B, `?`) and gives the keyboard

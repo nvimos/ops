@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../backend/backend.dart';
 import '../backend/models.dart';
+import '../timing/ui_timing.dart';
 import 'session.dart';
 
 /// State of the Changes view: working tree vs HEAD, the selected file's diff, and actions.
@@ -22,6 +23,10 @@ class ChangesState extends ChangeNotifier {
   /// The current hunk of the selected file (]c / [c); -1: none, keys act on the whole file.
   int hunk = -1;
   int _gen = 0;
+
+  /// Actions still waiting for git. A refresh doesn't show a status while one runs: it could
+  /// predate the action and flip an optimistic move back; the action's own refresh follows.
+  int _pending = 0;
   bool _disposed = false;
 
   @override
@@ -32,13 +37,15 @@ class ChangesState extends ChangeNotifier {
   List<StatusFile> get staged => status?.files.where((f) => f.staged).toList() ?? [];
   List<StatusFile> get unstaged => status?.files.where((f) => f.unstaged || f.untracked || f.conflicted).toList() ?? [];
 
-  Future<void> refresh() async {
+  Future<void> refresh() => UiTiming.instance.time('changes.refresh', _refresh);
+
+  Future<void> _refresh() async {
     final b = session.backend;
-    if (b == null) return;
+    if (b == null || _pending > 0) return;
     final gen = ++_gen;
     try {
       final st = await b.status();
-      if (gen != _gen) return;
+      if (gen != _gen || _pending > 0) return;
       status = st;
       // Keep the selection if the file still has changes on that side; else pick another.
       final side = selectedStaged ? staged : unstaged;
@@ -114,43 +121,72 @@ class ChangesState extends ChangeNotifier {
   /// The line `o` opens: the current hunk's first changed line, else the first hunk's, else 1.
   int get currentLine => (currentHunk ?? diff?.hunks.firstOrNull)?.firstChangedLine ?? 1;
 
-  /// Run an action, then refresh. Returns the error text, or null.
-  Future<String?> act(Future<void> Function(Backend b) action) async {
+  /// Run an action, then refresh; timed as `changes.<name>`. [optimistic] changes what the view
+  /// shows before git answers; the refresh after the action keeps it or puts it back. Returns the
+  /// error text, or null.
+  Future<String?> act(String name, Future<void> Function(Backend b) action, {void Function()? optimistic}) async {
+    final span = UiTiming.instance.span('changes.$name');
     busy = true;
+    _pending++;
+    optimistic?.call();
     notifyListeners();
+    if (optimistic != null) span.markPainted();
     final err = await session.run(action);
+    span.mark('git');
+    _pending--;
     busy = false;
     await refresh();
+    span.end();
     return err;
   }
 
-  Future<String?> commit(String message) => act((b) => b.commit(message));
+  Future<String?> commit(String message) => act('commit', (b) => b.commit(message));
 
   /// Stage every file of the unstaged side, or unstage every staged one.
   Future<String?> moveAll({required bool staged}) {
-    final files = staged ? this.staged : unstaged;
-    return act((b) async {
-      for (final f in files) {
-        staged ? await b.unstage(f.path) : await b.stage(f.path);
-      }
-    });
+    final paths = {for (final f in staged ? this.staged : unstaged) f.path};
+    return act(
+      staged ? 'unstageAll' : 'stageAll',
+      (b) async {
+        for (final p in paths) {
+          staged ? await b.unstage(p) : await b.stage(p);
+        }
+      },
+      optimistic: () => _moveLocally(paths, toStaged: !staged),
+    );
   }
 
-  /// Stage an unstaged file, or unstage a staged one.
-  Future<String?> moveFile(String path, {required bool staged}) =>
-      act((b) => staged ? b.unstage(path) : b.stage(path));
+  /// Stage an unstaged file, or unstage a staged one. The file moves to the other list at once.
+  Future<String?> moveFile(String path, {required bool staged}) => act(
+    staged ? 'unstage' : 'stage',
+    (b) => staged ? b.unstage(path) : b.stage(path),
+    optimistic: () => _moveLocally({path}, toStaged: !staged),
+  );
 
-  Future<String?> discardFile(String path) => act((b) => b.discard(path));
+  /// What git status will most likely say after staging or unstaging [paths] as whole files; the
+  /// selection follows its file.
+  void _moveLocally(Set<String> paths, {required bool toStaged}) {
+    final st = status;
+    if (st == null) return;
+    status = st.withFiles([for (final f in st.files) paths.contains(f.path) ? f.moved(toStaged: toStaged) : f]);
+    if (selected != null && paths.contains(selected)) selectedStaged = toStaged;
+  }
 
-  /// Stage a hunk of the selected unstaged file, or unstage one of the selected staged file.
+  Future<String?> discardFile(String path) => act('discard', (b) => b.discard(path));
+
+  /// Stage a hunk of the selected unstaged file, or unstage one of the selected staged file. Not
+  /// optimistic: the other hunks' line numbers shift, only git knows them.
   Future<String?> toggleHunk(Hunk h) {
     final path = selected!;
-    return act((b) => selectedStaged ? b.unstageHunk(path, h) : b.stageHunk(path, h));
+    return act(
+      selectedStaged ? 'unstageHunk' : 'stageHunk',
+      (b) => selectedStaged ? b.unstageHunk(path, h) : b.stageHunk(path, h),
+    );
   }
 
   Future<String?> discardHunk(Hunk h) {
     final path = selected!;
-    return act((b) => b.discardHunk(path, h));
+    return act('discardHunk', (b) => b.discardHunk(path, h));
   }
 
   /// Open the selected file in Neovim at [line] (new side only; deletions have no line there).
