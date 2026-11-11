@@ -412,7 +412,8 @@ products and their vision, of how things work, with utmost humility and gratitud
     with their phases (`/optimistic`, `/paint`, `/git`, `/saved`), and every pointer down to the next frame
   - per action: count, p50, p95, max in ms
   - written to `%APPDATA%/nvimos/ui-timing.json` every minute and on quit: the last 30 sessions and totals
-  - `test/timing_measure_test.dart` prints the timings of Tasks clicks in a 300-task repo
+  - `make timings` shows them (`WHICH=totals` or `<n>` sessions back, `FILTER=tasks`);
+    `make measure` prints the timings of Tasks clicks in a 300-task repo
 
 ##  implementation details
 

@@ -9,7 +9,7 @@ export PUB_CACHE ?= C:/tools/pub-cache
 FLUTTER := $(FLUTTER_ROOT)/bin/flutter.bat
 PORT    ?= 6666
 
-.PHONY: help run build test analyze nvim
+.PHONY: help run build test analyze nvim timings measure
 
 # `make help` prints the `##@` lines as section headers and `target: ## text` as entries.
 .DEFAULT_GOAL := help
@@ -32,6 +32,17 @@ test: ## unit and integration tests (the RPC tests start a headless Neovim); 45 
 
 analyze: ## static analysis
 	$(FLUTTER) analyze
+
+##@ timing
+
+WHICH  ?= last
+FILTER ?=
+
+timings: ## UI timings the app recorded, ms per action (WHICH=last|totals|<n back>, FILTER=tasks)
+	@pwsh -NoProfile -File tool/timings.ps1 -Which '$(WHICH)' -Filter '$(FILTER)'
+
+measure: ## time Tasks checkbox clicks in a 300-task repo with a headless Neovim
+	$(FLUTTER) test test/timing_measure_test.dart
 
 ##@ other
 
