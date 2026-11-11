@@ -15,12 +15,14 @@ class MilestoneDetail extends StatelessWidget {
     required this.name,
     required this.ws,
     required this.onClose,
+    this.widen,
     required this.onChange,
   });
 
   final String name;
   final Workspace ws;
   final VoidCallback onClose;
+  final PanelWiden? widen;
   final void Function(Change c) onChange;
 
   @override
@@ -29,7 +31,7 @@ class MilestoneDetail extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PanelHeader(kicker: 'milestone', title: name, onClose: onClose),
+        PanelHeader(kicker: 'milestone', title: name, onClose: onClose, widen: widen),
         _MilestoneProps(name: name, ws: ws, changes: list),
         const Divider(height: 1),
         Expanded(

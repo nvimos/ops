@@ -401,6 +401,10 @@ keyboard J/K/Enter/Esc/C and /.
   else merge its deltas into the living spec (`tasks/archive.dart`) and move the folder
   as `files.move`; new tasks and promoted legacy notes are written as `files.create`.
 - UI: sidebar (Inbox, Tasks, Changes, Specs, Legacy, Milestones), list with grouping, detail panel.
+- Detail panel header: Open in Neovim, widen, close
+  - widen makes the panel twice as wide (at most the list's width) and lays it over the list,
+    for long text; the list keeps its width underneath
+  - the same button narrows it again; the width stays while you move between items
 - Planning folder: the repo root, or the folder a `.nvimos` file at the repo root names
   - `.nvimos` holds `key = value` lines, `#` comments:
     `tracking = ../nvimos-meta` (`~`, absolute, or relative to the repo root) and `project = frontend`

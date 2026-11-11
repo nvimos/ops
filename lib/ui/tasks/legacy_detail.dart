@@ -12,6 +12,7 @@ class LegacyDetail extends StatelessWidget {
     super.key,
     required this.item,
     required this.onClose,
+    this.widen,
     required this.onPromote,
     required this.onOpen,
     this.promotedAs,
@@ -20,6 +21,7 @@ class LegacyDetail extends StatelessWidget {
 
   final LegacyItem item;
   final VoidCallback onClose;
+  final PanelWiden? widen;
   final VoidCallback onPromote;
   final VoidCallback onOpen;
 
@@ -31,7 +33,7 @@ class LegacyDetail extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      PanelHeader(kicker: 'legacy/${item.file}', title: item.text, onClose: onClose),
+      PanelHeader(kicker: 'legacy/${item.file}', title: item.text, onClose: onClose, widen: widen),
       _LegacyProps(item: item, promotedAs: promotedAs, onTask: onTask),
       const Divider(height: 1),
       Expanded(

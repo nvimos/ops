@@ -14,6 +14,9 @@ abstract class TaskActions {
   void openTask(String id);
   void openChange(Change c);
   void close();
+
+  /// The detail panel's widen / narrow toggle.
+  PanelWiden get widen;
   void openInNeovim(String path, int line);
   Future<void> setStatus(Task t, String status);
   Future<void> setPriority(Task t, String priority);
@@ -44,6 +47,7 @@ class TaskDetail extends StatelessWidget {
           kicker: t.id,
           title: t.title,
           onClose: actions.close,
+          widen: actions.widen,
           actions: [OpenInNeovimButton(onTap: () => actions.openInNeovim(t.path, 1))],
         ),
         Expanded(

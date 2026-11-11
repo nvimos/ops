@@ -14,6 +14,7 @@ import '../error_view.dart';
 import '../key_sequence.dart';
 import '../widgets.dart';
 import 'change_detail.dart';
+import 'detail_parts.dart';
 import 'dialogs.dart';
 import 'legacy_detail.dart';
 import 'milestone_detail.dart';
@@ -58,6 +59,14 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Set<String> _changesBefore = {};
 
   Workspace get ws => widget.ws;
+
+  /// The detail panel is twice as wide, over the list.
+  bool wide = false;
+
+  @override
+  PanelWiden get widen => PanelWiden(wide: wide, onToggle: toggleWide);
+
+  void toggleWide() => setState(() => wide = !wide);
   Session get session => _session!;
   Object? get selected => browser.selected;
   String get _repoKey => session.repo?.root ?? 'repo';
@@ -348,8 +357,21 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       children: [
         SizedBox(width: 220, child: _nav()),
         const VerticalDivider(width: 1),
-        Expanded(child: _list(rows)),
-        DetailPanel(width: ((width - 221) * .45).clamp(360.0, 600.0), child: _detail()),
+        Expanded(child: _listAndDetail(rows, width - 221)),
+      ],
+    );
+  }
+
+  /// The list, and the detail panel at its right; wide, the panel is twice as wide and covers the
+  /// list instead of squeezing it.
+  Widget _listAndDetail(List<ListRow> rows, double area) {
+    final detail = _detail();
+    final normal = (area * .45).clamp(360.0, 600.0);
+    final panel = wide ? (normal * 2).clamp(normal, area) : normal;
+    return Stack(
+      children: [
+        Positioned.fill(right: detail == null ? 0 : normal, child: _list(rows)),
+        Positioned(top: 0, bottom: 0, right: 0, child: DetailPanel(width: panel, child: detail)),
       ],
     );
   }
@@ -407,7 +429,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       TaskDetail(key: ValueKey(ws.task(id)!.path), task: ws.task(id)!, ws: ws, actions: this),
     final ChangeKey k when _change(k) != null => ChangeDetail(change: _change(k)!, ws: ws, actions: this, onArchive: archive),
     final SpecKey k => _specDetail(k),
-    final MilestoneKey k => MilestoneDetail(name: k.name, ws: ws, onClose: close, onChange: openChange),
+    final MilestoneKey k => MilestoneDetail(name: k.name, ws: ws, onClose: close, onChange: openChange, widen: widen),
     final LegacyKey k when ws.legacyAt(k) != null => _legacyDetail(ws.legacyAt(k)!),
     _ => const Empty('Gone: the file moved or was deleted.'),
   };
@@ -423,6 +445,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       requirement: r,
       ws: ws,
       onClose: close,
+      widen: widen,
       onChange: openChange,
       onOpen: () => openInNeovim(sp.doc.path, r.start + 1),
     );
@@ -431,6 +454,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Widget _legacyDetail(LegacyItem l) => LegacyDetail(
     item: l,
     onClose: close,
+    widen: widen,
     onPromote: () => promote(l),
     onOpen: () => openInNeovim('legacy/${l.file}', l.line + 1),
     promotedAs: ws.promotedAs(l),
