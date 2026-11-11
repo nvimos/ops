@@ -49,4 +49,35 @@ void main() {
     s.dispose();
     await nvim.stop();
   });
+
+  test('stage all, unstage a file, stage and unstage the selected hunk; file kinds', () async {
+    final repo = await makeRepo();
+    await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');
+    await File('${repo.path}/c.txt').writeAsString('new\n');
+
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.unstaged.length == 2);
+    expect(fileKind(st.unstaged.firstWhere((f) => f.path == 'c.txt'), staged: false), 'untracked');
+
+    expect(await st.moveAll(staged: false), isNull);
+    await until(() => st.staged.length == 2 && st.unstaged.isEmpty);
+    expect(fileKind(st.staged.firstWhere((f) => f.path == 'c.txt'), staged: true), 'added');
+
+    expect(await st.moveFile('c.txt', staged: true), isNull);
+    await until(() => st.staged.length == 1);
+
+    st.select('a.txt', staged: true);
+    await until(() => st.diff != null && st.selectedStaged);
+    expect(await st.moveHunk(st.diff!.hunks.single), isNull);
+    await until(() => !st.staged.any((f) => f.path == 'a.txt'));
+
+    expect(await st.openLine(2, isOld: true), isNull); // deletions have no line in the work tree
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
 }

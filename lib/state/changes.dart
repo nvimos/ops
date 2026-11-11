@@ -16,7 +16,7 @@ class ChangesState extends ChangeNotifier {
   String? selected;
   bool selectedStaged = false;
   DiffFile? diff;
-  String? error; // last action's error, for a snackbar
+  String? error; // the last refresh's error (full text); the view shows it in place of the diff
   bool busy = false;
   int _gen = 0;
   bool _disposed = false;
@@ -55,7 +55,9 @@ class ChangesState extends ChangeNotifier {
       }
       diff = selected == null ? null : await b.diffFile(selected!, staged: selectedStaged);
       if (gen != _gen) return;
+      error = null;
     } catch (e) {
+      if (gen != _gen) return;
       error = '$e';
     }
     notifyListeners();
@@ -81,6 +83,40 @@ class ChangesState extends ChangeNotifier {
 
   Future<String?> commit(String message) => act((b) => b.commit(message));
 
+  /// Stage every file of the unstaged side, or unstage every staged one.
+  Future<String?> moveAll({required bool staged}) {
+    final files = staged ? this.staged : unstaged;
+    return act((b) async {
+      for (final f in files) {
+        staged ? await b.unstage(f.path) : await b.stage(f.path);
+      }
+    });
+  }
+
+  /// Stage an unstaged file, or unstage a staged one.
+  Future<String?> moveFile(String path, {required bool staged}) =>
+      act((b) => staged ? b.unstage(path) : b.stage(path));
+
+  Future<String?> discardFile(String path) => act((b) => b.discard(path));
+
+  /// Stage a hunk of the selected unstaged file, or unstage one of the selected staged file.
+  Future<String?> moveHunk(Hunk h) {
+    final path = selected!;
+    return act((b) => selectedStaged ? b.unstageHunk(path, h) : b.stageHunk(path, h));
+  }
+
+  Future<String?> discardHunk(Hunk h) {
+    final path = selected!;
+    return act((b) => b.discardHunk(path, h));
+  }
+
+  /// Open the selected file in Neovim at [line] (new side only; deletions have no line there).
+  Future<String?> openLine(int line, {required bool isOld}) async {
+    final path = selected;
+    if (isOld || path == null) return null;
+    return session.run((b) => b.open(path, line));
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -88,4 +124,17 @@ class ChangesState extends ChangeNotifier {
     session.gitChanged.removeListener(refresh);
     super.dispose();
   }
+}
+
+/// What a status row shows for [f] on its side: conflicted, untracked, added, deleted, renamed or
+/// modified.
+String fileKind(StatusFile f, {required bool staged}) {
+  if (f.conflicted) return 'conflicted';
+  if (f.untracked) return 'untracked';
+  return switch (staged ? f.index : f.worktree) {
+    'A' => 'added',
+    'D' => 'deleted',
+    'R' => 'renamed',
+    _ => 'modified',
+  };
 }

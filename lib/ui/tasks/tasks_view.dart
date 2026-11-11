@@ -18,6 +18,7 @@ import 'milestone_detail.dart';
 import 'rich.dart';
 import 'spec_detail.dart';
 import 'task_detail.dart';
+import '../error_view.dart';
 
 enum TView { inbox, tasks, changes, specs, legacy, milestones }
 
@@ -161,7 +162,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Session get session => SessionScope.read(context);
 
   void _snack(String? err) {
-    if (err != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+    if (mounted) showActionError(context, err);
   }
 
   // TaskActions -------------------------------------------------------------------------------
@@ -495,12 +496,11 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Widget build(BuildContext context) {
     return Focus(
       focusNode: focus,
-      autofocus: true,
       onKeyEvent: onKey,
       child: ListenableBuilder(
         listenable: ws,
         builder: (context, _) {
-          if (!ws.loaded) return Empty(ws.error ?? 'Loading planning files…');
+          if (!ws.loaded) return ws.error != null ? ErrorPane(ws.error!, onRetry: ws.load) : const Empty('Loading planning files…');
           final rs = rows();
           return LayoutBuilder(
             builder: (context, box) {
