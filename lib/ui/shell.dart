@@ -9,6 +9,7 @@ import '../tasks/workspace.dart';
 import 'changes_view.dart';
 import 'connect.dart';
 import 'dirs_view.dart';
+import 'error_view.dart';
 import 'key_sequence.dart';
 import 'help_view.dart';
 import 'mode_rail.dart';
@@ -38,6 +39,7 @@ class _ShellState extends State<Shell> {
   /// The task whose branch the Pull request view is reviewing (its Verify list shows beside it).
   Task? _reviewing;
   final _tasksKey = GlobalKey<TasksViewState>();
+  final _changesKey = GlobalKey<ChangesViewState>();
   final _dirsKey = GlobalKey<DirsViewState>();
   late final _prKeys = KeySequence({
     'v': () => _pr?.toggleLayout(),
@@ -49,7 +51,19 @@ class _ShellState extends State<Shell> {
     'zw': () => _pr?.toggleWrap(),
     'zR': () => _pr?.expandAllDirs(),
     'zM': () => _pr?.collapseAllDirs(),
+    'j': () => _pr?.moveCursor(1),
+    'k': () => _pr?.moveCursor(-1),
+    'gg': () => _pr?.moveCursor(-_far),
+    'G': () => _pr?.moveCursor(_far),
+    ']c': () => _pr?.moveHunk(1),
+    '[c': () => _pr?.moveHunk(-1),
+    'h': () => _pr?.foldSelected(fold: true),
+    'l': () => _pr?.foldSelected(fold: false),
+    'o': _openPr,
   });
+
+  /// Far enough to reach the first or last item of any list.
+  static const _far = 1 << 20;
 
   @override
   void dispose() {
@@ -87,6 +101,7 @@ class _ShellState extends State<Shell> {
   }
 
   void _focusMode(Mode m) => switch (m) {
+    Mode.changes => _changesKey.currentState?.focus.requestFocus(),
     Mode.tasks => _tasksKey.currentState?.focus.requestFocus(),
     Mode.directories => _dirsKey.currentState?.focus.requestFocus(),
     _ => _focus.requestFocus(),
@@ -119,6 +134,8 @@ class _ShellState extends State<Shell> {
       // App-wide, also while typing.
       final k when hw.isAltPressed && !hw.isControlPressed => _altKey(k),
       LogicalKeyboardKey.keyB when hw.isControlPressed && !hw.isAltPressed => _run(_toggleRail),
+      LogicalKeyboardKey.keyD when hw.isControlPressed && _inPr && !_typing() => _run(() => _pr!.moveCursor(10)),
+      LogicalKeyboardKey.keyU when hw.isControlPressed && _inPr && !_typing() => _run(() => _pr!.moveCursor(-10)),
       _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed || _typing() => false,
       _ when e.character == '?' => _run(() => _setMode(Mode.help)),
       _ when _mode == Mode.pullRequest => _prKey(e),
@@ -134,11 +151,29 @@ class _ShellState extends State<Shell> {
     return i >= 0 && _run(() => _setMode(Mode.values[i]));
   }
 
+  bool get _inPr => _mode == Mode.pullRequest && _pr != null;
+
+  /// Pull request keys that aren't characters: Enter, Esc, Tab, arrows; the rest go to [_prKeys].
   bool _prKey(KeyEvent e) {
     final pr = _pr;
     if (pr == null) return false;
-    if (e.logicalKey == LogicalKeyboardKey.escape && pr.narrowed != null) return _run(pr.showAllCommits);
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final action = switch (e.logicalKey) {
+      LogicalKeyboardKey.escape when pr.narrowed != null => pr.showAllCommits,
+      LogicalKeyboardKey.enter => pr.enter,
+      LogicalKeyboardKey.tab => () => pr.nextPane(shift ? -1 : 1),
+      LogicalKeyboardKey.arrowDown => () => pr.moveCursor(1),
+      LogicalKeyboardKey.arrowUp => () => pr.moveCursor(-1),
+      _ => null,
+    };
+    if (action != null) return _run(action);
     return _prKeys.press(e.character);
+  }
+
+  /// o: the selected file in Neovim at the current hunk.
+  Future<void> _openPr() async {
+    final err = await _pr?.openCurrent();
+    if (mounted) showActionError(context, err);
   }
 
   static bool _run(void Function() f) {
@@ -199,7 +234,7 @@ class _ShellState extends State<Shell> {
     index: _mode.index,
     children: [
       PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
-      const ChangesView(),
+      ChangesView(key: _changesKey),
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review),
       DirsView(key: _dirsKey, state: _dirs!),
       const HelpView(),

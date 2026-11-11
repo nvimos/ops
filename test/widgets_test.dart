@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/backend/models.dart';
 import 'package:nvimos_poc/state/session.dart';
@@ -75,6 +76,31 @@ void main() {
     for (final m in ['Pull request', 'Changes', 'Tasks', 'Directories']) {
       expect(find.text(m), findsOneWidget);
     }
+    s.dispose();
+  });
+
+  testWidgets('app keys: ? opens Help (no connection needed), Ctrl+B expands the rail, Alt+] steps modes', (t) async {
+    final s = Session(port: 1);
+    await t.pumpWidget(SessionScope(session: s, child: MaterialApp(theme: buildTheme(), home: const Shell())));
+    await t.pump();
+    expect(find.text('Connect to Neovim'), findsOneWidget);
+
+    await t.sendKeyEvent(LogicalKeyboardKey.slash, character: '?');
+    await t.pump();
+    expect(find.text('Keys'), findsOneWidget); // the Help mode replaced the connect screen
+    expect(find.text('next / previous hunk'), findsWidgets);
+
+    await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await t.sendKeyEvent(LogicalKeyboardKey.keyB);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await t.pump(const Duration(milliseconds: 300));
+    expect(find.text('Help'), findsOneWidget); // labels show in the expanded rail
+
+    await t.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+    await t.sendKeyEvent(LogicalKeyboardKey.bracketRight); // Help is last: wraps to Pull request
+    await t.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+    await t.pump();
+    expect(find.text('Connect to Neovim'), findsOneWidget);
     s.dispose();
   });
 }

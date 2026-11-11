@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../state/dirs.dart';
 import 'error_view.dart';
+import 'key_sequence.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -27,11 +28,20 @@ class DirsViewState extends State<DirsView> {
   final _filterFocus = FocusNode(debugLabel: 'dirs filter');
   final _filter = TextEditingController();
   Timer? _auto;
+  static const _far = 1 << 20;
+  late final _keys = KeySequence({
+    'j': () => st.move(1),
+    'k': () => st.move(-1),
+    'gg': () => st.move(-_far),
+    'G': () => st.move(_far),
+    'n': st.toggleNewNeovim,
+  });
 
   DirsState get st => widget.state;
 
   @override
   void dispose() {
+    _keys.dispose();
     _auto?.cancel();
     focus.dispose();
     _filterFocus.dispose();
@@ -74,28 +84,34 @@ class DirsViewState extends State<DirsView> {
     st.setFilter('');
   }
 
-  // Keys: j/k and arrows move, Enter picks, / filters, n toggles, Esc clears the filter.
+  // Keys: j/k, gg/G, Ctrl+D/U move, Enter picks, / or Tab filters, n toggles, Esc clears the filter.
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
     if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
     final hw = HardwareKeyboard.instance;
-    if (hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed) return KeyEventResult.ignored;
     final k = e.logicalKey;
     if (_filterFocus.hasFocus) return _filterKey(k);
     final action = switch (k) {
-      LogicalKeyboardKey.keyJ || LogicalKeyboardKey.arrowDown => () => st.move(1),
-      LogicalKeyboardKey.keyK || LogicalKeyboardKey.arrowUp => () => st.move(-1),
+      LogicalKeyboardKey.keyD when hw.isControlPressed => () => st.move(10),
+      LogicalKeyboardKey.keyU when hw.isControlPressed => () => st.move(-10),
+      _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed => null,
+      LogicalKeyboardKey.arrowDown => () => st.move(1),
+      LogicalKeyboardKey.arrowUp => () => st.move(-1),
       LogicalKeyboardKey.enter => _pickCursor,
-      LogicalKeyboardKey.slash => _filterFocus.requestFocus,
-      LogicalKeyboardKey.keyN => st.toggleNewNeovim,
+      LogicalKeyboardKey.slash || LogicalKeyboardKey.tab => _filterFocus.requestFocus,
       LogicalKeyboardKey.escape when _filter.text.isNotEmpty => _clearFilter,
       _ => null,
     };
-    action?.call();
-    return action == null ? KeyEventResult.ignored : KeyEventResult.handled;
+    if (action != null) {
+      action();
+      return KeyEventResult.handled;
+    }
+    return _keys.press(e.character) ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
+  /// In the filter: Esc, Tab or arrow down go back to the list.
   KeyEventResult _filterKey(LogicalKeyboardKey k) {
-    if (k != LogicalKeyboardKey.escape && k != LogicalKeyboardKey.arrowDown) return KeyEventResult.ignored;
+    const back = [LogicalKeyboardKey.escape, LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.tab];
+    if (!back.contains(k)) return KeyEventResult.ignored;
     focus.requestFocus();
     return KeyEventResult.handled;
   }

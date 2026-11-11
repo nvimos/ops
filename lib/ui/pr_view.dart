@@ -56,18 +56,7 @@ class _PrViewState extends State<PrView> {
     if (mounted) showActionError(context, err);
   }
 
-  /// Show a diff line in Neovim: the working tree file when head is checked out and the view
-  /// shows the full range, else a read-only copy at the revision.
-  Future<void> _jump(int line, bool isOld) async {
-    final s = SessionScope.read(context);
-    final pr = _pr;
-    final f = pr.selectedFile!;
-    final n = pr.narrowed;
-    final rev = isOld ? (n == null ? pr.diff!.mergeBase : '${n.sha}~1') : (n?.sha ?? pr.head!);
-    final path = isOld ? f.oldPath : f.path;
-    final live = !isOld && n == null && s.repo?.head == pr.head;
-    _report(await s.run((b) => live ? b.open(path, line) : b.show(rev, path, line)));
-  }
+  Future<void> _jump(int line, bool isOld) async => _report(await _pr.openInNeovim(line, isOld: isOld));
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +112,7 @@ class _PrMain extends StatelessWidget {
       file: f,
       sideBySide: pr.layout == DiffLayout.sideBySide,
       wrap: pr.wrap,
+      hunk: pr.hunk,
       onLine: onLine,
       headerActions: [
         IconToggle(icon: Icons.wrap_text, tip: 'Line wrapping (zw)', on: pr.wrap, onTap: pr.toggleWrap),
@@ -269,6 +259,7 @@ class _FilesHeader extends StatelessWidget {
     final folded = pr.collapsedDirs.isNotEmpty;
     return SectionTitle(
       title: 'FILES CHANGED',
+      active: pr.pane == PrPane.files,
       count: '${files.length}',
       extra: files.isEmpty ? null : '+$adds −$dels',
       actions: [
@@ -296,6 +287,7 @@ class _CommitsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SectionTitle(
     title: 'COMMITS',
+    active: pr.pane == PrPane.commits,
     count: '${pr.commits.length}',
     loading: pr.loading,
     collapsed: pr.commitsCollapsed,
@@ -340,7 +332,8 @@ class _CommitList extends StatelessWidget {
       itemCount: pr.commits.length,
       itemBuilder: (context, i) {
         final c = pr.commits[i];
-        return CommitRow(commit: c, selected: c.sha == pr.narrowed?.sha, onTap: () => pr.narrow(c));
+        final cursor = pr.pane == PrPane.commits && i == pr.commitCursor;
+        return CommitRow(commit: c, selected: cursor || c.sha == pr.narrowed?.sha, onTap: () => pr.narrow(c));
       },
     ),
   );
@@ -419,7 +412,11 @@ class SectionTitle extends StatelessWidget {
     this.actions = const [],
     this.onTap,
     this.collapsed,
+    this.active = false,
   });
+
+  /// The keys act on this list (Tab moves between them).
+  final bool active;
 
   final String title, count;
   final String? extra;
@@ -434,7 +431,7 @@ class SectionTitle extends StatelessWidget {
     final row = Row(
       children: [
         if (collapsed != null) Icon(collapsed! ? Icons.chevron_right : Icons.expand_more, size: 14, color: C.muted),
-        Text(title, style: T.section),
+        Text(title, style: active ? T.section.copyWith(color: C.accent) : T.section),
         const SizedBox(width: 6),
         Text(count, style: T.tiny),
         const Spacer(),

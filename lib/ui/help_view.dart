@@ -12,6 +12,17 @@ const keyTable = [
       ('Alt+1 … Alt+5', 'mode by its place on the rail'),
       ('Ctrl+B', 'expand / collapse the sidebar'),
       ('?', 'this list (the Help mode)'),
+      ('Tab / Shift+Tab', 'next / previous pane'),
+    ],
+  ),
+  (
+    'Any list',
+    [
+      ('j / k, arrows', 'next / previous item'),
+      ('gg / G', 'first / last item'),
+      ('Ctrl+D / Ctrl+U', 'half a page down / up'),
+      ('Enter', 'open or pick the item'),
+      ('o', 'open the item in Neovim'),
     ],
   ),
   (
@@ -20,17 +31,32 @@ const keyTable = [
       ('gb / gh', 'base / head picker'),
       ('gs', 'swap base and head'),
       (']f / [f', 'next / previous file'),
+      (']c / [c', 'next / previous hunk'),
+      ('h / l', "fold / unfold the file's folder"),
+      ('zR / zM', 'expand / collapse all folders'),
       ('v', 'unified / side-by-side'),
       ('zw', 'line wrapping'),
-      ('zR / zM', 'expand / collapse all folders'),
+      ('Enter on a commit', 'show only that commit'),
       ('Esc', 'back from one commit to all commits'),
+    ],
+  ),
+  (
+    'Changes',
+    [
+      (']c / [c', 'next / previous hunk'),
+      ('-', 'stage or unstage the hunk, or the file'),
+      ('s / u', 'stage / unstage'),
+      ('X', 'discard (asks first)'),
+      ('cc', 'write the commit message'),
+      ('Ctrl+Enter', 'commit (in the message)'),
+      ('Esc', 'back from the message to the files'),
     ],
   ),
   (
     'Tasks',
     [
-      ('j / k, Enter, Esc', 'move, open, close'),
       ('/', 'filter'),
+      ('Esc', 'close the detail panel'),
       ('c / s / p', 'new task, cycle status, cycle priority'),
       ('Ctrl+K', 'command palette'),
     ],
@@ -38,7 +64,7 @@ const keyTable = [
   (
     'Directories',
     [
-      ('j / k, Enter', 'move, make it the Active Directory'),
+      ('Enter', 'make it the Active Directory'),
       ('/', 'filter'),
       ('n', 'New Neovim per directory'),
     ],

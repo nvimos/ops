@@ -9,6 +9,9 @@ enum DiffLayout { unified, sideBySide }
 /// Which left-pane list takes the free height in the Pull request view.
 enum Dominant { files, commits }
 
+/// The part of the Pull request view the list keys (j/k, gg/G, Enter) act on; Tab cycles them.
+enum PrPane { files, commits, diff }
+
 /// State of the Pull request view: two revisions, their commits and the base...head diff, or one
 /// commit's diff when narrowed to it.
 class PrState extends ChangeNotifier {
@@ -35,6 +38,12 @@ class PrState extends ChangeNotifier {
   Dominant dominant = Dominant.files;
   bool commitsCollapsed = false;
   Set<String> collapsedDirs = {};
+
+  /// Where the keys act: the active pane, the commit under the cursor, the current hunk of the
+  /// selected file (-1: none yet).
+  PrPane pane = PrPane.files;
+  int commitCursor = 0;
+  int hunk = -1;
 
   /// The revision pickers' focus, so keys can jump to them.
   final baseFocus = FocusNode(debugLabel: 'base picker');
@@ -131,14 +140,87 @@ class PrState extends ChangeNotifier {
   void makeCommitsDominant() => toggleDominant(Dominant.commits);
 
   void select(String path) {
+    if (path != selected) hunk = -1;
     selected = path;
     _expandTo(path);
     notifyListeners();
   }
 
+  // Keys -------------------------------------------------------------------------------------------
+
+  List<PrPane> get _panes => [PrPane.files, if (!commitsCollapsed && commits.isNotEmpty) PrPane.commits, PrPane.diff];
+
+  /// Tab / Shift+Tab.
+  void nextPane(int delta) {
+    final panes = _panes;
+    final i = panes.indexOf(pane);
+    pane = panes[((i < 0 ? 0 : i) + delta) % panes.length];
+    notifyListeners();
+  }
+
+  /// j/k, gg/G, Ctrl+D/U: move in the active pane.
+  void moveCursor(int delta) {
+    switch (pane) {
+      case PrPane.files:
+        selectNext(delta);
+      case PrPane.commits:
+        if (commits.isEmpty) return;
+        commitCursor = (commitCursor + delta).clamp(0, commits.length - 1);
+        notifyListeners();
+      case PrPane.diff:
+        moveHunk(delta);
+    }
+  }
+
+  /// ]c / [c: the next or previous hunk of the selected file.
+  void moveHunk(int delta) {
+    final n = selectedFile?.hunks.length ?? 0;
+    if (n == 0) return;
+    hunk = hunk < 0 ? (delta > 0 ? 0 : n - 1) : (hunk + delta).clamp(0, n - 1);
+    notifyListeners();
+  }
+
+  /// Enter: on a commit, narrow to it; on a file, go to its diff.
+  void enter() {
+    if (pane == PrPane.commits && commits.isNotEmpty) return narrow(commits[commitCursor.clamp(0, commits.length - 1)]);
+    if (pane == PrPane.files) {
+      pane = PrPane.diff;
+      notifyListeners();
+    }
+  }
+
+  /// h / l: fold or unfold the selected file's folder.
+  void foldSelected({required bool fold}) {
+    final d = dirOf(selected ?? '');
+    if (d.isEmpty) return;
+    fold ? collapsedDirs.add(d) : collapsedDirs.remove(d);
+    notifyListeners();
+  }
+
+  /// Show a diff line in Neovim: the working tree file when head is checked out and the view
+  /// shows the full range, else a read-only copy at the revision (deleted lines: the old one).
+  /// Returns the error text, or null.
+  Future<String?> openInNeovim(int line, {required bool isOld}) {
+    final f = selectedFile;
+    if (f == null || head == null) return Future.value(null);
+    final n = narrowed;
+    final rev = isOld ? (n == null ? diff!.mergeBase : '${n.sha}~1') : (n?.sha ?? head!);
+    final path = isOld ? f.oldPath : f.path;
+    final live = !isOld && n == null && session.repo?.head == head;
+    return session.run((b) => live ? b.open(path, line) : b.show(rev, path, line));
+  }
+
+  /// o: the current hunk's first changed line (or the file's first hunk) in Neovim.
+  Future<String?> openCurrent() {
+    final hunks = selectedFile?.hunks ?? const <Hunk>[];
+    if (hunks.isEmpty) return openInNeovim(1, isOld: false);
+    return openInNeovim(hunks[hunk < 0 ? 0 : hunk].firstChangedLine, isOld: false);
+  }
+
   /// Show only [c]'s changes; the same commit again (or null) returns to the full range.
   void narrow(Commit? c) {
     narrowed = c == null || c.sha == narrowed?.sha ? null : c;
+    hunk = -1;
     selected = null;
     refresh();
   }

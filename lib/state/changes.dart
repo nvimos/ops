@@ -18,6 +18,9 @@ class ChangesState extends ChangeNotifier {
   DiffFile? diff;
   String? error; // the last refresh's error (full text); the view shows it in place of the diff
   bool busy = false;
+
+  /// The current hunk of the selected file (]c / [c); -1: none, keys act on the whole file.
+  int hunk = -1;
   int _gen = 0;
   bool _disposed = false;
 
@@ -64,12 +67,52 @@ class ChangesState extends ChangeNotifier {
   }
 
   void select(String path, {required bool staged}) {
+    if (path != selected || staged != selectedStaged) hunk = -1;
     selected = path;
     selectedStaged = staged;
     diff = null;
     notifyListeners();
     refresh();
   }
+
+  /// Files in list order: staged first, then the rest, each with its side.
+  List<(String, bool)> get _order => [for (final f in staged) (f.path, true), for (final f in unstaged) (f.path, false)];
+
+  /// j / k, gg / G: the next or previous file in list order.
+  void moveSelection(int delta) {
+    final order = _order;
+    if (order.isEmpty) return;
+    final i = order.indexWhere((e) => e.$1 == selected && e.$2 == selectedStaged);
+    final next = order[(i < 0 ? 0 : i + delta).clamp(0, order.length - 1)];
+    if (next.$1 != selected || next.$2 != selectedStaged) select(next.$1, staged: next.$2);
+  }
+
+  /// ]c / [c: the next or previous hunk of the selected file.
+  void moveHunk(int delta) {
+    final n = diff?.hunks.length ?? 0;
+    if (n == 0) return;
+    hunk = hunk < 0 ? (delta > 0 ? 0 : n - 1) : (hunk + delta).clamp(0, n - 1);
+    notifyListeners();
+  }
+
+  Hunk? get currentHunk {
+    final hs = diff?.hunks ?? const <Hunk>[];
+    return hunk >= 0 && hunk < hs.length ? hs[hunk] : null;
+  }
+
+  /// `-`: stage or unstage the current hunk, or the whole file when no hunk is current.
+  Future<String?> toggleCurrent() {
+    final h = currentHunk, path = selected;
+    if (path == null) return Future.value(null);
+    return h != null ? toggleHunk(h) : moveFile(path, staged: selectedStaged);
+  }
+
+  /// `s` / `u`: only when the selection is on the side it moves from.
+  Future<String?> stageCurrent() => selectedStaged ? Future.value(null) : toggleCurrent();
+  Future<String?> unstageCurrent() => selectedStaged ? toggleCurrent() : Future.value(null);
+
+  /// The line `o` opens: the current hunk's first changed line, else the first hunk's, else 1.
+  int get currentLine => (currentHunk ?? diff?.hunks.firstOrNull)?.firstChangedLine ?? 1;
 
   /// Run an action, then refresh. Returns the error text, or null.
   Future<String?> act(Future<void> Function(Backend b) action) async {
@@ -100,7 +143,7 @@ class ChangesState extends ChangeNotifier {
   Future<String?> discardFile(String path) => act((b) => b.discard(path));
 
   /// Stage a hunk of the selected unstaged file, or unstage one of the selected staged file.
-  Future<String?> moveHunk(Hunk h) {
+  Future<String?> toggleHunk(Hunk h) {
     final path = selected!;
     return act((b) => selectedStaged ? b.unstageHunk(path, h) : b.stageHunk(path, h));
   }
