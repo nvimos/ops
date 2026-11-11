@@ -1,4 +1,4 @@
-- vim: nowrap fdm=marker
+<!-- vim: set nowrap fdm=marker: -->
 
 ---
 
@@ -12,13 +12,15 @@ All editor and git state comes from the backend plugin, `~/es/nvimos-poc-backend
 
 - In the style of GitHub Desktop, present two local branches for reviewing as a pull request.
   For example, what llm-agents did overnight.
-  This is the Pull Request Mode.
+  This is the Pull request mode.
 
-- The Changes Mode shows current working tree changes against HEAD.
+- The Changes mode shows current working tree changes against HEAD.
   In other words, local changes.
 
-- The Linear Mode imitates the commercial app of the same name, doing more or less the same thing,
+- The Tasks mode imitates the commercial app Linear, doing more or less the same thing,
   but using the markdown files of openspec and backlog.md as a database of sorts
+
+- The Directories mode picks the Active Directory, the repo the other modes work on.
 
 ## Original app description
 
@@ -58,7 +60,7 @@ Draft, from vim, fugitive and vifm conventions. "today" marks keys the app alrea
 Keys act on the focused pane; while a text field has focus, keys type into it,
 except Esc (leave the field) and Enter (confirm).
 
-{{{ keys
+<!-- {{{ keys -->
 
 Global
 
@@ -123,12 +125,12 @@ Directories
 | `Enter`            | make the dir the Active Directory                       |
 | `n`                | toggle "New Neovim per directory"                       |
 
-}}}
+<!-- }}} -->
 
 
 ### How errors are shown now:
 
-_not strictly normative_ {{{
+_not strictly normative_ <!-- {{{ -->
 
 - An error Neovim returns for a request becomes an `NvimError` (`lib/rpc/client.dart`)
   - `message` is Neovim's full text, including the Lua `stack traceback`
@@ -150,7 +152,7 @@ _not strictly normative_ {{{
   - plain `Text`, not selectable.
 - Changes: `ChangesState` keeps loading errors in `error`, but `ChangesView` never shows it;
   the view stays as it was.
-}}}
+<!-- }}} -->
 
 ## Decisions
 
@@ -216,7 +218,7 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
 Description of the UI.
 
 - Initial view (Connect to Neovim)
-  - {{{ initial view
+  <!-- {{{ initial view -->
   - shown in place of the current mode whenever the app is not connected, at startup and after Neovim goes away
   - the mode rail on the left and the status bar stay visible
   - the address comes from the first command-line argument, else `NVIMOS_ADDR`, else `127.0.0.1:6666`
@@ -234,18 +236,19 @@ Description of the UI.
     `make nvim` in this repo
   - once connected, the app subscribes to buffers, windows, git and jobs,
     and the selected mode replaces this view.
-  - }}}
+  <!-- }}} -->
 
 ### Left sidebar (mode rail)
 
-- {{{ sidebar
+<!-- {{{ sidebar -->
 - a narrow strip, 48 px wide, on the left edge of the window
 - the top item is a toggle that expands and collapses the sidebar
   - expanded, each icon gets a short label beside it, so the sidebar stays narrow
   - hovering an icon or label shows a brief explanation of the mode,
     like an HTML `title` tooltip.
-- one icon per mode, top to bottom: Pull request, Changes, Tasks
-- icons only, the mode name shows as a tooltip on hover when collapsed
+- one icon per mode, top to bottom: Pull request, Changes, Tasks, Directories
+- collapsed: icons only, hovering shows the mode name as a tooltip;
+  expanded: hovering shows the brief explanation (see above)
 - the selected mode has an accent bar on its left edge and a brighter icon
 - a click switches the mode
   - <M-]> and <M-[> go to previous / next mode. next is down
@@ -255,21 +258,21 @@ Description of the UI.
 - Directories mode, a folder icon
   - its icon comes after all other mode icons, not anchored to the bottom of the rail
   - see "Directories mode" below
-- }}}
+<!-- }}} -->
 
 ### Status bar
 
-- {{{ status bar
+<!-- {{{ status bar -->
 - appears at the bottom of the app
-- Active Directory, Neovim's current file and cursor (live),  connection state
-- }}}
+- Active Directory, current branch, Neovim's current file and cursor (live), connection state
+<!-- }}} -->
 
 ### Views (Modes)
 
 #### Pull request ("Review")
 
 - layout
-  - {{{
+  <!-- {{{ -->
   - three columns, left to right
     - left pane, 300 px fixed
       - Base Picker - a Swap button (swaps base and head)
@@ -282,24 +285,25 @@ Description of the UI.
       - or a centered message instead: an error, "Pick two different branches.",
         "Loading…", "No changes between these branches.", "Pick a file."
   - thin dividers between the columns and between the left pane's sections
-  - }}}
+  <!-- }}} -->
 
 - base and head pickers 
-  - {{{
+  <!-- {{{ -->
   - commit/branch list that is used by git to show the diffs, the  `base..head` parameter
   - lists the local branches; any revision git accepts can also be typed:
     a sha, a tag, `HEAD~3`
   - the list is filterable. when only one item is left by filter, it is automatically selected and the focus moves to the next picker
   - when both pickers are selected, we show the diff view
-  - }}}
+  <!-- }}} -->
 
 
 - commits
-  - {{{ the list of commits appears below the list of files
+  - the list of commits appears below the list of files <!-- {{{ -->
   - the list of commits is collapsible
     - the header of the commits, remains visible
     - clicking on it either collapses or expands the list of commits
-  - a COMMITS section in the left pane, under the base and head pickers, above FILES CHANGED
+  - a COMMITS section in the left pane, below FILES CHANGED
+    - today: above FILES CHANGED, right under the pickers
   - the header shows the count and a small spinner while loading
   - the commits of `base..head`: what head has that base doesn't, newest first,
   - one row per commit: short sha in faint mono, then the subject, cut off with an ellipsis
@@ -311,27 +315,27 @@ Description of the UI.
     clicking it again or Esc returns to the full `base..head` range
     - today rows don't react to clicks
   - reloaded together with the diff when a picker changes or git state changes.
-  - }}}
+  <!-- }}} -->
 
 - file and directory tree
   - file tree of the changed files with +/- counts
+  - a button in its header expands / collapses all dirs;
+    the current file's dir stays expanded up to the relevant level
 
 - the commits and files/dirs panels should have a button to make them the "dominant item"
   - when dominant they take as much space as they can vertically, but not forcing the other elements out completely
   - the dominant choice and the collapsed state last for the session; every start begins with files dominant
 
 - diff views (next main panel)
-  - {{{
+  <!-- {{{ -->
   - switching view keeps the active file and shows it after switching
   - both view have a row of actions or toggles at the top
     - toggle line wrapping
-    - expand/collapse all dirs. current file/dir stays expanded up to the relevant level
-  - there should be a toggle above the branch pickers to switch side-by-side and unified
-    - when the PR mode is selected the sidebar rail gets two items under the pull request icon.
-      one for each mode. unified first, then side-by-side below
+  - switching side-by-side and unified: when the PR mode is selected, the sidebar rail gets
+    two items under the pull request icon, one per view, unified first, then side-by-side
   - unified diff of the selected file, like GitHub's "Files changed" tab.
   - Side-by-side diff and syntax colors come later.
-  - }}}
+  <!-- }}} -->
 - Click a file or hunk line: Neovim opens that line in the current buffer
   - head checked out: the working tree file
   - head not checked out: a read-only copy of the file at head (deleted lines: at the merge base)
@@ -366,7 +370,7 @@ keyboard J/K/Enter/Esc/C and /.
 
 #### Directories mode
 
-- {{{
+<!-- {{{ -->
 - works only while connected; disconnected, the view says so
 - lists the start dirs of the genja-startdirs plugin,
   in the same order as its Telescope picker (`:Telescope mydirs`, by frecency)
@@ -381,7 +385,7 @@ keyboard J/K/Enter/Esc/C and /.
     sends a new git snapshot and every mode reloads
   - a toggle in this view, "New Neovim per directory": picking a dir starts a new Neovim
     instance there and the app connects to it
-- }}}
+<!-- }}} -->
 
 
 ## non-functional remarks
