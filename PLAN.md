@@ -301,6 +301,8 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - three columns, left to right
     - left pane, 300 px fixed
       - Base Picker - a Swap button (swaps base and head)
+        - base defaults to the checked-out branch (main or master only when HEAD is detached),
+          head to the newest other branch
       - Head Picker
       - Files Changed
       - Commits list
