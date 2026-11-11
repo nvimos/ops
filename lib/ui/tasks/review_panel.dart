@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../tasks/markdown.dart';
+import '../../tasks/model.dart';
 import '../../tasks/workspace.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -17,101 +19,95 @@ class ReviewPanel extends StatelessWidget {
   final void Function(String id)? onOpenTask;
   final void Function(String? err)? onError;
 
+  /// The statuses a review ends in, the last one primary.
+  static const outcomes = ['In Progress', 'Needs Test', 'Done'];
+
+  Future<void> _status(Task t, String s) async => onError?.call(await ws.setTaskStatus(t, s));
+
+  Future<void> _check(Task t, Check c) async => onError?.call(await ws.toggleCheck(t.path, c));
+
   @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: ws,
-      builder: (context, _) {
-        final t = ws.task(taskId);
-        if (t == null) return const Empty('Task not found.');
-        final verify = t.verify, ac = t.acceptance;
-        Future<void> status(String s) async => onError?.call(await ws.setTaskStatus(t, s));
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  InkWell(
-                    onTap: () => onOpenTask?.call(t.id),
-                    child: Text(
-                      t.id,
-                      style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.accent),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  RichLine(t.title, style: T.title, maxLines: 3),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      StatusIcon(t.status),
-                      const SizedBox(width: 6),
-                      Text(t.status, style: T.small),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                children: [
-                  Row(
-                    children: [
-                      const Text('VERIFY', style: T.section),
-                      const Spacer(),
-                      Progress(verify.where((c) => c.done).length, verify.length),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  if (verify.isEmpty) const Text('No verify steps in this task.', style: T.small),
-                  for (final c in verify)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: CheckRow(
-                        c,
-                        onTap: () async => onError?.call(await ws.toggleCheck(t.path, c)),
-                        onTask: onOpenTask,
-                      ),
-                    ),
-                  if (ac.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    const Text('ACCEPTANCE CRITERIA', style: T.section),
-                    const SizedBox(height: 8),
-                    for (final c in ac)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: CheckRow(
-                          c,
-                          onTap: () async => onError?.call(await ws.toggleCheck(t.path, c)),
-                          onTask: onOpenTask,
-                        ),
-                      ),
-                  ],
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: C.border)),
-              ),
-              child: Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  SmallButton('In Progress', onPressed: t.status == 'In Progress' ? null : () => status('In Progress')),
-                  SmallButton('Needs Test', onPressed: t.status == 'Needs Test' ? null : () => status('Needs Test')),
-                  SmallButton('Done', primary: true, onPressed: t.status == 'Done' ? null : () => status('Done')),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: ws,
+    builder: (context, _) {
+      final t = ws.task(taskId);
+      if (t == null) return const Empty('Task not found.');
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ReviewTitle(task: t, onOpenTask: onOpenTask),
+          const Divider(height: 1),
+          Expanded(child: _ReviewChecks(task: t, onCheck: (c) => _check(t, c), onTask: onOpenTask)),
+          _Outcomes(current: t.status, onPick: (s) => _status(t, s)),
+        ],
+      );
+    },
+  );
+}
+
+class _ReviewTitle extends StatelessWidget {
+  const _ReviewTitle({required this.task, required this.onOpenTask});
+
+  final Task task;
+  final void Function(String id)? onOpenTask;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onOpenTask == null ? null : () => onOpenTask!(task.id),
+          child: Text(task.id, style: const TextStyle(fontSize: 12, fontFamily: mono, color: C.accent)),
+        ),
+        const SizedBox(height: 4),
+        RichLine(task.title, style: T.title, maxLines: 3),
+        const SizedBox(height: 8),
+        Row(children: [StatusIcon(task.status), const SizedBox(width: 6), Text(task.status, style: T.small)]),
+      ],
+    ),
+  );
+}
+
+/// Verify first (that is what a review tries), then acceptance criteria.
+class _ReviewChecks extends StatelessWidget {
+  const _ReviewChecks({required this.task, required this.onCheck, required this.onTask});
+
+  final Task task;
+  final ValueChanged<Check> onCheck;
+  final void Function(String id)? onTask;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.only(bottom: 12),
+    children: [
+      ChecksSection(title: 'Verify', checks: task.verify, onCheck: onCheck, onTask: onTask),
+      if (task.verify.isEmpty)
+        const Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Text('No verify steps in this task.', style: T.small)),
+      if (task.acceptance.isNotEmpty)
+        ChecksSection(title: 'Acceptance criteria', checks: task.acceptance, onCheck: onCheck, onTask: onTask),
+    ],
+  );
+}
+
+class _Outcomes extends StatelessWidget {
+  const _Outcomes({required this.current, required this.onPick});
+
+  final String current;
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: const BoxDecoration(border: Border(top: BorderSide(color: C.border))),
+    child: Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final s in ReviewPanel.outcomes)
+          SmallButton(s, primary: s == ReviewPanel.outcomes.last, onPressed: s == current ? null : () => onPick(s)),
+      ],
+    ),
+  );
 }
