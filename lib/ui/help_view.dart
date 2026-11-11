@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import 'theme.dart';
@@ -71,25 +73,64 @@ const keyTable = [
   ),
 ];
 
-/// The Help mode: every key the app has, by where it works.
+/// Splits the key groups, in order, into at most [columns] columns so the tallest is lowest.
+List<List<int>> splitColumns(List<int> heights, int columns) {
+  final all = [for (var i = 0; i < heights.length; i++) i];
+  if (columns <= 1 || heights.length <= 1) return heights.isEmpty ? [] : [all];
+  var best = <List<int>>[];
+  var bestHeight = double.infinity;
+  for (var first = 1; first <= heights.length; first++) {
+    final head = [for (var i = 0; i < first; i++) i];
+    final rest = splitColumns(heights.sublist(first), columns - 1);
+    final columnsHere = [head, for (final c in rest) [for (final i in c) i + first]];
+    final tallest = columnsHere.map((c) => c.fold(0, (a, i) => a + heights[i])).reduce(max);
+    if (tallest < bestHeight) (best, bestHeight) = (columnsHere, tallest.toDouble());
+  }
+  return best;
+}
+
+/// The Help mode: every key the app has, by where it works, in as many columns as fit.
 class HelpView extends StatelessWidget {
   const HelpView({super.key});
 
   @override
+  static const _columnWidth = 360.0;
+
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const PaneHeader(title: Text('Keys')),
-      Expanded(
-        child: ListView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          itemCount: keyTable.length,
-          itemBuilder: (context, i) => _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2),
-        ),
-      ),
+      Expanded(child: LayoutBuilder(builder: (context, box) => _columns(box.maxWidth))),
     ],
   );
 }
+
+  Widget _columns(double width) {
+    final count = (width ~/ _columnWidth).clamp(1, keyTable.length);
+    final columns = splitColumns([for (final g in keyTable) g.$2.length + 2], count);
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [for (final c in columns) Expanded(child: _KeyColumn(groups: c))],
+      ),
+    );
+  }
+}
+
+class _KeyColumn extends StatelessWidget {
+  const _KeyColumn({required this.groups});
+
+  final List<int> groups;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(right: 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [for (final i in groups) _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2)],
+    ),
+  );
 
 class _KeyGroup extends StatelessWidget {
   const _KeyGroup({required this.title, required this.keys});
@@ -120,7 +161,7 @@ class _KeyRow extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 2),
     child: Row(
       children: [
-        SizedBox(width: 160, child: Text(keys, style: T.code)),
+        SizedBox(width: 150, child: Text(keys, style: T.code)),
         Expanded(child: Text(what, style: T.small)),
       ],
     ),

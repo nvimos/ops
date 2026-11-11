@@ -260,6 +260,9 @@ Description of the UI.
 - visible at all times, also while not connected; a mode picked then shows once the app connects
 - modes stay alive in the background, so switching back keeps their selection and scroll position
 - no repo name and no current branch here; the current branch is in the status bar.
+  - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
+    so every key fits on one screen; the groups keep their order and the columns even out in height
+  - a narrow pane gets fewer columns and scrolls
 - Directories mode, a folder icon
   - its icon comes after all other mode icons, not anchored to the bottom of the rail
   - see "Directories mode" below
