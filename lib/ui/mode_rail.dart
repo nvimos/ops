@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/pr.dart';
 import 'theme.dart';
 
-enum Mode { pullRequest, changes, tasks, directories }
+enum Mode { pullRequest, changes, tasks, directories, help }
 
 extension ModeText on Mode {
   String get label => switch (this) {
@@ -11,6 +11,7 @@ extension ModeText on Mode {
     Mode.changes => 'Changes',
     Mode.tasks => 'Tasks',
     Mode.directories => 'Directories',
+    Mode.help => 'Help',
   };
 
   String get explain => switch (this) {
@@ -18,6 +19,7 @@ extension ModeText on Mode {
     Mode.changes => 'Your uncommitted work against HEAD: stage, discard, commit',
     Mode.tasks => 'Backlog.md tasks and OpenSpec changes, Linear-style',
     Mode.directories => 'Pick the Active Directory, the repo the other modes work on',
+    Mode.help => 'Every key the app has (?)',
   };
 
   IconData get icon => switch (this) {
@@ -25,6 +27,7 @@ extension ModeText on Mode {
     Mode.changes => Icons.edit_note,
     Mode.tasks => Icons.view_kanban_outlined,
     Mode.directories => Icons.folder_outlined,
+    Mode.help => Icons.keyboard_outlined,
   };
 }
 

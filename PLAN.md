@@ -67,10 +67,10 @@ Global
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
 | `M-]` / `M-[`      | next / previous mode (next is down the rail)            |
-| `M-1` … `M-4`      | mode by its place on the rail                           |
+| `M-1` … `M-5`      | mode by its place on the rail                           |
 | `Ctrl+B`           | expand / collapse the sidebar                           |
 | `Ctrl+K`           | command palette: every action and record (today: Tasks) |
-| `?`                | show this key table                                     |
+| `?`                | the Help mode: this key table                           |
 | `Tab` / `S-Tab`    | focus next / previous pane                              |
 | `/`                | filter the focused list (today: Tasks)                  |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
@@ -246,7 +246,8 @@ Description of the UI.
   - expanded, each icon gets a short label beside it, so the sidebar stays narrow
   - hovering an icon or label shows a brief explanation of the mode,
     like an HTML `title` tooltip.
-- one icon per mode, top to bottom: Pull request, Changes, Tasks, Directories
+- one icon per mode, top to bottom: Pull request, Changes, Tasks, Directories, Help
+- Help lists every key the app has; it works without a connection too
 - collapsed: icons only, hovering shows the mode name as a tooltip;
   expanded: hovering shows the brief explanation (see above)
 - the selected mode has an accent bar on its left edge and a brighter icon

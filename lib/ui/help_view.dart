@@ -9,9 +9,9 @@ const keyTable = [
     'Everywhere',
     [
       ('Alt+] / Alt+[', 'next / previous mode'),
-      ('Alt+1 … Alt+4', 'mode by its place on the rail'),
+      ('Alt+1 … Alt+5', 'mode by its place on the rail'),
       ('Ctrl+B', 'expand / collapse the sidebar'),
-      ('?', 'this list'),
+      ('?', 'this list (the Help mode)'),
     ],
   ),
   (
@@ -45,23 +45,23 @@ const keyTable = [
   ),
 ];
 
-Future<void> showKeys(BuildContext context) => showDialog<void>(context: context, builder: (c) => const KeysDialog());
-
-class KeysDialog extends StatelessWidget {
-  const KeysDialog({super.key});
+/// The Help mode: every key the app has, by where it works.
+class HelpView extends StatelessWidget {
+  const HelpView({super.key});
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: C.surface,
-    title: const Text('Keys', style: T.title),
-    content: SizedBox(
-      width: 460,
-      child: ListView(
-        shrinkWrap: true,
-        children: [for (final (group, keys) in keyTable) _KeyGroup(title: group, keys: keys)],
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const PaneHeader(title: Text('Keys')),
+      Expanded(
+        child: ListView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          itemCount: keyTable.length,
+          itemBuilder: (context, i) => _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2),
+        ),
       ),
-    ),
-    actions: [SmallButton('Close', onPressed: Navigator.of(context).pop)],
+    ],
   );
 }
 
@@ -94,7 +94,7 @@ class _KeyRow extends StatelessWidget {
     padding: const EdgeInsets.symmetric(vertical: 2),
     child: Row(
       children: [
-        SizedBox(width: 130, child: Text(keys, style: T.code)),
+        SizedBox(width: 160, child: Text(keys, style: T.code)),
         Expanded(child: Text(what, style: T.small)),
       ],
     ),

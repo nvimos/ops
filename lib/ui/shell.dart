@@ -10,7 +10,7 @@ import 'changes_view.dart';
 import 'connect.dart';
 import 'dirs_view.dart';
 import 'key_sequence.dart';
-import 'keys_dialog.dart';
+import 'help_view.dart';
 import 'mode_rail.dart';
 import 'pr_view.dart';
 import 'status_bar.dart';
@@ -103,6 +103,7 @@ class _ShellState extends State<Shell> {
     LogicalKeyboardKey.digit2,
     LogicalKeyboardKey.digit3,
     LogicalKeyboardKey.digit4,
+    LogicalKeyboardKey.digit5,
   ];
 
   /// A text field has the keyboard: plain keys are typing, not commands.
@@ -119,7 +120,7 @@ class _ShellState extends State<Shell> {
       final k when hw.isAltPressed && !hw.isControlPressed => _altKey(k),
       LogicalKeyboardKey.keyB when hw.isControlPressed && !hw.isAltPressed => _run(_toggleRail),
       _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed || _typing() => false,
-      _ when e.character == '?' => _run(() => showKeys(context)),
+      _ when e.character == '?' => _run(() => _setMode(Mode.help)),
       _ when _mode == Mode.pullRequest => _prKey(e),
       _ => false,
     };
@@ -184,9 +185,15 @@ class _ShellState extends State<Shell> {
         ),
       ),
       const VerticalDivider(width: 1),
-      Expanded(child: connected && _pr != null ? _modes() : const ConnectScreen()),
+      Expanded(child: _content(connected)),
     ],
   );
+
+  /// Help works without Neovim; the other modes need the connection.
+  Widget _content(bool connected) {
+    if (connected && _pr != null) return _modes();
+    return _mode == Mode.help ? const HelpView() : const ConnectScreen();
+  }
 
   Widget _modes() => IndexedStack(
     index: _mode.index,
@@ -195,6 +202,7 @@ class _ShellState extends State<Shell> {
       const ChangesView(),
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review),
       DirsView(key: _dirsKey, state: _dirs!),
+      const HelpView(),
     ],
   );
 }
