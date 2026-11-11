@@ -52,6 +52,10 @@ void main() {
     expect(qtArgs(env: env, exists: (_) => false), ['-platform', 'windows:darkmode=1']);
   });
 
+  test('qtOpenArgs: the file at its line, after the nvim-qt options', () {
+    expect(qtOpenArgs('C:/m/backlog/t.md', 3, qt: ['-qt']), ['-qt', '--', '+3', 'C:/m/backlog/t.md']);
+  });
+
   test('stopHeadlessScript only matches headless nvim.exe of this user', () {
     expect(stopHeadlessScript, contains("Name='nvim.exe'"));
     expect(stopHeadlessScript, contains("-match '--headless'"));

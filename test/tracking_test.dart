@@ -49,6 +49,8 @@ void main() {
     expect(ws.tasks.map((t) => t.id), ['TASK-1', 'TASK-7']);
     expect(ws.changes.map((c) => c.id), ['ui']);
     expect(ws.absolute('backlog/x.md'), '${plan.path.replaceAll('\\', '/')}/backlog/x.md');
+    expect(ws.fullPath('backlog/x.md'), ws.absolute('backlog/x.md'));
+    expect(ws.fullPath('C:/abs/y.md'), 'C:/abs/y.md');
 
     ws.setProjectOnly(false);
     expect(ws.tasks.map((t) => t.id), ['TASK-1', 'TASK-2', 'TASK-7']);

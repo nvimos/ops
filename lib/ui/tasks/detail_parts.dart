@@ -207,16 +207,20 @@ class OpenInNeovimButton extends StatelessWidget {
 
 /// Accent text that acts like a link.
 class LinkText extends StatelessWidget {
-  const LinkText(this.text, {super.key, required this.onTap});
+  const LinkText(this.text, {super.key, required this.onTap, this.tooltip});
 
   final String text;
   final VoidCallback onTap;
+  final String? tooltip;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Text(text, style: const TextStyle(fontSize: 12, color: C.accent), overflow: TextOverflow.ellipsis),
-  );
+  Widget build(BuildContext context) {
+    final link = InkWell(
+      onTap: onTap,
+      child: Text(text, style: const TextStyle(fontSize: 12, color: C.accent), overflow: TextOverflow.ellipsis),
+    );
+    return tooltip == null ? link : Tooltip(message: tooltip!, child: link);
+  }
 }
 
 /// A titled checklist with its progress; a click on an item toggles it.

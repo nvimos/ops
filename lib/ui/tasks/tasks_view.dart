@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../backend/models.dart';
+import '../../state/nvim_launcher.dart';
 import '../../state/prefs.dart';
 import '../../state/session.dart';
 import '../../tasks/browser.dart';
@@ -202,8 +203,15 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   /// a: this project's tasks / every project's in the shared planning folder.
   void toggleProjectOnly() => ws.setProjectOnly(!ws.projectOnly);
 
+  /// Open a file in the connected Neovim; with Ctrl held (Ctrl+click), in a new nvim-qt instead.
   @override
-  void openInNeovim(String path, int line) => session.run((b) => b.open(ws.absolute(path), line)).then(_snack);
+  void openInNeovim(String path, int line) {
+    if (HardwareKeyboard.instance.isControlPressed) {
+      openInQt(ws.fullPath(path), line).then(_snack);
+    } else {
+      session.run((b) => b.open(ws.absolute(path), line)).then(_snack);
+    }
+  }
 
   @override
   Future<void> setStatus(Task t, String status) async => _snack(await ws.setTaskStatus(t, status));

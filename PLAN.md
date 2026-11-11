@@ -119,6 +119,7 @@ Tasks
 | `s`                | cycle the status                                        |
 | `p`                | cycle the priority                                      |
 | `a`                | this project / all projects (shared planning folder)    |
+| Ctrl+click a file  | open it in a new nvim-qt (detail panel)                 |
 | `Esc`              | close the detail panel                                  |
 
 Directories

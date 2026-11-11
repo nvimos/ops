@@ -263,6 +263,13 @@ class Workspace extends ChangeNotifier {
     _notify();
   }
 
+  /// [path] (relative to the planning folder) as an absolute path, for a program started outside
+  /// Neovim (a new nvim-qt).
+  String fullPath(String path) {
+    final t = tracking;
+    return t == null || path.contains(':/') || path.startsWith('/') ? path : '${t.root}/$path';
+  }
+
   /// [path] (relative to the planning folder) as Neovim should open it: absolute when the planning
   /// folder is outside the repo.
   String absolute(String path) {
