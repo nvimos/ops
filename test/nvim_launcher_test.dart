@@ -28,4 +28,33 @@ void main() {
       'runtime plugin/nvimos.lua',
     ]);
   });
+
+  test('nvimCommand: console through start, nvim-qt passes args after --, headless detached', () {
+    final args = nvimArgs('127.0.0.1:1', 'C:/b');
+    List<String> cmd(NvimKind k) {
+      final (exe, a) = nvimCommand(k, '127.0.0.1:1', 'C:/b', qt: ['-qt']);
+      return [exe, ...a];
+    }
+
+    expect(cmd(NvimKind.console), ['cmd', '/c', 'start', 'nvimos nvim', 'nvim', ...args]);
+    expect(cmd(NvimKind.qt), ['nvim-qt', '-qt', '--', ...args]);
+    expect(cmd(NvimKind.headless), ['nvim', '--headless', ...args]);
+  });
+
+  test('qtArgs: dark mode, and the config stylesheet when it exists', () {
+    final env = {'LOCALAPPDATA': r'C:\Users\u\AppData\Local'};
+    expect(qtArgs(env: env, exists: (_) => true), [
+      '-platform',
+      'windows:darkmode=1',
+      '-stylesheet',
+      r'C:\Users\u\AppData\Local\nvim\nvim-qt.qss',
+    ]);
+    expect(qtArgs(env: env, exists: (_) => false), ['-platform', 'windows:darkmode=1']);
+  });
+
+  test('stopHeadlessScript only matches headless nvim.exe of this user', () {
+    expect(stopHeadlessScript, contains("Name='nvim.exe'"));
+    expect(stopHeadlessScript, contains("-match '--headless'"));
+    expect(stopHeadlessScript, contains('GetOwner'));
+  });
 }

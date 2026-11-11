@@ -19,8 +19,11 @@ class Session extends ChangeNotifier {
   Conn conn = Conn.disconnected;
   String? error;
 
-  /// True while [startNeovim] launches Neovim and waits for it to listen.
-  bool starting = false;
+  /// What [startNeovim] is launching while it waits for Neovim to listen.
+  NvimKind? starting;
+
+  /// A short outcome that is not an error (e.g. how many headless Neovims were stopped).
+  String? notice;
   Backend? backend;
   Cursor? cursor;
   RepoInfo? repo;
@@ -78,20 +81,29 @@ class Session extends ChangeNotifier {
     return s;
   }
 
-  /// Start Neovim on [address] with the backend plugin, then connect once it listens
-  /// (up to about 10 s).
-  Future<void> startNeovim() async {
-    if (conn != Conn.disconnected || starting) return;
-    starting = true;
-    error = null;
+  /// Start Neovim on [address] with the backend plugin (in a console, nvim-qt or headless), then
+  /// connect once it listens (up to about 10 s).
+  Future<void> startNeovim({NvimKind kind = NvimKind.console}) async {
+    if (conn != Conn.disconnected || starting != null) return;
+    starting = kind;
+    error = notice = null;
     _notify();
-    final failed = await launchNeovim(address);
+    final failed = await launchNeovim(address, kind: kind);
     if (failed != null) error = failed;
     for (var i = 0; failed == null && i < 20 && conn != Conn.connected && !_disposed; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       await connect();
     }
-    starting = false;
+    starting = null;
+    _notify();
+  }
+
+  /// Stop every headless Neovim of this user, connected or not.
+  Future<void> stopHeadlessNeovims() async {
+    error = notice = null;
+    final (n, failed) = await stopHeadless();
+    error = failed;
+    notice = failed == null ? (n == 0 ? 'no headless Neovim running' : 'stopped $n headless Neovim') : null;
     _notify();
   }
 
