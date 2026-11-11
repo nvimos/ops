@@ -391,6 +391,12 @@ keyboard J/K/Enter/Esc/C and /.
   backend's `files.*` (unsaved Neovim edits show too), links tasks and changes, reloads on git hints.
 - `tasks/edits.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
   proposal) sent as `files.set_lines`; each refuses if the line changed meanwhile.
+- Ticking the last open box moves the task on by itself (`tasks/auto_status.dart`)
+  - every build step ticked (Acceptance Criteria, or a change's Build), hand checks left: Needs Test
+  - every box ticked, Verify too: Done
+  - only from To Do, In Progress or Needs Test; never out of Done or Dropped, never on unticking
+  - a tick in a change's `tasks.md` moves its task, and the proposal's Status line and `index.tsv` with it
+  - a snackbar says so ("TASK-17 is Done now"), with Undo
 - archiving a change (`Workspace.archive`): `openspec archive` when the CLI is installed,
   else merge its deltas into the living spec (`tasks/archive.dart`) and move the folder
   as `files.move`; new tasks and promoted legacy notes are written as `files.create`.

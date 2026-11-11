@@ -5,6 +5,7 @@ import '../../backend/models.dart';
 import '../../state/nvim_launcher.dart';
 import '../../state/prefs.dart';
 import '../../state/session.dart';
+import '../../tasks/auto_status.dart';
 import '../../tasks/browser.dart';
 import '../../tasks/markdown.dart';
 import '../../tasks/model.dart';
@@ -67,12 +68,23 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     if (_session != null) return;
     _session = SessionScope.read(context);
     session.jobs.addListener(_onJobs);
+    ws.autoStatus.addListener(_onAutoStatus);
     ws.links.addAll(prefs.branchLinks(_repoKey));
   }
+
+  /// A tick moved a task on by itself: say so, with Undo.
+  void _onAutoStatus() {
+    final a = ws.autoStatus.value;
+    if (a == null || !mounted) return;
+    showAutoStatus(context, '${a.taskId} is ${a.to} now (all boxes ticked)', onUndo: () => _undoAutoStatus(a));
+  }
+
+  Future<void> _undoAutoStatus(AutoStatus a) async => _snack(await ws.undoAutoStatus(a));
 
   @override
   void dispose() {
     _session?.jobs.removeListener(_onJobs);
+    ws.autoStatus.removeListener(_onAutoStatus);
     _keys.dispose();
     browser.dispose();
     focus.dispose();
