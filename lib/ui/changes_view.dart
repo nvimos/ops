@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
-import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../state/changes.dart';
 import '../state/session.dart';
 import 'diff_view.dart';
+import 'error_view.dart';
 import 'file_tree.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
 /// Working tree vs HEAD: staged and unstaged files, the selected diff with hunk buttons, and a
 /// commit box. Editing happens in Neovim; clicking a line opens it there.
+///
+/// Page: owns the [ChangesState] and turns user events into its actions; the parts below only
+/// show values and call back.
 class ChangesView extends StatefulWidget {
   const ChangesView({super.key});
 
@@ -21,6 +24,8 @@ class ChangesView extends StatefulWidget {
 class _ChangesViewState extends State<ChangesView> {
   ChangesState? _state;
   final _message = TextEditingController();
+
+  ChangesState get st => _state!;
 
   @override
   void didChangeDependencies() {
@@ -35,215 +40,375 @@ class _ChangesViewState extends State<ChangesView> {
     super.dispose();
   }
 
-  Future<void> _do(Future<void> Function(Backend b) action) async {
-    final err = await _state!.act(action);
-    if (err != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-    }
+  // Event handlers -------------------------------------------------------------------------------
+
+  void _report(String? err) {
+    if (mounted) showActionError(context, err);
   }
 
-  Future<bool> _confirm(String what) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        backgroundColor: C.surface,
-        title: const Text('Discard changes?', style: T.title),
-        content: Text('$what\nThis can\'t be undone.', style: T.body),
-        actions: [
-          SmallButton('Cancel', onPressed: () => Navigator.pop(c, false)),
-          SmallButton('Discard', danger: true, onPressed: () => Navigator.pop(c, true)),
-        ],
-      ),
-    );
-    return ok == true;
+  Future<void> _moveAll(bool staged) async => _report(await st.moveAll(staged: staged));
+
+  Future<void> _moveFile(String path, bool staged) async => _report(await st.moveFile(path, staged: staged));
+
+  Future<void> _moveSelected() => _moveFile(st.selected!, st.selectedStaged);
+
+  Future<void> _discardSelected() async {
+    final path = st.selected!;
+    if (await confirmDiscard(context, 'All unstaged changes in $path.')) _report(await st.discardFile(path));
   }
+
+  Future<void> _moveHunk(Hunk h) async => _report(await st.moveHunk(h));
+
+  Future<void> _discardHunk(Hunk h) async {
+    if (await confirmDiscard(context, 'This hunk of ${st.selected}.')) _report(await st.discardHunk(h));
+  }
+
+  Future<void> _openLine(int line, bool isOld) async => _report(await st.openLine(line, isOld: isOld));
+
+  Future<void> _commit() async {
+    final err = await st.commit(_message.text);
+    if (err == null) _message.clear();
+    _report(err);
+  }
+
+  // Layout -------------------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
-    final st = _state!;
     return ListenableBuilder(
       listenable: st,
       builder: (context, _) => Row(
         children: [
-          SizedBox(width: 320, child: _sidebar(st)),
+          SizedBox(width: 320, child: _sidebar()),
           const VerticalDivider(width: 1),
-          Expanded(child: _main(st)),
+          Expanded(child: _main()),
         ],
       ),
     );
   }
 
-  Widget _sidebar(ChangesState st) {
-    String kind(StatusFile f) => f.conflicted
-        ? 'conflicted'
-        : f.untracked
-        ? 'untracked'
-        : switch (f.staged ? f.index : f.worktree) {
-            'A' => 'added',
-            'D' => 'deleted',
-            'R' => 'renamed',
-            _ => 'modified',
-          };
-    Widget section(String title, List<StatusFile> files, bool staged) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 8, 4),
-            child: Row(
-              children: [
-                Text(title, style: T.section),
-                const SizedBox(width: 6),
-                Text('${files.length}', style: T.tiny),
-                const Spacer(),
-                if (files.isNotEmpty)
-                  _LinkButton(staged ? 'Unstage all' : 'Stage all', () {
-                    _do((b) async {
-                      for (final f in files) {
-                        staged ? await b.unstage(f.path) : await b.stage(f.path);
-                      }
-                    });
-                  }),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: (files.length * 30.0 + 10).clamp(30, 260),
-            child: FileTree(
-              files: [
-                for (final f in files)
-                  TreeFile(
-                    path: f.path,
-                    status: kind(f),
-                    trailing: Tooltip(
-                      message: staged ? 'Unstage' : 'Stage',
-                      child: InkWell(
-                        onTap: () => _do((b) => staged ? b.unstage(f.path) : b.stage(f.path)),
-                        child: Icon(
-                          staged ? Icons.check_box : Icons.check_box_outline_blank,
-                          size: 16,
-                          color: staged ? C.accent : C.muted,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-              selected: st.selectedStaged == staged ? st.selected : null,
-              onSelect: (p) => st.select(p, staged: staged),
-            ),
-          ),
-        ],
-      );
-    }
-
+  Widget _sidebar() {
     final branch = st.status?.branch ?? '';
-    final canCommit = st.staged.isNotEmpty && !st.busy;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PaneHeader(
-          title: Row(
-            children: [
-              const Icon(Icons.call_split, size: 14, color: C.muted),
-              const SizedBox(width: 6),
-              Text(branch.isEmpty ? 'Changes' : branch),
-            ],
-          ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                section('STAGED', st.staged, true),
-                section('CHANGES', st.unstaged, false),
-                if (st.status != null && st.status!.files.isEmpty) const Empty('Working tree clean'),
-              ],
-            ),
-          ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _message,
-                minLines: 2,
-                maxLines: 6,
-                style: T.body,
-                decoration: const InputDecoration(hintText: 'Commit message'),
-              ),
-              const SizedBox(height: 8),
-              SmallButton(
-                'Commit ${st.staged.length} file${st.staged.length == 1 ? '' : 's'} to $branch',
-                primary: true,
-                onPressed: !canCommit
-                    ? null
-                    : () async {
-                        final err = await st.commit(_message.text);
-                        if (!mounted) return;
-                        if (err == null) {
-                          _message.clear();
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
-                        }
-                      },
-              ),
-            ],
-          ),
-        ),
+    final n = st.staged.length;
+    return ChangesSidebar(
+      branch: branch,
+      sections: [
+        FileSectionData('STAGED', st.staged, staged: true),
+        FileSectionData('CHANGES', st.unstaged, staged: false),
       ],
+      clean: st.status != null && st.status!.files.isEmpty,
+      selected: st.selected,
+      selectedStaged: st.selectedStaged,
+      onSelect: (path, staged) => st.select(path, staged: staged),
+      onMoveFile: _moveFile,
+      onMoveAll: _moveAll,
+      commitBox: CommitBox(
+        controller: _message,
+        label: 'Commit $n file${n == 1 ? '' : 's'} to $branch',
+        enabled: n > 0 && !st.busy,
+        onCommit: _commit,
+      ),
     );
   }
 
-  Widget _main(ChangesState st) {
+  Widget _main() {
     final f = st.diff;
-    final path = st.selected;
-    if (path == null) return const Empty('No changes. Edit in Neovim; files show up here as you save.');
+    if (st.error != null) return ErrorPane(st.error!, onRetry: st.refresh);
+    if (st.selected == null) return const Empty('No changes. Edit in Neovim; files show up here as you save.');
     if (f == null) return const Empty('Loading…');
-    final staged = st.selectedStaged;
-    return DiffView(
+    return ChangesDiff(
       file: f,
-      onLine: (line, isOld) {
-        if (isOld) return;
-        final s = SessionScope.read(context);
-        s.run((b) => b.open(path, line));
-      },
-      headerActions: [
-        if (!staged)
-          SmallButton(
-            'Discard file',
-            danger: true,
-            onPressed: () async {
-              if (await _confirm('All unstaged changes in $path.')) _do((b) => b.discard(path));
-            },
-          ),
-        const SizedBox(width: 6),
-        SmallButton(
-          staged ? 'Unstage file' : 'Stage file',
-          onPressed: () => _do((b) => staged ? b.unstage(path) : b.stage(path)),
-        ),
+      staged: st.selectedStaged,
+      onLine: _openLine,
+      onMoveFile: _moveSelected,
+      onDiscardFile: _discardSelected,
+      onMoveHunk: _moveHunk,
+      onDiscardHunk: _discardHunk,
+    );
+  }
+}
+
+/// Ask before throwing work away.
+Future<bool> confirmDiscard(BuildContext context, String what) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      backgroundColor: C.surface,
+      title: const Text('Discard changes?', style: T.title),
+      content: Text('$what\nThis can\'t be undone.', style: T.body),
+      actions: [
+        SmallButton('Cancel', onPressed: () => Navigator.pop(c, false)),
+        SmallButton('Discard', danger: true, onPressed: () => Navigator.pop(c, true)),
       ],
-      hunkActions: (h) => [
-        if (!staged)
-          _LinkButton('Discard', () async {
-            if (await _confirm('This hunk of $path.')) _do((b) => b.discardHunk(path, h));
-          }, color: C.red),
-        const SizedBox(width: 10),
-        _LinkButton(
-          staged ? 'Unstage hunk' : 'Stage hunk',
-          () => _do((b) => staged ? b.unstageHunk(path, h) : b.stageHunk(path, h)),
+    ),
+  );
+  return ok == true;
+}
+
+// Organisms ---------------------------------------------------------------------------------------
+
+/// One side of the working tree: its title and files.
+class FileSectionData {
+  const FileSectionData(this.title, this.files, {required this.staged});
+
+  final String title;
+  final List<StatusFile> files;
+  final bool staged;
+}
+
+/// The left pane: branch, the staged and unstaged sections, the commit box.
+class ChangesSidebar extends StatelessWidget {
+  const ChangesSidebar({
+    super.key,
+    required this.branch,
+    required this.sections,
+    required this.clean,
+    required this.selected,
+    required this.selectedStaged,
+    required this.onSelect,
+    required this.onMoveFile,
+    required this.onMoveAll,
+    required this.commitBox,
+  });
+
+  final String branch;
+  final List<FileSectionData> sections;
+  final bool clean;
+  final String? selected;
+  final bool selectedStaged;
+  final void Function(String path, bool staged) onSelect;
+  final void Function(String path, bool staged) onMoveFile;
+  final void Function(bool staged) onMoveAll;
+  final Widget commitBox;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PaneHeader(title: _BranchTitle(branch)),
+        Expanded(
+          child: ListView(
+            children: [
+              for (final s in sections)
+                FileSection(
+                  data: s,
+                  selected: selectedStaged == s.staged ? selected : null,
+                  onSelect: (p) => onSelect(p, s.staged),
+                  onMoveFile: (p) => onMoveFile(p, s.staged),
+                  onMoveAll: () => onMoveAll(s.staged),
+                ),
+              if (clean) const Empty('Working tree clean'),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        commitBox,
+      ],
+    );
+  }
+}
+
+/// A STAGED or CHANGES section: header with "Stage all" / "Unstage all", then its file tree.
+class FileSection extends StatelessWidget {
+  const FileSection({
+    super.key,
+    required this.data,
+    required this.selected,
+    required this.onSelect,
+    required this.onMoveFile,
+    required this.onMoveAll,
+  });
+
+  final FileSectionData data;
+  final String? selected;
+  final ValueChanged<String> onSelect;
+  final ValueChanged<String> onMoveFile;
+  final VoidCallback onMoveAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final staged = data.staged;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SectionHeader(
+          title: data.title,
+          count: data.files.length,
+          action: data.files.isEmpty ? null : (staged ? 'Unstage all' : 'Stage all'),
+          onAction: onMoveAll,
+        ),
+        SizedBox(
+          height: (data.files.length * 30.0 + 10).clamp(30, 260),
+          child: FileTree(
+            files: [
+              for (final f in data.files)
+                TreeFile(
+                  path: f.path,
+                  status: fileKind(f, staged: staged),
+                  trailing: StageCheckbox(staged: staged, onTap: () => onMoveFile(f.path)),
+                ),
+            ],
+            selected: selected,
+            onSelect: onSelect,
+          ),
         ),
       ],
     );
   }
 }
 
-class _LinkButton extends StatelessWidget {
-  const _LinkButton(this.label, this.onTap, {this.color = C.accent});
+/// The selected file's diff with file and hunk actions; unstaged files can also be discarded.
+class ChangesDiff extends StatelessWidget {
+  const ChangesDiff({
+    super.key,
+    required this.file,
+    required this.staged,
+    required this.onLine,
+    required this.onMoveFile,
+    required this.onDiscardFile,
+    required this.onMoveHunk,
+    required this.onDiscardHunk,
+  });
+
+  final DiffFile file;
+  final bool staged;
+  final void Function(int line, bool isOld) onLine;
+  final VoidCallback onMoveFile;
+  final VoidCallback onDiscardFile;
+  final ValueChanged<Hunk> onMoveHunk;
+  final ValueChanged<Hunk> onDiscardHunk;
+
+  @override
+  Widget build(BuildContext context) {
+    final fileActions = [
+      if (!staged) (label: 'Discard file', danger: true, onTap: onDiscardFile),
+      (label: staged ? 'Unstage file' : 'Stage file', danger: false, onTap: onMoveFile),
+    ];
+    return DiffView(
+      file: file,
+      onLine: onLine,
+      headerActions: [
+        for (final a in fileActions)
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: SmallButton(a.label, danger: a.danger, onPressed: a.onTap),
+          ),
+      ],
+      hunkActions: (h) => [
+        if (!staged) LinkButton('Discard', () => onDiscardHunk(h), color: C.red),
+        const SizedBox(width: 10),
+        LinkButton(staged ? 'Unstage hunk' : 'Stage hunk', () => onMoveHunk(h)),
+      ],
+    );
+  }
+}
+
+/// Message field and the Commit button.
+class CommitBox extends StatelessWidget {
+  const CommitBox({
+    super.key,
+    required this.controller,
+    required this.label,
+    required this.enabled,
+    required this.onCommit,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final bool enabled;
+  final VoidCallback onCommit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: controller,
+            minLines: 2,
+            maxLines: 6,
+            style: T.body,
+            decoration: const InputDecoration(hintText: 'Commit message'),
+          ),
+          const SizedBox(height: 8),
+          SmallButton(label, primary: true, onPressed: enabled ? onCommit : null),
+        ],
+      ),
+    );
+  }
+}
+
+// Molecules and atoms ------------------------------------------------------------------------------
+
+class _BranchTitle extends StatelessWidget {
+  const _BranchTitle(this.branch);
+
+  final String branch;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      const Icon(Icons.call_split, size: 14, color: C.muted),
+      const SizedBox(width: 6),
+      Text(branch.isEmpty ? 'Changes' : branch),
+    ],
+  );
+}
+
+/// A section title with its count and an optional link-style action on the right.
+class SectionHeader extends StatelessWidget {
+  const SectionHeader({super.key, required this.title, required this.count, this.action, this.onAction});
+
+  final String title;
+  final int count;
+  final String? action;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 4),
+      child: Row(
+        children: [
+          Text(title, style: T.section),
+          const SizedBox(width: 6),
+          Text('$count', style: T.tiny),
+          const Spacer(),
+          if (action != null && onAction != null) LinkButton(action!, onAction!),
+        ],
+      ),
+    );
+  }
+}
+
+/// The checkbox at the end of a file row: checked when staged.
+class StageCheckbox extends StatelessWidget {
+  const StageCheckbox({super.key, required this.staged, required this.onTap});
+
+  final bool staged;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: staged ? 'Unstage' : 'Stage',
+    child: InkWell(
+      onTap: onTap,
+      child: Icon(
+        staged ? Icons.check_box : Icons.check_box_outline_blank,
+        size: 16,
+        color: staged ? C.accent : C.muted,
+      ),
+    ),
+  );
+}
+
+/// Text that acts like a link.
+class LinkButton extends StatelessWidget {
+  const LinkButton(this.label, this.onTap, {super.key, this.color = C.accent});
 
   final String label;
   final VoidCallback onTap;

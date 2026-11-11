@@ -10,7 +10,10 @@ class NvimError implements Exception {
   final String message;
 
   /// The message without Neovim's "Lua: ..." / "Vim:..." prefixes and stack traces, for the UI.
-  String get short {
+  String get short => shorten(message);
+
+  /// [short] for any message text.
+  static String shorten(String message) {
     var m = message.split('\nstack traceback')[0].trim();
     m = m.replaceFirst(RegExp(r'^(Lua|Vim):\s*'), '');
     final i = m.indexOf('nvimos: ');
