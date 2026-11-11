@@ -29,12 +29,22 @@ Color statusColor(String status) => switch (status) {
 };
 
 /// Changed files grouped by folder, folders sorted, files sorted inside them.
+/// With [onToggleDir], a click on a folder collapses or expands it; [collapsed] holds the folded ones.
 class FileTree extends StatelessWidget {
-  const FileTree({super.key, required this.files, required this.selected, required this.onSelect});
+  const FileTree({
+    super.key,
+    required this.files,
+    required this.selected,
+    required this.onSelect,
+    this.collapsed = const {},
+    this.onToggleDir,
+  });
 
   final List<TreeFile> files;
   final String? selected;
   final ValueChanged<String> onSelect;
+  final Set<String> collapsed;
+  final ValueChanged<String>? onToggleDir;
 
   @override
   Widget build(BuildContext context) {
@@ -47,22 +57,33 @@ class FileTree extends StatelessWidget {
     final rows = <Widget>[];
     for (final d in dirs) {
       final list = byDir[d]!..sort((a, b) => a.path.compareTo(b.path));
+      final folded = collapsed.contains(d);
       if (d.isNotEmpty) {
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
-            child: Row(
-              children: [
-                const Icon(Icons.folder_outlined, size: 14, color: C.faint),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(d, style: T.tiny, overflow: TextOverflow.ellipsis),
-                ),
-              ],
+        final row = Row(
+          children: [
+            if (onToggleDir != null) ...[
+              Icon(folded ? Icons.chevron_right : Icons.expand_more, size: 14, color: C.faint),
+              const SizedBox(width: 2),
+            ],
+            Icon(folded ? Icons.folder_outlined : Icons.folder_open_outlined, size: 14, color: C.faint),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(d, style: T.tiny, overflow: TextOverflow.ellipsis),
             ),
-          ),
+            if (folded) Text('${list.length}', style: T.tiny),
+          ],
+        );
+        rows.add(
+          onToggleDir == null
+              ? Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 2), child: row)
+              : HoverRow(
+                  onTap: () => onToggleDir!(d),
+                  padding: const EdgeInsets.fromLTRB(12, 6, 12, 3),
+                  child: row,
+                ),
         );
       }
+      if (folded) continue;
       for (final f in list) {
         final name = f.path.substring(f.path.lastIndexOf('/') + 1);
         rows.add(

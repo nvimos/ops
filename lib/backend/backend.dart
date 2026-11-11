@@ -166,4 +166,26 @@ class Backend {
   Future<void> cancelJob(int id) => _lua('nvimos.jobs', 'cancel', [id]);
 
   Future<CliResult> cli(String cmd, List<String> args) async => CliResult(asMap(await _files('cli', [cmd, args])));
+
+  // Directories --------------------------------------------------------------------------------
+
+  /// The start dirs to pick from: genja-startdirs' frecency order, else the dirs of recent files.
+  Future<StartDirs> dirs() async => StartDirs(asMap(await _lua('nvimos.dirs', 'list')));
+
+  /// `:cd` there; returns the new cwd. The git domain follows with a new snapshot.
+  Future<String> cd(String path) async => str(await _lua('nvimos.dirs', 'set', [path]));
+
+  /// Where the backend plugin lives, to start another Neovim with it.
+  Future<String?> pluginRoot() async {
+    final r = await _lua('nvimos.dirs', 'plugin_root');
+    return r is String ? r : null;
+  }
+}
+
+class StartDirs {
+  StartDirs(Map<String, Object?> m) : source = str(m['source']), dirs = asList(m['dirs']).map(str).toList();
+
+  /// 'startdirs' (genja-startdirs) or 'oldfiles' (dirs of recent files).
+  final String source;
+  final List<String> dirs;
 }

@@ -122,15 +122,20 @@ class Session extends ChangeNotifier {
     if (b != null) await b.close();
   }
 
-  /// Run a backend action; returns the error text for the UI, or null.
+  /// The cwd moved without a repo change (no git event for that): keep [repo] current.
+  void movedTo(String cwd) {
+    repo = RepoInfo({'cwd': cwd, 'root': repo?.root, 'head': repo?.head});
+    _notify();
+  }
+
+  /// Run a backend action; returns the full error text (with Neovim's trace), or null.
+  /// The UI shows `shortError` of it and the full text on demand.
   Future<String?> run(Future<void> Function(Backend b) action) async {
     final b = backend;
     if (b == null) return 'not connected';
     try {
       await action(b);
       return null;
-    } on NvimError catch (e) {
-      return e.short;
     } catch (e) {
       return '$e';
     }
