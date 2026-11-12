@@ -2,11 +2,12 @@
 
 ---
 
-# Plan: nvimos-poc-frontend
+# Plan: Ops (nvimos-poc-frontend)
 
 A Flutter desktop app for Windows. Linux, Android and Macos versions will be implemented later.
 
-All editor and git state comes from the backend plugin, `~/es/nvimos-poc-backend`, see _that_ PLAN.md for the protocol.
+All editor and git state comes from the backend plugin, relay (`nvimos/relay`, checkout `~/es/nvimos-poc-backend`),
+see _that_ PLAN.md for the protocol.
 
 ## Main functionality
 
@@ -249,7 +250,8 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
     - Start headless: `nvim --headless`, detached from the app: no window, no terminal,
       keeps running after the app quits
     - each listens on the address, with the backend plugin loaded after the config, like `make nvim`
-    - the plugin checkout is `NVIMOS_BACKEND`, else `nvimos-poc-backend` next to a parent folder
+    - the plugin checkout is `NVIMOS_BACKEND`, else a `relay` or `nvimos-poc-backend` folder
+      holding `plugin/nvimos.lua`, next to a parent folder
       of the working directory or of the exe
     - the pressed button reads "Starting…" while the app waits up to about 10 s for it to listen
     - "nvim is not on PATH" (or nvim-qt) or a missing plugin checkout show under the field

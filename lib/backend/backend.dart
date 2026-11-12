@@ -16,7 +16,7 @@ class NvimEvent {
   String toString() => 'NvimEvent($domain#$seq $reason)';
 }
 
-/// The backend plugin (`~/es/nvimos-poc-backend`) over one RPC connection.
+/// The backend plugin, relay (`~/es/nvimos-poc-backend`), over one RPC connection.
 class Backend {
   Backend._(this.rpc, this.chan) {
     _sub = rpc.notifications.listen((n) {

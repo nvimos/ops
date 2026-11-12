@@ -1,6 +1,7 @@
-# nvimos-poc-frontend
+# Ops (nvimos-poc-frontend)
 
-Flutter Windows app; `PLAN.md` is the spec. Backend plugin: `../nvimos-poc-backend`.
+Flutter Windows app, GitHub `nvimos/ops`, exe `ops.exe`; `PLAN.md` is the spec.
+Backend plugin: relay (`nvimos/relay`), checkout `../nvimos-poc-backend`.
 The original idea files (`~/es/nvimos-meta/poc-nvim-backend/flutter*.md`) hold main ideas only;
 the plan wins where they disagree. Keep them vague (no buttons, no keys) when updating them.
 

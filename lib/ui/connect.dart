@@ -20,7 +20,7 @@ class _ConnectScreenState extends State<ConnectScreen> {
   static const _howTo =
       'nvim --listen 127.0.0.1:6666\n'
       ':NvimosServe        (in a running Neovim)\n'
-      'make nvim           (in nvimos-poc-frontend)';
+      'make nvim           (in the ops checkout)';
 
   @override
   void initState() {

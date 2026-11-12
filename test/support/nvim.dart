@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:nvimos_poc/rpc/client.dart';
+import 'package:nvimos_poc/state/nvim_launcher.dart';
 
 /// A headless Neovim listening on a free TCP port, with the backend plugin loaded.
 class TestNvim {
@@ -11,9 +12,10 @@ class TestNvim {
   final int port;
   final Directory dir;
 
+  /// NVIMOS_BACKEND, else a relay checkout next to this repo or a parent (as the app finds it).
   static String get backendDir =>
-      Platform.environment['NVIMOS_BACKEND'] ??
-      '${Directory.current.parent.path}/nvimos-poc-backend'.replaceAll('\\', '/');
+      findBackendDir(starts: [Directory.current.path]) ??
+      '${Directory.current.parent.path}/relay'.replaceAll('\\', '/');
 
   static Future<int> freePort() async {
     final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
