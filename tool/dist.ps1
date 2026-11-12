@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $release = Join-Path $root 'build/windows/x64/runner/Release'
 $dist = Join-Path $root 'dist'
-$exe = Join-Path $release 'nvimos_poc.exe'
+$exe = Join-Path $release 'ops.exe'
 if (-not (Test-Path $exe)) { throw "no release build: $exe (run make build)" }
 New-Item -ItemType Directory -Force $dist | Out-Null
 $name = "ops-windows-x64-$Version"

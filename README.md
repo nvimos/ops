@@ -1,8 +1,8 @@
-# nvimos-poc-frontend
+# Ops
 
 [![ops test](https://github.com/nvimos/ops/actions/workflows/test.yml/badge.svg)](https://github.com/nvimos/ops/actions/workflows/test.yml)
 
-Flutter Windows app over a running Neovim. Plan: [PLAN.md](PLAN.md).
+A Flutter Windows app over a running Neovim, for [On-Screen Nvim](https://github.com/nvimos/onscreen). Plan: [PLAN.md](PLAN.md).
 
 Backend: [relay](https://github.com/nvimos/relay), the Neovim plugin (checkout `~/es/nvimos-poc-backend`)
 [![relay test](https://github.com/nvimos/relay/actions/workflows/test.yml/badge.svg)](https://github.com/nvimos/relay/actions/workflows/test.yml)
@@ -11,7 +11,7 @@ Backend: [relay](https://github.com/nvimos/relay), the Neovim plugin (checkout `
 
 ```
 make nvim     # Neovim on 127.0.0.1:6666 with the backend plugin (or :NvimosServe in yours)
-make run      # the app; or build/windows/x64/runner/Debug/nvimos_poc.exe [host:port]
+make run      # the app; or build/windows/x64/runner/Debug/ops.exe [host:port]
 ```
 
 Flutter for Windows is in `H:\flutter` (`make` sets the path and `PUB_CACHE=H:\pub-cache`).

@@ -11,11 +11,21 @@ void main() {
   test('findBackendDir finds the checkout next to a parent folder', () async {
     final root = await Directory.systemTemp.createTemp('nvimos_launch_');
     addTearDown(() => root.delete(recursive: true));
-    await Directory('${root.path}/nvimos-poc-backend').create();
+    await File('${root.path}/nvimos-poc-backend/plugin/nvimos.lua').create(recursive: true);
     final deep = await Directory('${root.path}/front/build/Release').create(recursive: true);
     final found = findBackendDir(env: {}, starts: [deep.path]);
     expect(found, '${root.absolute.path}/nvimos-poc-backend'.replaceAll(r'\', '/'));
     expect(findBackendDir(env: {}, starts: [Directory.systemTemp.path]), anyOf(isNull, isNot(found)));
+  });
+
+  test('findBackendDir finds a relay clone and skips a relay folder without the plugin', () async {
+    final root = await Directory.systemTemp.createTemp('nvimos_launch_');
+    addTearDown(() => root.delete(recursive: true));
+    final deep = await Directory('${root.path}/ops/build/Release').create(recursive: true);
+    await Directory('${root.path}/ops/relay').create();
+    expect(findBackendDir(env: {}, starts: [deep.path]), isNot(endsWith('/ops/relay')));
+    await File('${root.path}/relay/plugin/nvimos.lua').create(recursive: true);
+    expect(findBackendDir(env: {}, starts: [deep.path]), '${root.absolute.path}/relay'.replaceAll(r'\', '/'));
   });
 
   test('nvimArgs listens and loads the plugin after the config, like make nvim', () {

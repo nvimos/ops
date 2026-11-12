@@ -1,15 +1,21 @@
 import 'dart:io';
 
-/// The backend plugin checkout: NVIMOS_BACKEND, or `nvimos-poc-backend` next to the app's
-/// folder or one of its parents (found from the working directory, then from the exe).
+/// The folder names of a relay checkout (the backend plugin): its repo name, and the POC folder.
+const backendFolders = ['relay', 'nvimos-poc-backend'];
+
+/// The backend plugin checkout: NVIMOS_BACKEND, or a `relay` (or `nvimos-poc-backend`) folder with
+/// `plugin/nvimos.lua` in it, next to the app's folder or one of its parents (found from the
+/// working directory, then from the exe).
 String? findBackendDir({Map<String, String>? env, List<String>? starts}) {
   final set = (env ?? Platform.environment)['NVIMOS_BACKEND'];
   if (set != null && set.isNotEmpty) return set.replaceAll('\\', '/');
   for (final start in starts ?? [Directory.current.path, File(Platform.resolvedExecutable).parent.path]) {
     var dir = Directory(start).absolute;
     while (true) {
-      final candidate = Directory('${dir.path}/nvimos-poc-backend');
-      if (candidate.existsSync()) return candidate.path.replaceAll('\\', '/');
+      for (final name in backendFolders) {
+        final candidate = Directory('${dir.path}/$name');
+        if (File('${candidate.path}/plugin/nvimos.lua').existsSync()) return candidate.path.replaceAll('\\', '/');
+      }
       if (dir.parent.path == dir.path) break;
       dir = dir.parent;
     }
@@ -69,7 +75,7 @@ List<String> qtArgs({Map<String, String>? env, bool Function(String path)? exist
 /// or null.
 Future<String?> launchNeovim(String address, {NvimKind kind = NvimKind.console}) async {
   final backend = findBackendDir();
-  if (backend == null) return 'nvimos-poc-backend not found; set NVIMOS_BACKEND';
+  if (backend == null) return 'the relay plugin not found; set NVIMOS_BACKEND to its checkout';
   final where = await Process.run('where', [kind.exe]);
   if (where.exitCode != 0) return '${kind.exe} is not on PATH';
   final (exe, args) = nvimCommand(kind, address, backend);
