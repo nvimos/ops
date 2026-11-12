@@ -50,8 +50,8 @@ $psi = [System.Diagnostics.ProcessStartInfo]::new('cmd.exe', "/c `"$Flutter`" ru
 $psi.WorkingDirectory = $root
 $psi.UseShellExecute = $false
 $psi.RedirectStandardInput = $true  # output goes to this console as it is
-$flutter = [System.Diagnostics.Process]::Start($psi)
-[LiveJob]::Add($job, $flutter.Handle)  # cmd's children (flutter, the app) join the job too
+$run = [System.Diagnostics.Process]::Start($psi)  # not $flutter: names ignore case, and -Flutter is a [string]
+[LiveJob]::Add($job, $run.Handle)  # cmd's children (flutter, the app) join the job too
 
 $watcher = [System.IO.FileSystemWatcher]::new((Join-Path $root 'lib'), '*.dart')
 $watcher.IncludeSubdirectories = $true
@@ -61,7 +61,7 @@ $watcher.NotifyFilter = [System.IO.NotifyFilters]'LastWrite, FileName'
 $last = [datetime]::MinValue
 $pending = $false
 try {
-    while (-not $flutter.HasExited) {
+    while (-not $run.HasExited) {
         $change = $watcher.WaitForChanged([System.IO.WatcherChangeTypes]::All, 100)
         if (-not $change.TimedOut) {
             $last = Get-Date
@@ -69,20 +69,20 @@ try {
         }
         if ($pending -and ((Get-Date) - $last).TotalMilliseconds -ge 300) {
             $pending = $false
-            $flutter.StandardInput.Write($key)
-            $flutter.StandardInput.Flush()
+            $run.StandardInput.Write($key)
+            $run.StandardInput.Flush()
         }
         while (-not [Console]::IsInputRedirected -and [Console]::KeyAvailable) {
             $c = [Console]::ReadKey($true).KeyChar
-            $flutter.StandardInput.Write($c)
-            $flutter.StandardInput.Flush()
+            $run.StandardInput.Write($c)
+            $run.StandardInput.Flush()
         }
     }
 } finally {
     $watcher.Dispose()
-    if (-not $flutter.HasExited) {
-        $flutter.StandardInput.Write('q')
-        $flutter.StandardInput.Flush()
-        if (-not $flutter.WaitForExit(5000)) { $flutter.Kill($true) }
+    if (-not $run.HasExited) {
+        $run.StandardInput.Write('q')
+        $run.StandardInput.Flush()
+        if (-not $run.WaitForExit(5000)) { $run.Kill($true) }
     }
 }
