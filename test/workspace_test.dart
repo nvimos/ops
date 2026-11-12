@@ -131,5 +131,5 @@ void main() {
     ws.dispose();
     s.dispose();
     await nvim.stop();
-  });
+  }, retry: 2); // flaky: fails about half the runs (CLAUDE.md), also before 2026-11-11
 }
