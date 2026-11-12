@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Ops app icon: an octagonal ring, no background, like the Neovim logo. Green upper left, blue
+       lower right, split on the 45 degree line, with a sky-blue fold in the corner. Only <polygon>
+       elements: tool/icon.ps1 reads exactly these to build the .ico (make icon). -->
+  <polygon points="20.50,2.10 43.50,2.10 52.70,11.30 43.50,20.50 38.90,15.90 25.10,15.90 20.50,20.50 20.50,43.50 11.30,52.70 6.70,48.10 6.70,15.90" fill="#5fbb46"/>
+  <polygon points="52.70,11.30 57.30,15.90 57.30,48.10 43.50,61.90 20.50,61.90 11.30,52.70 20.50,43.50 25.10,48.10 38.90,48.10 43.50,43.50 43.50,20.50" fill="#2f86d6"/>
+  <polygon points="43.50,2.10 57.30,15.90 43.50,15.90" fill="#6ac0f5"/>
+</svg>

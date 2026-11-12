@@ -57,5 +57,8 @@ measure: ## time Tasks checkbox clicks in a 300-task repo with a headless Neovim
 
 ##@ other
 
+icon: ## rebuild windows/runner/resources/app_icon.ico from assets/icon/ops.svg
+	pwsh -NoProfile -File tool/icon.ps1
+
 help: ## this list
 	@Select-String -Path Makefile -Pattern '^##@ (.*)', '^([a-z-]+):.*## (.*)' | ForEach-Object { $$g = $$_.Matches[0].Groups; if ($$_.Line.StartsWith('##@')) { ''; $$g[1].Value } else { '  {0,-8} {1}' -f $$g[1].Value, $$g[2].Value } }

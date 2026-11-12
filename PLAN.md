@@ -489,6 +489,33 @@ products and their vision, of how things work, with utmost humility and gratitud
   - `make timings` shows them (`WHICH=totals` or `<n>` sessions back, `FILTER=tasks`);
     `make measure` prints the timings of Tasks clicks in a 300-task repo
 
+## App icon
+
+_not strictly normative_
+
+- goal: `ops.exe` should not look like any other Flutter app, nor like Neovim itself
+  - drawn from what the Flutter and Neovim logos share, copying neither:
+    flat slabs, pointed ends cut at 45°, green and blue
+- how we got there (OpenSpec change `ops-app-icon` in `nvimos-meta`, concept pages next to its proposal)
+  - four first concepts: a prompt (chevron and block cursor), two pillars joined by a diagonal,
+    a diamond, a split tile; the prompt was the favourite
+  - rejected: the prompt looks like a terminal, and says nothing about Ops or about a front end
+  - variants of the prompt with a window frame, a task list, an "o", a cursor that is a window: not
+    wanted; the chevron was the wrong thing to keep
+  - kept from the logos: the pointed 45° ends, the green and the blue
+  - the word "ops" drawn as letters in that style, as three tiles: `ops`, `op`, `o`
+    - `ops`: strokes turn to blocks at 16 px; `op`: readable, but half a word; `o`: sturdiest
+  - chosen: the single `o`
+  - then: no tile, like the Neovim logo, so it blends into any taskbar; the ring grows to fill the icon
+    and keeps its tall proportions
+- the icon
+  - one tall octagonal ring on a transparent background, the corners of the octagon are the 45° cuts
+  - green on the upper left, blue on the lower right, split on the 45° line
+  - a small sky-blue triangle folded into the top right corner, the nod to the Flutter bars
+- files
+  - source: `assets/icon/ops.svg`, only `<polygon>`
+  - `make icon` (`tool/icon.ps1`) renders 16, 24, 32, 48 and 256 px into `windows/runner/resources/app_icon.ico`
+
 ##  implementation details
 
 _not strictly normative_ 
