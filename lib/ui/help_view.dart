@@ -35,7 +35,7 @@ const keyTable = [
       (']f / [f', 'next / previous file'),
       (']c / [c', 'next / previous hunk'),
       ('h / l', "fold / unfold the file's folder"),
-      ('zR / zM', 'expand / collapse all folders'),
+      ('zR / zM', 'expand / collapse all folders (PR, Changes)'),
       ('v', 'unified / side-by-side'),
       ('zw', 'line wrapping'),
       ('Enter on a commit', 'show only that commit'),

@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -12,6 +10,7 @@ import '../tasks/workspace.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
+import 'list_pair_view.dart';
 import 'tasks/review_panel.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -201,49 +200,29 @@ class _Pickers extends StatelessWidget {
 }
 
 /// Row heights the left pane works with.
-const _header = 32.0, _fileRow = 26.0, _commitRow = 24.0;
+const _fileRow = 26.0, _commitRow = 24.0;
 
-/// Heights of the two lists; null: it takes the rest. The non-dominant list gets at most 6 rows,
-/// or 3 when the files would not fit; collapsed commits get none.
-({double? files, double? commits}) leftPaneHeights(PrState pr, double height) {
+/// How tall FILES CHANGED and COMMITS want to be, for [pairHeights].
+List<ListSize> leftPaneSizes(PrState pr) {
   final files = pr.diff?.files ?? const <DiffFile>[];
-  final dirs = {for (final f in files) dirOf(f.path)}..remove('');
-  final shownFiles = files.where((f) => !pr.collapsedDirs.contains(dirOf(f.path))).length;
-  final filesNeed = (shownFiles + dirs.length) * _fileRow + 8;
-  final free = height - 2 * _header - (pr.narrowed != null ? _header : 0);
-  final n = pr.commits.length;
-  if (pr.commitsCollapsed) return (files: null, commits: 0);
-  if (pr.dominant == Dominant.commits) return (files: math.min(filesNeed, 3 * _fileRow + 8), commits: null);
-  final rows = free - math.min(n, 6) * _commitRow < filesNeed ? math.min(n, 3) : math.min(n, 6);
-  return (files: null, commits: rows * _commitRow);
+  final rows = treeRows([for (final f in files) TreeFile(path: f.path, status: f.status)], pr.collapsedDirs);
+  return [(rows: rows.length, row: _fileRow, pad: 8), (rows: pr.commits.length, row: _commitRow, pad: 0)];
 }
 
-/// FILES CHANGED above COMMITS, sized by [leftPaneHeights].
+/// FILES CHANGED above COMMITS, each foldable, one of them with the most room.
 class _Lists extends StatelessWidget {
   const _Lists({required this.pr});
 
   final PrState pr;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, c) {
-      final h = leftPaneHeights(pr, c.maxHeight);
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (pr.narrowed != null) _NarrowBanner(commit: pr.narrowed!, onAll: pr.showAllCommits),
-          _FilesHeader(pr: pr),
-          _sized(h.files, _Files(pr: pr)),
-          const Divider(height: 1),
-          _CommitsHeader(pr: pr),
-          if (h.commits != 0) _sized(h.commits, _CommitList(pr: pr)),
-        ],
-      );
-    },
+  Widget build(BuildContext context) => ListPairColumn(
+    pair: pr.lists,
+    sizes: leftPaneSizes(pr),
+    banner: pr.narrowed == null ? null : _NarrowBanner(commit: pr.narrowed!, onAll: pr.showAllCommits),
+    headers: [_FilesHeader(pr: pr), _CommitsHeader(pr: pr)],
+    lists: [_Files(pr: pr), _CommitList(pr: pr)],
   );
-
-  static Widget _sized(double? height, Widget child) =>
-      height == null ? Expanded(child: child) : SizedBox(height: height, child: child);
 }
 
 class _FilesHeader extends StatelessWidget {
@@ -262,18 +241,11 @@ class _FilesHeader extends StatelessWidget {
       active: pr.pane == PrPane.files,
       count: '${files.length}',
       extra: files.isEmpty ? null : '+$adds −$dels',
+      collapsed: pr.filesCollapsed,
+      onTap: pr.toggleFiles,
       actions: [
-        IconToggle(
-          icon: folded ? Icons.unfold_more : Icons.unfold_less,
-          tip: folded ? 'Expand all folders (zR)' : 'Collapse all folders (zM)',
-          onTap: pr.toggleAllDirs,
-        ),
-        IconToggle(
-          icon: Icons.open_in_full,
-          tip: 'Give the files the most room',
-          on: pr.dominant == Dominant.files,
-          onTap: pr.makeFilesDominant,
-        ),
+        FoldAllButton(folded: folded, onTap: pr.toggleAllDirs),
+        DominantButton(what: 'files', on: pr.lists.dominant == 0, onTap: pr.makeFilesDominant),
       ],
     );
   }
@@ -292,14 +264,7 @@ class _CommitsHeader extends StatelessWidget {
     loading: pr.loading,
     collapsed: pr.commitsCollapsed,
     onTap: pr.toggleCommits,
-    actions: [
-      IconToggle(
-        icon: Icons.open_in_full,
-        tip: 'Give the commits the most room',
-        on: pr.dominant == Dominant.commits,
-        onTap: pr.makeCommitsDominant,
-      ),
-    ],
+    actions: [DominantButton(what: 'commits', on: pr.lists.dominant == 1, onTap: pr.makeCommitsDominant)],
   );
 }
 
@@ -350,7 +315,7 @@ class _NarrowBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: _header,
+    height: sectionHeader,
     color: C.surface2,
     padding: const EdgeInsets.symmetric(horizontal: 12),
     child: Row(
@@ -398,53 +363,6 @@ String ago(DateTime t) {
   if (d.inDays > 0) return '${d.inDays}d ago';
   if (d.inHours > 0) return '${d.inHours}h ago';
   return '${d.inMinutes}m ago';
-}
-
-/// A list header: title, count, extra text, spinner, actions; with [collapsed], a chevron and a
-/// click that folds the list.
-class SectionTitle extends StatelessWidget {
-  const SectionTitle({
-    super.key,
-    required this.title,
-    required this.count,
-    this.extra,
-    this.loading = false,
-    this.actions = const [],
-    this.onTap,
-    this.collapsed,
-    this.active = false,
-  });
-
-  /// The keys act on this list (Tab moves between them).
-  final bool active;
-
-  final String title, count;
-  final String? extra;
-  final bool loading;
-  final List<Widget> actions;
-  final VoidCallback? onTap;
-  final bool? collapsed;
-
-  @override
-  Widget build(BuildContext context) {
-    const pad = EdgeInsets.fromLTRB(12, 0, 6, 0);
-    final row = Row(
-      children: [
-        if (collapsed != null) Icon(collapsed! ? Icons.chevron_right : Icons.expand_more, size: 14, color: C.muted),
-        Text(title, style: active ? T.section.copyWith(color: C.accent) : T.section),
-        const SizedBox(width: 6),
-        Text(count, style: T.tiny),
-        const Spacer(),
-        if (extra != null) Text(extra!, style: T.tiny),
-        if (loading) const _Spinner(),
-        ...actions,
-      ],
-    );
-    return SizedBox(
-      height: _header,
-      child: onTap == null ? Padding(padding: pad, child: row) : HoverRow(onTap: onTap, padding: pad, child: row),
-    );
-  }
 }
 
 /// A revision picker: lists the branches, filters as you type, takes any revision git accepts.
@@ -666,44 +584,6 @@ class _BranchOption extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(child: Text(name, style: T.body, overflow: TextOverflow.ellipsis)),
       ],
-    ),
-  );
-}
-
-class _Spinner extends StatelessWidget {
-  const _Spinner();
-
-  @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.only(left: 6),
-    child: SizedBox(width: 10, height: 10, child: CircularProgressIndicator(strokeWidth: 1.5)),
-  );
-}
-
-/// A small icon button that shows whether its option is on.
-class IconToggle extends StatelessWidget {
-  const IconToggle({super.key, required this.icon, required this.tip, required this.onTap, this.on = false});
-
-  final IconData icon;
-  final String tip;
-  final VoidCallback onTap;
-  final bool on;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tip,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        padding: const EdgeInsets.all(4),
-        margin: const EdgeInsets.only(left: 2),
-        decoration: BoxDecoration(
-          color: on ? C.accent.withValues(alpha: .15) : null,
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Icon(icon, size: 14, color: on ? C.accent : C.muted),
-      ),
     ),
   );
 }

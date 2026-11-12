@@ -3,11 +3,13 @@ import 'package:flutter/services.dart';
 
 import '../backend/models.dart';
 import '../state/changes.dart';
+import '../state/list_pair.dart';
 import '../state/session.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
 import 'key_sequence.dart';
+import 'list_pair_view.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -44,6 +46,8 @@ class ChangesViewState extends State<ChangesView> {
     'X': _discardCurrent,
     'cc': _messageFocus.requestFocus,
     'o': _openCurrent,
+    'zR': () => st.expandAllDirs(),
+    'zM': () => st.collapseAllDirs(),
   });
 
   ChangesState get st => _state!;
@@ -113,7 +117,7 @@ class ChangesViewState extends State<ChangesView> {
 
   void _leaveMessage() => focus.requestFocus();
 
-  // Keys: j/k, gg/G, ]c/[c, -, s, u, X, cc, o; Tab goes to the commit message and back.
+  // Keys: j/k, gg/G, ]c/[c, -, s, u, X, cc, o, zR/zM; Tab goes to the commit message and back.
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
     if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
     final hw = HardwareKeyboard.instance;
@@ -157,15 +161,20 @@ class ChangesViewState extends State<ChangesView> {
     return ChangesSidebar(
       branch: branch,
       sections: [
-        FileSectionData('STAGED', st.staged, staged: true),
-        FileSectionData('CHANGES', st.unstaged, staged: false),
+        FileSectionData('STAGED', st.staged, staged: true, collapsedDirs: st.collapsedDirs[0]),
+        FileSectionData('CHANGES', st.unstaged, staged: false, collapsedDirs: st.collapsedDirs[1]),
       ],
+      pair: st.lists,
       clean: st.status != null && st.status!.files.isEmpty,
       selected: st.selected,
       selectedStaged: st.selectedStaged,
       onSelect: (path, staged) => st.select(path, staged: staged),
       onMoveFile: _moveFile,
       onMoveAll: _moveAll,
+      onToggleList: st.toggleList,
+      onDominant: st.makeDominant,
+      onToggleDir: st.toggleDir,
+      onFoldAll: st.toggleAllDirs,
       commitBox: CommitBox(
         controller: _message,
         focus: _messageFocus,
@@ -214,69 +223,128 @@ Future<bool> confirmDiscard(BuildContext context, String what) async {
 
 // Organisms ---------------------------------------------------------------------------------------
 
-/// One side of the working tree: its title and files.
+/// One side of the working tree: its title, files and folded folders.
 class FileSectionData {
-  const FileSectionData(this.title, this.files, {required this.staged});
+  const FileSectionData(this.title, this.files, {required this.staged, this.collapsedDirs = const {}});
 
   final String title;
   final List<StatusFile> files;
   final bool staged;
+  final Set<String> collapsedDirs;
+
+  /// How tall the list wants to be, for [pairHeights].
+  ListSize get size {
+    final rows = treeRows([for (final f in files) TreeFile(path: f.path, status: '')], collapsedDirs);
+    return (rows: rows.length, row: 26, pad: 8);
+  }
 }
 
-/// The left pane: branch, the staged and unstaged sections, the commit box.
+/// The left pane: branch, STAGED over CHANGES (each foldable, one with the most room, as in the
+/// Pull request view), the commit box.
 class ChangesSidebar extends StatelessWidget {
   const ChangesSidebar({
     super.key,
     required this.branch,
     required this.sections,
+    required this.pair,
     required this.clean,
     required this.selected,
     required this.selectedStaged,
     required this.onSelect,
     required this.onMoveFile,
     required this.onMoveAll,
+    required this.onToggleList,
+    required this.onDominant,
+    required this.onToggleDir,
+    required this.onFoldAll,
     required this.commitBox,
   });
 
   final String branch;
   final List<FileSectionData> sections;
+  final ListPair pair;
   final bool clean;
   final String? selected;
   final bool selectedStaged;
   final void Function(String path, bool staged) onSelect;
   final void Function(String path, bool staged) onMoveFile;
   final void Function(bool staged) onMoveAll;
+  final ValueChanged<int> onToggleList, onDominant, onFoldAll;
+  final void Function(int list, String dir) onToggleDir;
   final Widget commitBox;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        PaneHeader(title: _BranchTitle(branch)),
-        Expanded(
-          child: ListView(
-            children: [
-              for (final s in sections)
-                FileSection(
-                  data: s,
-                  selected: selectedStaged == s.staged ? selected : null,
-                  onSelect: (p) => onSelect(p, s.staged),
-                  onMoveFile: (p) => onMoveFile(p, s.staged),
-                  onMoveAll: () => onMoveAll(s.staged),
-                ),
-              if (clean) const Empty('Working tree clean'),
-            ],
-          ),
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      PaneHeader(title: _BranchTitle(branch)),
+      Expanded(
+        child: ListPairColumn(
+          pair: pair,
+          sizes: [for (final s in sections) s.size],
+          headers: [for (final (i, s) in sections.indexed) _header(i, s)],
+          lists: [for (final (i, s) in sections.indexed) _list(i, s)],
         ),
-        const Divider(height: 1),
-        commitBox,
-      ],
+      ),
+      const Divider(height: 1),
+      commitBox,
+    ],
+  );
+
+  Widget _header(int i, FileSectionData s) => FileSectionHeader(
+    data: s,
+    collapsed: pair.collapsed[i],
+    dominant: pair.dominant == i,
+    onToggle: () => onToggleList(i),
+    onDominant: () => onDominant(i),
+    onFoldAll: () => onFoldAll(i),
+    onMoveAll: () => onMoveAll(s.staged),
+  );
+
+  Widget _list(int i, FileSectionData s) {
+    if (clean && !s.staged) return const Empty('Working tree clean');
+    return FileSection(
+      data: s,
+      selected: selectedStaged == s.staged ? selected : null,
+      onSelect: (p) => onSelect(p, s.staged),
+      onMoveFile: (p) => onMoveFile(p, s.staged),
+      onToggleDir: (d) => onToggleDir(i, d),
     );
   }
 }
 
-/// A STAGED or CHANGES section: header with "Stage all" / "Unstage all", then its file tree.
+/// STAGED or CHANGES: chevron, count, "Stage all" / "Unstage all", fold all, most room.
+class FileSectionHeader extends StatelessWidget {
+  const FileSectionHeader({
+    super.key,
+    required this.data,
+    required this.collapsed,
+    required this.dominant,
+    required this.onToggle,
+    required this.onDominant,
+    required this.onFoldAll,
+    required this.onMoveAll,
+  });
+
+  final FileSectionData data;
+  final bool collapsed, dominant;
+  final VoidCallback onToggle, onDominant, onFoldAll, onMoveAll;
+
+  @override
+  Widget build(BuildContext context) => SectionTitle(
+    title: data.title,
+    count: '${data.files.length}',
+    collapsed: collapsed,
+    onTap: onToggle,
+    actions: [
+      if (data.files.isNotEmpty) LinkButton(data.staged ? 'Unstage all' : 'Stage all', onMoveAll),
+      FoldAllButton(folded: data.collapsedDirs.isNotEmpty, onTap: onFoldAll),
+      DominantButton(what: data.staged ? 'staged files' : 'changes', on: dominant, onTap: onDominant),
+    ],
+  );
+}
+
+/// The file tree of a STAGED or CHANGES list, with a stage checkbox per file.
 class FileSection extends StatelessWidget {
   const FileSection({
     super.key,
@@ -284,46 +352,30 @@ class FileSection extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     required this.onMoveFile,
-    required this.onMoveAll,
+    this.onToggleDir,
   });
 
   final FileSectionData data;
   final String? selected;
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onMoveFile;
-  final VoidCallback onMoveAll;
+  final ValueChanged<String>? onToggleDir;
 
   @override
-  Widget build(BuildContext context) {
-    final staged = data.staged;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SectionHeader(
-          title: data.title,
-          count: data.files.length,
-          action: data.files.isEmpty ? null : (staged ? 'Unstage all' : 'Stage all'),
-          onAction: onMoveAll,
+  Widget build(BuildContext context) => FileTree(
+    files: [
+      for (final f in data.files)
+        TreeFile(
+          path: f.path,
+          status: fileKind(f, staged: data.staged),
+          trailing: StageCheckbox(staged: data.staged, onTap: () => onMoveFile(f.path)),
         ),
-        SizedBox(
-          height: (data.files.length * 30.0 + 10).clamp(30, 260),
-          child: FileTree(
-            files: [
-              for (final f in data.files)
-                TreeFile(
-                  path: f.path,
-                  status: fileKind(f, staged: staged),
-                  trailing: StageCheckbox(staged: staged, onTap: () => onMoveFile(f.path)),
-                ),
-            ],
-            selected: selected,
-            onSelect: onSelect,
-          ),
-        ),
-      ],
-    );
-  }
+    ],
+    selected: selected,
+    onSelect: onSelect,
+    collapsed: data.collapsedDirs,
+    onToggleDir: onToggleDir,
+  );
 }
 
 /// The selected file's diff with file and hunk actions; unstaged files can also be discarded.
@@ -439,32 +491,6 @@ class _BranchTitle extends StatelessWidget {
       Text(branch.isEmpty ? 'Changes' : branch),
     ],
   );
-}
-
-/// A section title with its count and an optional link-style action on the right.
-class SectionHeader extends StatelessWidget {
-  const SectionHeader({super.key, required this.title, required this.count, this.action, this.onAction});
-
-  final String title;
-  final int count;
-  final String? action;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 8, 4),
-      child: Row(
-        children: [
-          Text(title, style: T.section),
-          const SizedBox(width: 6),
-          Text('$count', style: T.tiny),
-          const Spacer(),
-          if (action != null && onAction != null) LinkButton(action!, onAction!),
-        ],
-      ),
-    );
-  }
 }
 
 /// The checkbox at the end of a file row: checked when staged.
