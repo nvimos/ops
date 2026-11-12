@@ -27,6 +27,9 @@ class Task {
   String get priority => front.str('priority');
   List<String> get labels => front.list('labels');
   List<String> get dependencies => front.list('dependencies');
+
+  /// Backlog.md's `milestone:`, the milestone the task is planned for; empty when none.
+  String get milestone => front.str('milestone').trim();
   String get created => front.str('created_date');
   int get ordinal => int.tryParse(front.str('ordinal')) ?? 0;
   late final int number = int.tryParse(id.replaceAll(_nonDigit, '')) ?? 0;
@@ -218,10 +221,12 @@ class LegacyItem {
   }
 }
 
-/// A milestone: a name and the date it closes. Changes archived on or before it (and after the
-/// previous one) belong to it.
+/// A milestone: a name and the date it closes. Changes planned for it (their task's `milestone:`)
+/// belong to it, and so do unplanned changes archived on or before it (and after the previous one).
 class Milestone {
-  Milestone(this.name, this.date);
+  Milestone(this.name, this.date, {this.planned = false});
   final String name;
-  final DateTime? date; // null: the open one (everything not archived yet)
+  final DateTime? date; // null: a planned name without a date in it
+  /// Only named by a task's `milestone:`, not in milestones.md or an archive month.
+  final bool planned;
 }

@@ -58,7 +58,8 @@ class _MilestoneProps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final date = ws.milestones.where((m) => m.name == name).firstOrNull?.date;
+    final m = ws.milestones.where((m) => m.name == name).firstOrNull;
+    final date = m?.date;
     final done = changes.where((c) => c.stage == 'Completed').length;
     final reqs = changes.fold<int>(0, (n, c) => n + c.deltas.length);
     return Padding(
@@ -69,9 +70,15 @@ class _MilestoneProps extends StatelessWidget {
           Prop('Changes', Text('${changes.length}', style: T.body)),
           Prop('Progress', Progress(done, changes.length, width: 140)),
           if (reqs > 0) Prop('Requirements', Text('$reqs changed', style: T.body)),
-          Prop('Source', Text(ws.milestonesFromFile ? 'milestones.md' : 'archive dates, one per month', style: T.small)),
+          Prop('Source', Text(_source(m), style: T.small)),
         ],
       ),
     );
+  }
+
+  String _source(Milestone? m) {
+    if (m == null) return 'changes not archived and not planned';
+    if (m.planned) return "the tasks' milestone: field";
+    return ws.milestonesFromFile ? 'milestones.md' : 'archive dates, one per month';
   }
 }
