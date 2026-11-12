@@ -25,9 +25,9 @@ extension ModeText on Mode {
   IconData get icon => switch (this) {
     Mode.pullRequest => Icons.merge_type,
     Mode.changes => Icons.edit_note,
-    Mode.tasks => Icons.view_kanban_outlined,
+    Mode.tasks => Icons.task_alt,
     Mode.directories => Icons.folder_outlined,
-    Mode.help => Icons.keyboard_outlined,
+    Mode.help => Icons.help_outline,
   };
 }
 
@@ -93,8 +93,8 @@ class ModeRail extends StatelessWidget {
 
   List<RailEntry> _layouts() => [
     for (final (l, icon, label) in [
-      (DiffLayout.unified, Icons.view_agenda_outlined, 'Unified'),
-      (DiffLayout.sideBySide, Icons.vertical_split_outlined, 'Side by side'),
+      (DiffLayout.unified, Icons.subject, 'Unified'),
+      (DiffLayout.sideBySide, Icons.compare, 'Side by side'),
     ])
       RailEntry(icon: icon, label: label, tip: '$label diff (v)', selected: layout == l, onTap: () => onLayout(l), sub: true),
   ];
