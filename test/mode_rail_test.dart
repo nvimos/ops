@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nvimos_poc/state/diff_prefs.dart';
@@ -57,5 +57,36 @@ void main() {
 
     await pumpRail(t, Mode.tasks, DiffLayout.sideBySide); // a mode without views: just its line
     expect(lines(t).where((l) => l.$1 == C.accent).toList(), [(C.accent, 2.0)]);
+  });
+
+  testWidgets('the mouse wheel over the rail steps to the next or previous mode', (t) async {
+    final steps = <int>[];
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Row(
+            children: [
+              ModeRail(
+                mode: Mode.tasks,
+                expanded: false,
+                layout: null,
+                onSelect: (_) {},
+                onStep: steps.add,
+                onToggle: () {},
+                onLayout: (_) {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    final at = t.getCenter(find.byType(ModeRail));
+    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: at);
+    await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, 40)));
+    await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, -40)));
+    expect(steps, [1, -1]); // wheel down: next, wheel up: previous
+    await mouse.removePointer();
   });
 }

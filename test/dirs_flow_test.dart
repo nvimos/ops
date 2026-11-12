@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nvimos_poc/state/session.dart';
+import 'package:nvimos_poc/ui/dirs_view.dart';
 import 'package:nvimos_poc/ui/shell.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 
@@ -76,9 +77,14 @@ void main() {
     await t.pump();
     await t.runAsync(() => until(() => norm(s.repo?.cwd ?? '') == norm(target.path)));
 
-    // The shell's keys still work: back to Changes, then forward.
-    await alt(LogicalKeyboardKey.bracketLeft);
+    // A click on the Active Directory again opens the Tasks mode.
+    await alt(LogicalKeyboardKey.digit4);
+    expect(shown(), Mode.directories.index);
+    await t.tap(find.byType(DirRow).first);
+    await t.pump();
     expect(shown(), Mode.tasks.index);
+
+    // The shell's keys still work: back to Changes, then forward.
     await alt(LogicalKeyboardKey.bracketLeft);
     expect(shown(), Mode.changes.index);
     await alt(LogicalKeyboardKey.bracketRight);
