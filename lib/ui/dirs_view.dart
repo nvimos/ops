@@ -188,9 +188,11 @@ class _DirsFilter extends StatelessWidget {
       controller: controller,
       focusNode: focus,
       style: T.body,
-      decoration: const InputDecoration(
-        prefixIcon: Icon(Icons.search, size: 15, color: C.muted),
-        prefixIconConstraints: BoxConstraints(minWidth: 30),
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.search, size: 15, color: C.muted),
+        prefixIconConstraints: const BoxConstraints(minWidth: 30),
+        suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
+        suffixIconConstraints: ClearButton.constraints,
         hintText: 'Filter (/)',
       ),
       onChanged: onChanged,

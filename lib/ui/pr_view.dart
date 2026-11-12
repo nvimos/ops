@@ -601,9 +601,11 @@ class _RevField extends StatelessWidget {
       controller: controller,
       focusNode: focus,
       style: T.body,
-      decoration: const InputDecoration(
-        prefixIcon: Icon(Icons.call_split, size: 13, color: C.muted),
-        prefixIconConstraints: BoxConstraints(minWidth: 28),
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.call_split, size: 13, color: C.muted),
+        prefixIconConstraints: const BoxConstraints(minWidth: 28),
+        suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
+        suffixIconConstraints: ClearButton.constraints,
         hintText: 'branch, tag or sha',
       ),
       onChanged: onChanged,

@@ -331,11 +331,13 @@ class FilterField extends StatelessWidget {
       focusNode: focus,
       style: T.body,
       onChanged: onChanged,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         hintText: 'Filter  /',
-        prefixIcon: Icon(Icons.search, size: 15, color: C.muted),
-        prefixIconConstraints: BoxConstraints(minWidth: 30),
-        contentPadding: EdgeInsets.symmetric(vertical: 4),
+        prefixIcon: const Icon(Icons.search, size: 15, color: C.muted),
+        prefixIconConstraints: const BoxConstraints(minWidth: 30),
+        suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
+        suffixIconConstraints: ClearButton.constraints,
+        contentPadding: const EdgeInsets.symmetric(vertical: 4),
       ),
     ),
   );

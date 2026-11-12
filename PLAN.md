@@ -224,6 +224,9 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
 
 Description of the UI.
 
+- Search and filter fields (Tasks, Directories, branch pickers, command palette) have an x at
+  the right edge while they hold text; a click clears the field (`ClearButton` in `ui/widgets.dart`)
+
 - Initial view (Connect to Neovim)
   <!-- {{{ initial view -->
   - shown in place of the current mode whenever the app is not connected, at startup and after Neovim goes away
