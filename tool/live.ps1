@@ -1,12 +1,15 @@
 # live.ps1: run the app with `flutter run` and hot-reload it whenever a file under lib/ is saved.
 #   -Restart   hot restart (R) instead of hot reload (r): state is reset, but more changes apply
 # Keys typed here go to flutter as usual (r, R, q). Ctrl+C or q stops.
+# Everything flutter and the app print is also written to out/live.log (new file per run).
 param(
     [string]$Flutter = 'C:/tools/flutter/bin/flutter.bat',
     [switch]$Restart
 )
 
 $root = Split-Path -Parent $PSScriptRoot
+$log = Join-Path $root 'out/live.log'
+New-Item -ItemType Directory -Force (Split-Path $log) | Out-Null
 $key = if ($Restart) { 'R' } else { 'r' }
 
 # A job object that ends flutter run and the app when this script's process ends, however it ends
@@ -46,10 +49,10 @@ public static class LiveJob {
 }
 $job = [LiveJob]::Create()
 
-$psi = [System.Diagnostics.ProcessStartInfo]::new('cmd.exe', "/c `"$Flutter`" run -d windows")
+$psi = [System.Diagnostics.ProcessStartInfo]::new('cmd.exe', "/c `"`"$Flutter`" run -d windows 2>&1 | pwsh -NoProfile -File `"$PSScriptRoot/tee-log.ps1`" `"$log`"`"")
 $psi.WorkingDirectory = $root
 $psi.UseShellExecute = $false
-$psi.RedirectStandardInput = $true  # output goes to this console as it is
+$psi.RedirectStandardInput = $true  # output goes to this console and the log via tee-log.ps1
 $run = [System.Diagnostics.Process]::Start($psi)  # not $flutter: names ignore case, and -Flutter is a [string]
 [LiveJob]::Add($job, $run.Handle)  # cmd's children (flutter, the app) join the job too
 
