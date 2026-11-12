@@ -38,10 +38,16 @@ class _ConnectScreenState extends State<ConnectScreen> {
 
   Future<void> _startNeovim(NvimKind kind) async {
     final s = SessionScope.read(context);
-    final addr = _addr.text.trim();
-    if (addr != s.address) await s.connect(address: addr);
-    await s.startNeovim(kind: kind);
+    try {
+      final addr = _addr.text.trim();
+      if (addr != s.address) await s.connect(address: addr);
+      await s.startNeovim(kind: kind);
+    } catch (e) {
+      s.showError('could not start ${kind.label}: $e');
+    }
   }
+
+  void _cancel() => SessionScope.read(context).cancelConnect();
 
   void _stopHeadless() => SessionScope.read(context).stopHeadlessNeovims();
 
@@ -59,7 +65,12 @@ class _ConnectScreenState extends State<ConnectScreen> {
             const SizedBox(height: 6),
             const Text('Start Neovim with the nvimos plugin listening, then retry.', style: T.small),
             const SizedBox(height: 16),
-            AddressRow(controller: _addr, busy: s.conn == Conn.connecting || s.starting != null, onConnect: _connect),
+            AddressRow(
+              controller: _addr,
+              busy: s.conn == Conn.connecting || s.starting != null,
+              onConnect: _connect,
+              onCancel: _cancel,
+            ),
             const SizedBox(height: 8),
             StartButtons(
               starting: s.starting,
@@ -79,19 +90,29 @@ class _ConnectScreenState extends State<ConnectScreen> {
 }
 
 /// The address field and the Retry button; Enter in the field connects too.
+/// While [busy] the button is Cancel.
 class AddressRow extends StatelessWidget {
-  const AddressRow({super.key, required this.controller, required this.busy, required this.onConnect});
+  const AddressRow({
+    super.key,
+    required this.controller,
+    required this.busy,
+    required this.onConnect,
+    required this.onCancel,
+  });
 
   final TextEditingController controller;
   final bool busy;
-  final VoidCallback onConnect;
+  final VoidCallback onConnect, onCancel;
 
   @override
   Widget build(BuildContext context) => Row(
     children: [
       Expanded(child: TextField(controller: controller, style: T.body, onSubmitted: (_) => onConnect())),
       const SizedBox(width: 8),
-      SmallButton(busy ? 'Connecting…' : 'Retry', primary: true, onPressed: busy ? null : onConnect),
+      if (busy)
+        SmallButton('Cancel', danger: true, onPressed: onCancel)
+      else
+        SmallButton('Retry', primary: true, onPressed: onConnect),
     ],
   );
 }

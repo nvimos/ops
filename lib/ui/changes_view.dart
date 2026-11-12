@@ -9,7 +9,9 @@ import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
 import 'key_sequence.dart';
+import 'nav_keys.dart';
 import 'list_pair_view.dart';
+import 'resizable_pane.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -19,7 +21,10 @@ import 'widgets.dart';
 /// Page: owns the [ChangesState] and turns user events into its actions; the parts below only
 /// show values and call back.
 class ChangesView extends StatefulWidget {
-  const ChangesView({super.key});
+  const ChangesView({super.key, this.onRail});
+
+  /// Gives the keyboard to the mode rail (Left from the file lists, Tab round the cycle).
+  final VoidCallback? onRail;
 
   @override
   State<ChangesView> createState() => ChangesViewState();
@@ -34,23 +39,36 @@ class ChangesViewState extends State<ChangesView> {
   final _messageFocus = FocusNode(debugLabel: 'commit message');
   static const _far = 1 << 20;
   late final _keys = KeySequence({
-    'j': () => st.moveSelection(1),
-    'k': () => st.moveSelection(-1),
     'gg': () => st.moveSelection(-_far),
     'G': () => st.moveSelection(_far),
     ']c': () => st.moveHunk(1),
     '[c': () => st.moveHunk(-1),
     '-': _toggleCurrent,
-    's': _stageCurrent,
+    ' ': _stageCurrent,
     'u': _unstageCurrent,
     'X': _discardCurrent,
     'cc': _messageFocus.requestFocus,
     'o': _openCurrent,
+    'v': () => st.toggleLayout(),
+    'zw': () => st.toggleWrap(),
     'zR': () => st.expandAllDirs(),
     'zM': () => st.collapseAllDirs(),
+    '{': () => st.jump(-1),
+    '}': () => st.jump(1),
   });
 
   ChangesState get st => _state!;
+
+  /// For the debug bar: the active pane's name (`ChangesPane`), or null before the state exists.
+  String? get paneName => _state?.pane.name;
+
+  /// For the debug bar.
+  List<String> get debugInfo => _state == null
+      ? const []
+      : [
+          'File: ${st.selected ?? '-'} (${st.selectedStaged ? 'staged' : 'unstaged'})',
+          'Hunk: ${st.hunk < 0 ? '-' : st.hunk + 1}',
+        ];
 
   @override
   void didChangeDependencies() {
@@ -117,7 +135,65 @@ class ChangesViewState extends State<ChangesView> {
 
   void _leaveMessage() => focus.requestFocus();
 
-  // Keys: j/k, gg/G, ]c/[c, -, s, u, X, cc, o, zR/zM; Tab goes to the commit message and back.
+  /// Up / Down; past the last file of CHANGES the commit message gets the keyboard.
+  void _move(int delta, {bool big = false}) {
+    if (st.moveCursor(delta, big: big)) _messageFocus.requestFocus();
+  }
+
+  /// Tab / Shift+Tab: STAGED, CHANGES, the commit message, the diff, and round again.
+  void _navigate(NavKey k) {
+    switch (k.dir) {
+      case NavDir.up || NavDir.down:
+        _move(k.delta, big: k.big);
+      case NavDir.left:
+        _left();
+      case NavDir.right:
+        st.movePane(1);
+    }
+  }
+
+  /// Left: from the diff back to its list; from a list (nothing is to its left) to the rail.
+  void _left() => st.pane == ChangesPane.diff ? st.movePane(-1) : widget.onRail?.call();
+
+  /// Tab from the rail: the first stop of the cycle (the first list, else the message), or with
+  /// Shift+Tab the last (the diff).
+  void enterFromRail({required bool forward}) {
+    final lists = st.panes.where((p) => p != ChangesPane.diff).toList();
+    if (!forward) {
+      st.goTo(ChangesPane.diff);
+      focus.requestFocus();
+    } else if (lists.isEmpty) {
+      _messageFocus.requestFocus();
+    } else {
+      st.goTo(lists.first);
+      focus.requestFocus();
+    }
+  }
+
+  /// Ctrl+arrow, sent by the shell: the pane in that direction.
+  void ctrlArrow({required bool vertical, required int dir}) {
+    if (vertical) {
+      st.vertical(dir: dir, fromMessage: _messageFocus.hasFocus) ? _messageFocus.requestFocus() : focus.requestFocus();
+    } else if (dir < 0) {
+      _left();
+    } else {
+      st.movePane(1);
+      focus.requestFocus();
+    }
+  }
+
+  void _tab({required int delta}) {
+    if (st.tabLeaves(fromMessage: _messageFocus.hasFocus, delta: delta)) return widget.onRail?.call();
+    final to = st.tabFrom(fromMessage: _messageFocus.hasFocus, delta: delta);
+    to == null ? _messageFocus.requestFocus() : focus.requestFocus();
+  }
+
+  void _tabFromMessage() => _tab(delta: 1);
+
+  void _shiftTabFromMessage() => _tab(delta: -1);
+
+  // Keys: Space (stage), j/k, arrows, Left/Right, gg/G, ]c/[c, -, s, u, X, cc, o, zR/zM; Tab and Shift+Tab cycle
+  // the panes and the commit message.
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
     if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
     final hw = HardwareKeyboard.instance;
@@ -125,13 +201,18 @@ class ChangesViewState extends State<ChangesView> {
       return KeyEventResult.ignored;
     }
     final action = switch (e.logicalKey) {
-      LogicalKeyboardKey.arrowDown => () => st.moveSelection(1),
-      LogicalKeyboardKey.arrowUp => () => st.moveSelection(-1),
-      LogicalKeyboardKey.tab => _messageFocus.requestFocus,
+      LogicalKeyboardKey.tab => () => _tab(delta: hw.isShiftPressed ? -1 : 1),
       _ => null,
     };
     if (action != null) {
       action();
+      return KeyEventResult.handled;
+    }
+    // The arrows, hjkl and wasd are one set of keys (see nav_keys.dart); a pending `z` or `g`
+    // owns the next key (zw).
+    final nav = _keys.pending ? null : navKey(e);
+    if (nav != null) {
+      _navigate(nav);
       return KeyEventResult.handled;
     }
     return _keys.press(e.character) ? KeyEventResult.handled : KeyEventResult.ignored;
@@ -147,13 +228,35 @@ class ChangesViewState extends State<ChangesView> {
       listenable: st,
       builder: (context, _) => Row(
         children: [
-          SizedBox(width: 320, child: _sidebar()),
-          const VerticalDivider(width: 1),
+          ResizablePane(autoWidth: _autoWidth(), minWidth: _minSidebar, child: _sidebar()),
           Expanded(child: _main()),
         ],
       ),
     ),
   );
+
+  static const _minSidebar = 160.0, _maxSidebar = 384.0; // 320 before: half, 120%
+
+  /// The narrowest sidebar that shows every file and folder in full, plus the branch title and
+  /// the commit box's hint.
+  double _autoWidth() {
+    final lists = [
+      for (final (i, files) in [st.staged, st.unstaged].indexed)
+        ...fileTreeWidths(
+          [for (final f in files) TreeFile(path: f.path, status: '')],
+          st.collapsedDirs[i],
+          trailing: 16,
+        ),
+    ];
+    final branch = 12 + 20 + textWidth(st.status?.branch ?? 'Changes', T.body);
+    final headers = [
+      for (final (title, n, all) in [('STAGED', st.staged.length, 'Unstage all'), ('CHANGES', st.unstaged.length, 'Stage all')])
+        headerWidth(title, '$n', actions: 2, textActions: n == 0 ? 0 : 8 + textWidth(all, const TextStyle(fontSize: 12))),
+    ];
+    final n = st.staged.length;
+    final commit = 12 + 12 + 20 + textWidth('Commit $n file${n == 1 ? '' : 's'} to ${st.status?.branch ?? ''}', const TextStyle(fontSize: 12.5));
+    return paneWidth([...lists, ...headers, branch, commit], least: _minSidebar, most: _maxSidebar);
+  }
 
   Widget _sidebar() {
     final branch = st.status?.branch ?? '';
@@ -161,14 +264,14 @@ class ChangesViewState extends State<ChangesView> {
     return ChangesSidebar(
       branch: branch,
       sections: [
-        FileSectionData('STAGED', st.staged, staged: true, collapsedDirs: st.collapsedDirs[0]),
-        FileSectionData('CHANGES', st.unstaged, staged: false, collapsedDirs: st.collapsedDirs[1]),
+        FileSectionData('STAGED', st.staged, staged: true, collapsedDirs: st.collapsedDirs[0], active: st.pane == ChangesPane.staged, selectBottom: st.selectBottom[0]),
+        FileSectionData('CHANGES', st.unstaged, staged: false, collapsedDirs: st.collapsedDirs[1], active: st.pane == ChangesPane.unstaged, selectBottom: st.selectBottom[1]),
       ],
       pair: st.lists,
       clean: st.status != null && st.status!.files.isEmpty,
       selected: st.selected,
       selectedStaged: st.selectedStaged,
-      onSelect: (path, staged) => st.select(path, staged: staged),
+      onSelect: (path, staged) => st.pick(path, staged: staged),
       onMoveFile: _moveFile,
       onMoveAll: _moveAll,
       onToggleList: st.toggleList,
@@ -182,6 +285,8 @@ class ChangesViewState extends State<ChangesView> {
         enabled: n > 0 && !st.busy,
         onCommit: _commit,
         onLeave: _leaveMessage,
+        onTab: _tabFromMessage,
+        onShiftTab: _shiftTabFromMessage,
       ),
     );
   }
@@ -193,6 +298,10 @@ class ChangesViewState extends State<ChangesView> {
     if (f == null) return const Empty('Loading…');
     return ChangesDiff(
       file: f,
+      sideBySide: st.layout == DiffLayout.sideBySide,
+      wrap: st.wrap,
+      scroll: st.diffScroll,
+      onToggleWrap: st.toggleWrap,
       staged: st.selectedStaged,
       hunk: st.hunk,
       onLine: _openLine,
@@ -225,12 +334,25 @@ Future<bool> confirmDiscard(BuildContext context, String what) async {
 
 /// One side of the working tree: its title, files and folded folders.
 class FileSectionData {
-  const FileSectionData(this.title, this.files, {required this.staged, this.collapsedDirs = const {}});
+  const FileSectionData(
+    this.title,
+    this.files, {
+    required this.staged,
+    this.collapsedDirs = const {},
+    this.active = false,
+    this.selectBottom,
+  });
 
   final String title;
   final List<StatusFile> files;
   final bool staged;
   final Set<String> collapsedDirs;
+
+  /// The keys act on this list.
+  final bool active;
+
+  /// Bumps when the keyboard enters the list from below (see [FileTree.selectBottom]).
+  final Listenable? selectBottom;
 
   /// How tall the list wants to be, for [pairHeights].
   ListSize get size {
@@ -333,6 +455,7 @@ class FileSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SectionTitle(
     title: data.title,
+    active: data.active,
     count: '${data.files.length}',
     collapsed: collapsed,
     onTap: onToggle,
@@ -375,6 +498,7 @@ class FileSection extends StatelessWidget {
     onSelect: onSelect,
     collapsed: data.collapsedDirs,
     onToggleDir: onToggleDir,
+    selectBottom: data.selectBottom,
   );
 }
 
@@ -390,9 +514,16 @@ class ChangesDiff extends StatelessWidget {
     required this.onMoveHunk,
     required this.onDiscardHunk,
     this.hunk = -1,
+    this.sideBySide = false,
+    this.wrap = true,
+    this.onToggleWrap,
+    this.scroll,
   });
 
   final DiffFile file;
+  final ScrollController? scroll;
+  final bool sideBySide, wrap;
+  final VoidCallback? onToggleWrap;
   final bool staged;
   final int hunk;
   final void Function(int line, bool isOld) onLine;
@@ -410,8 +541,13 @@ class ChangesDiff extends StatelessWidget {
     return DiffView(
       file: file,
       hunk: hunk,
+      scroll: scroll,
+      sideBySide: sideBySide,
+      wrap: wrap,
       onLine: onLine,
       headerActions: [
+        if (onToggleWrap != null)
+          IconToggle(icon: Icons.wrap_text, tip: 'Line wrapping (zw)', on: wrap, onTap: onToggleWrap!),
         for (final a in fileActions)
           Padding(
             padding: const EdgeInsets.only(left: 6),
@@ -428,7 +564,8 @@ class ChangesDiff extends StatelessWidget {
 }
 
 /// Message field and the Commit button.
-/// Ctrl+Enter in the message commits; Esc (or Tab) goes back to the file list.
+/// Ctrl+Enter in the message commits; Esc goes back to the file list; Tab goes on to the diff,
+/// Shift+Tab back to CHANGES.
 class CommitBox extends StatelessWidget {
   const CommitBox({
     super.key,
@@ -438,13 +575,15 @@ class CommitBox extends StatelessWidget {
     required this.enabled,
     required this.onCommit,
     required this.onLeave,
+    required this.onTab,
+    required this.onShiftTab,
   });
 
   final TextEditingController controller;
   final FocusNode focus;
   final String label;
   final bool enabled;
-  final VoidCallback onCommit, onLeave;
+  final VoidCallback onCommit, onLeave, onTab, onShiftTab;
 
   @override
   Widget build(BuildContext context) {
@@ -457,7 +596,8 @@ class CommitBox extends StatelessWidget {
             bindings: {
               const SingleActivator(LogicalKeyboardKey.enter, control: true): onCommit,
               const SingleActivator(LogicalKeyboardKey.escape): onLeave,
-              const SingleActivator(LogicalKeyboardKey.tab): onLeave,
+              const SingleActivator(LogicalKeyboardKey.tab): onTab,
+              const SingleActivator(LogicalKeyboardKey.tab, shift: true): onShiftTab,
             },
             child: TextField(
               controller: controller,

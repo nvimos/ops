@@ -33,23 +33,32 @@ class Backend {
 
   static const apiVersion = 1;
 
-  static Future<Backend> connect(String host, int port) async {
-    final rpc = await NvimRpc.connect(host, port);
+  /// Connect and check the plugin; fails after [timeout] when the peer accepts but never answers
+  /// (a hung Neovim, or another program on the port). The socket is closed on every failure.
+  static Future<Backend> connect(String host, int port, {Duration timeout = const Duration(seconds: 8)}) async {
+    final rpc = await NvimRpc.connect(host, port, timeout: timeout);
     try {
-      final info = asList(await rpc.request('nvim_get_api_info'));
-      final b = Backend._(rpc, intOr(info.first));
-      final v = await b._lua('nvimos', 'version');
-      if (v != apiVersion) {
-        throw NvimError('version', 'backend API v$v, this app speaks v$apiVersion');
-      }
-      return b;
+      return await _handshake(rpc).timeout(timeout);
     } on NvimError catch (e) {
       await rpc.close();
       if (e.message.contains("module 'nvimos' not found")) {
         throw NvimError('connect', 'the nvimos plugin is not loaded in this Neovim');
       }
       rethrow;
+    } catch (_) {
+      await rpc.close();
+      rethrow;
     }
+  }
+
+  static Future<Backend> _handshake(NvimRpc rpc) async {
+    final info = asList(await rpc.request('nvim_get_api_info'));
+    final b = Backend._(rpc, intOr(info.first));
+    final v = await b._lua('nvimos', 'version');
+    if (v != apiVersion) {
+      throw NvimError('version', 'backend API v$v, this app speaks v$apiVersion');
+    }
+    return b;
   }
 
   Stream<NvimEvent> get events => _events.stream;

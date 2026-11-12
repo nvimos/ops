@@ -88,7 +88,7 @@ void main() {
     await t.sendKeyEvent(LogicalKeyboardKey.slash, character: '?');
     await t.pump();
     expect(find.text('Keys'), findsOneWidget); // the Help mode replaced the connect screen
-    expect(find.text('next / previous hunk'), findsWidgets);
+    expect(find.text('previous or next hunk'), findsWidgets);
 
     await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await t.sendKeyEvent(LogicalKeyboardKey.keyB);

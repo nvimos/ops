@@ -97,10 +97,21 @@ class SectionTitle extends StatelessWidget {
     final row = Row(
       children: [
         Icon(collapsed ? Icons.chevron_right : Icons.expand_more, size: 14, color: C.muted),
-        Text(title, style: active ? T.section.copyWith(color: C.accent) : T.section),
-        const SizedBox(width: 6),
-        Text(count, style: T.tiny),
-        const Spacer(),
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  title,
+                  overflow: TextOverflow.ellipsis,
+                  style: active ? T.section.copyWith(color: C.accent) : T.section,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(count, style: T.tiny),
+            ],
+          ),
+        ),
         if (extra != null) Text(extra!, style: T.tiny),
         if (loading) const _Spinner(),
         ...actions,

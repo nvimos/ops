@@ -97,7 +97,7 @@ class SmallButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[Icon(icon, size: 14), const SizedBox(width: 5)],
-          Text(label),
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
         ],
       ),
     );
@@ -162,6 +162,28 @@ class Spinner extends StatelessWidget {
 
 /// An x at the right edge of a search field, shown while it has text; a click clears the field and
 /// reports the empty text, as typing would.
+/// Nothing is left of the cursor in the field: it is empty, or the cursor is at its start.
+bool cursorAtStart(TextEditingController c) => c.selection.isCollapsed && c.selection.baseOffset <= 0;
+
+/// Alt+X in the [child] text field empties it, like its clear button, and calls [onCleared] so the
+/// list it filters is refreshed with the filter gone.
+class ClearOnAltX extends StatelessWidget {
+  const ClearOnAltX({super.key, required this.controller, required this.onCleared, required this.child});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onCleared;
+  final Widget child;
+
+  void _clear() {
+    controller.clear();
+    onCleared('');
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      CallbackShortcuts(bindings: {const SingleActivator(LogicalKeyboardKey.keyX, alt: true): _clear}, child: child);
+}
+
 class ClearButton extends StatelessWidget {
   const ClearButton({super.key, required this.controller, required this.onCleared});
 

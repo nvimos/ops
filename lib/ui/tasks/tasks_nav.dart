@@ -16,8 +16,11 @@ class TasksNav extends StatelessWidget {
     required this.loading,
     required this.jobs,
     required this.onCancelJob,
+    this.active = false,
   });
 
+  /// The keys act on the sidebar: its current entry is drawn in the accent colour.
+  final bool active;
   final TaskBrowser browser;
   final String projectName;
   final ScopeInfo scope;
@@ -29,6 +32,7 @@ class TasksNav extends StatelessWidget {
     label: n.label,
     count: n.count,
     selected: browser.isCurrent(n),
+    active: active,
     lead: lead ?? Icon(icon, size: 15, color: browser.isCurrent(n) ? C.text : C.muted),
     onTap: () => browser.go(n),
   );
@@ -88,8 +92,10 @@ class NavItem extends StatelessWidget {
     required this.selected,
     required this.lead,
     required this.onTap,
+    this.active = false,
   });
 
+  final bool active;
   final String label;
   final int count;
   final bool selected;
@@ -108,7 +114,7 @@ class NavItem extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: T.body.copyWith(color: selected ? C.text : const Color(0xFFC8CBD3)),
+            style: T.body.copyWith(color: selected ? (active ? C.accent : C.text) : const Color(0xFFC8CBD3)),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -246,7 +252,7 @@ class ProjectScope extends StatelessWidget {
   );
 
   Widget _toggle() => Tooltip(
-    message: 'a: this project / all projects',
+    message: 'Shift+A: this project / all projects',
     child: InkWell(
       onTap: info.onToggle,
       borderRadius: BorderRadius.circular(10),
@@ -326,18 +332,22 @@ class FilterField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ConstrainedBox(
     constraints: const BoxConstraints(maxWidth: 220, maxHeight: 28),
-    child: TextField(
+    child: ClearOnAltX(
       controller: controller,
-      focusNode: focus,
-      style: T.body,
-      onChanged: onChanged,
-      decoration: InputDecoration(
-        hintText: 'Filter  /',
-        prefixIcon: const Icon(Icons.search, size: 15, color: C.muted),
-        prefixIconConstraints: const BoxConstraints(minWidth: 30),
-        suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
-        suffixIconConstraints: ClearButton.constraints,
-        contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      onCleared: onChanged,
+      child: TextField(
+        controller: controller,
+        focusNode: focus,
+        style: T.body,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          hintText: 'Filter  /',
+          prefixIcon: const Icon(Icons.search, size: 15, color: C.muted),
+          prefixIconConstraints: const BoxConstraints(minWidth: 30),
+          suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
+          suffixIconConstraints: ClearButton.constraints,
+          contentPadding: const EdgeInsets.symmetric(vertical: 4),
+        ),
       ),
     ),
   );
@@ -370,8 +380,10 @@ class GroupByMenu extends StatelessWidget {
 
 /// The detail panel sliding in from the right; [child] null closes it.
 class DetailPanel extends StatelessWidget {
-  const DetailPanel({super.key, required this.width, required this.child});
+  const DetailPanel({super.key, required this.width, required this.child, this.active = false});
 
+  /// The keys act on the detail: its left edge is drawn in the accent colour.
+  final bool active;
   final double width;
   final Widget? child;
 
@@ -380,7 +392,10 @@ class DetailPanel extends StatelessWidget {
     duration: const Duration(milliseconds: 180),
     curve: Curves.easeOutCubic,
     width: child == null ? 0 : width,
-    decoration: const BoxDecoration(color: C.surface, border: Border(left: BorderSide(color: C.border))),
+    decoration: BoxDecoration(
+      color: C.surface,
+      border: Border(left: BorderSide(color: active ? C.accent : C.border)),
+    ),
     child: child == null
         ? const SizedBox.shrink()
         : ClipRect(

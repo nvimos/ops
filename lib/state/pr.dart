@@ -5,10 +5,8 @@ import '../timing/ui_timing.dart';
 import 'list_pair.dart';
 import 'session.dart';
 
-export 'list_pair.dart' show dirOf;
-
-/// Unified or side-by-side diff.
-enum DiffLayout { unified, sideBySide }
+export 'diff_prefs.dart' show DiffLayout;
+export 'list_pair.dart' show dirOf, compareTreeOrder;
 
 /// The part of the Pull request view the list keys (j/k, gg/G, Enter) act on; Tab cycles them.
 enum PrPane { files, commits, diff }
@@ -18,6 +16,7 @@ enum PrPane { files, commits, diff }
 class PrState extends ChangeNotifier {
   PrState(this.session) {
     session.gitChanged.addListener(refresh);
+    session.diffPrefs.addListener(notifyListeners);
     refresh();
   }
 
@@ -33,9 +32,10 @@ class PrState extends ChangeNotifier {
   /// The commit the file tree and diff are narrowed to; null: the full base..head range.
   Commit? narrowed;
 
-  // View choices, for this session only.
-  DiffLayout layout = DiffLayout.unified;
-  bool wrap = true;
+  // View choices, for this session only (layout and wrap are shared with Changes).
+  DiffLayout get layout => session.diffPrefs.layout;
+  bool get wrap => session.diffPrefs.wrap;
+
   /// FILES CHANGED (0) over COMMITS (1); files have the room at start.
   final lists = ListPair();
   Set<String> collapsedDirs = {};
@@ -184,18 +184,105 @@ class PrState extends ChangeNotifier {
     return null;
   }
 
-  /// j/k, gg/G, Ctrl+D/U: move in the active pane.
-  void moveCursor(int delta) {
+  /// The diff's scroll position: Up / Down in the diff pane scroll it, DiffScroll.step lines per press.
+  final diffScroll = DiffScroll();
+
+  /// The list pane the diff was entered from, for Left.
+  PrPane _lastList = PrPane.files;
+
+  /// Right: from a list to the diff. Left: from the diff back to the list it came from.
+  void movePane(int delta) {
+    final ps = _panes;
+    if (pane != PrPane.diff) _lastList = pane;
+    if (delta > 0) {
+      pane = PrPane.diff;
+    } else if (pane == PrPane.diff) {
+      pane = ps.contains(_lastList) ? _lastList : ps.first;
+    }
+    notifyListeners();
+  }
+
+  /// j/k, arrows, gg/G, Ctrl+D/U: move in the active pane (the diff scrolls by lines).
+  /// [big] (Shift): the diff scrolls [DiffScroll.bigStep] lines instead of [DiffScroll.step].
+  /// One step past the end of a list goes to the pane visually next to it: past the last file to
+  /// COMMITS, past the first commit to FILES, past the first file to the head picker, which is
+  /// returned for the caller to focus.
+  FocusNode? moveCursor(int delta, {bool big = false}) {
     switch (pane) {
       case PrPane.files:
+        final files = treeOrder(diff?.files.map((f) => f.path) ?? const []);
+        if (delta == 1 && files.isNotEmpty && selected == files.last) return _enter(PrPane.commits);
+        if (delta == -1 && files.isNotEmpty && selected == files.first) return headFocus;
         selectNext(delta);
       case PrPane.commits:
-        if (commits.isEmpty) return;
+        if (commits.isEmpty) return null;
+        if (delta == -1 && commitCursor == 0) return _enter(PrPane.files);
         commitCursor = (commitCursor + delta).clamp(0, commits.length - 1);
         notifyListeners();
       case PrPane.diff:
-        moveHunk(delta);
+        diffScroll.byLines(delta * (big ? DiffScroll.bigStep : DiffScroll.step));
     }
+    return null;
+  }
+
+  /// Tab / Shift+Tab leave the cycle of the Pull request stops (base, head, panes) in [delta]'s
+  /// direction: the mode rail is the stop before the first and after the last.
+  bool leavesCycle(int delta) {
+    final panes = _panes;
+    final i = panes.indexOf(pane);
+    final at = baseFocus.hasFocus ? 0 : (headFocus.hasFocus ? 1 : 2 + (i < 0 ? 0 : i));
+    final to = at + delta;
+    return to < 0 || to >= panes.length + 2;
+  }
+
+  /// The last stop of the cycle (the diff), for Shift+Tab from the rail.
+  void goLastPane() {
+    pane = _panes.last;
+    notifyListeners();
+  }
+
+  /// Ctrl+Up / Ctrl+Down: the pane visually above or below, counting the two pickers (base, head,
+  /// FILES CHANGED, COMMITS). Returns what gets the keyboard: a picker, or [shell] for a pane.
+  /// Nothing is above the base picker or below the commits (the focus stays); the diff is alone in
+  /// its column.
+  FocusNode vertical(int dir, FocusNode shell) {
+    final lists = _panes.where((p) => p != PrPane.diff).toList();
+    final stay = baseFocus.hasFocus ? baseFocus : (headFocus.hasFocus ? headFocus : shell);
+    final inPicker = baseFocus.hasFocus || headFocus.hasFocus;
+    if (pane == PrPane.diff && !inPicker) return stay;
+    final at = baseFocus.hasFocus ? 0 : (headFocus.hasFocus ? 1 : 2 + lists.indexOf(pane));
+    final to = at + dir;
+    if (to < 0 || to >= lists.length + 2) return stay;
+    if (to < 2) return to == 0 ? baseFocus : headFocus;
+    final target = lists[to - 2];
+    if (target == PrPane.files && dir < 0) {
+      _enter(PrPane.files); // coming up from COMMITS: the lowest visible file
+    } else {
+      pane = target;
+      notifyListeners();
+    }
+    return shell;
+  }
+
+  /// Shift+[ and Shift+]: three items up or down in the active list; in the diff, a normal scroll.
+  /// They stay inside the list (no hop to the neighbouring pane).
+  void jump(int dir) => moveCursor(pane == PrPane.diff ? dir : dir * listJump);
+
+  /// Items one Shift+[ / Shift+] moves in a list.
+  static const listJump = 3;
+
+  /// Bumps when the keyboard comes up into FILES CHANGED from COMMITS: the file tree selects the
+  /// lowest visible file then.
+  final selectBottomOfFiles = ValueNotifier<int>(0);
+
+  /// Make [p] the active pane when it can be reached (it is not folded or empty).
+  FocusNode? _enter(PrPane p) {
+    if (_panes.contains(p)) {
+      pane = p;
+      if (p == PrPane.files) selectBottomOfFiles.value++;
+      notifyListeners();
+    }
+    return null;
   }
 
   /// ]c / [c: the next or previous hunk of the selected file.
@@ -215,7 +302,7 @@ class PrState extends ChangeNotifier {
     }
   }
 
-  /// h / l: fold or unfold the selected file's folder.
+  /// zc / zo: fold or unfold the selected file's folder.
   void foldSelected({required bool fold}) {
     final d = dirOf(selected ?? '');
     if (d.isEmpty) return;
@@ -259,20 +346,11 @@ class PrState extends ChangeNotifier {
     select(files[(i < 0 ? 0 : i + delta).clamp(0, files.length - 1)]);
   }
 
-  void toggleLayout() {
-    layout = layout == DiffLayout.unified ? DiffLayout.sideBySide : DiffLayout.unified;
-    notifyListeners();
-  }
+  void toggleLayout() => session.diffPrefs.toggleLayout();
 
-  void setLayout(DiffLayout l) {
-    layout = l;
-    notifyListeners();
-  }
+  void setLayout(DiffLayout l) => session.diffPrefs.setLayout(l);
 
-  void toggleWrap() {
-    wrap = !wrap;
-    notifyListeners();
-  }
+  void toggleWrap() => session.diffPrefs.toggleWrap();
 
   void toggleDir(String dir) {
     collapsedDirs.contains(dir) ? collapsedDirs.remove(dir) : collapsedDirs.add(dir);
@@ -304,18 +382,16 @@ class PrState extends ChangeNotifier {
     _disposed = true;
     _gen++;
     session.gitChanged.removeListener(refresh);
+    session.diffPrefs.removeListener(notifyListeners);
     baseFocus.dispose();
     headFocus.dispose();
+    diffScroll.dispose();
+    selectBottomOfFiles.dispose();
     super.dispose();
   }
 }
 
 /// Paths in the order the file tree shows them: folders sorted, files sorted inside them.
 List<String> treeOrder(Iterable<String> paths) {
-  final list = paths.toList()
-    ..sort((a, b) {
-      final d = dirOf(a).compareTo(dirOf(b));
-      return d != 0 ? d : a.compareTo(b);
-    });
-  return list;
+  return paths.toList()..sort(compareTreeOrder);
 }

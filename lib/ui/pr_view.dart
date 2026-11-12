@@ -11,6 +11,8 @@ import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
 import 'list_pair_view.dart';
+import 'resizable_pane.dart';
+import 'reveal.dart';
 import 'tasks/review_panel.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -74,10 +76,35 @@ class _PrViewState extends State<PrView> {
     );
   }
 
+  static const _minSidebar = 150.0, _maxSidebar = 360.0; // 300 before: half, 120%
+
+  /// The narrowest sidebar that shows every file, folder, commit and picker value in full.
+  double _autoWidth() {
+    final files = [
+      for (final f in _pr.diff?.files ?? const <DiffFile>[])
+        TreeFile(path: f.path, status: f.status, additions: f.additions, deletions: f.deletions),
+    ];
+    final adds = files.fold<int>(0, (n, f) => n + f.additions);
+    final dels = files.fold<int>(0, (n, f) => n + f.deletions);
+    final pickers = [
+      for (final n in [_pr.base, _pr.head]) 24 + 50 + textWidth(n ?? '', T.body),
+    ];
+    return paneWidth(
+      [
+        ...fileTreeWidths(files, _pr.collapsedDirs),
+        ...commitWidths(_pr.commits),
+        headerWidth('FILES CHANGED', '${files.length}', extra: '+$adds −$dels', actions: 2),
+        headerWidth('COMMITS', '${_pr.commits.length}', actions: 1),
+        ...pickers,
+      ],
+      least: _minSidebar,
+      most: _maxSidebar,
+    );
+  }
+
   Widget _columns(Task? t) => Row(
     children: [
-      SizedBox(width: 300, child: _Sidebar(pr: _pr)),
-      const VerticalDivider(width: 1),
+      ResizablePane(autoWidth: _autoWidth(), minWidth: _minSidebar, child: _Sidebar(pr: _pr)),
       Expanded(child: _PrMain(pr: _pr, onLine: _jump)),
       if (t != null && widget.workspace != null) ...[
         const VerticalDivider(width: 1),
@@ -112,6 +139,7 @@ class _PrMain extends StatelessWidget {
       sideBySide: pr.layout == DiffLayout.sideBySide,
       wrap: pr.wrap,
       hunk: pr.hunk,
+      scroll: pr.diffScroll,
       onLine: onLine,
       headerActions: [
         IconToggle(icon: Icons.wrap_text, tip: 'Line wrapping (zw)', on: pr.wrap, onTap: pr.toggleWrap),
@@ -283,25 +311,54 @@ class _Files extends StatelessWidget {
     onSelect: pr.select,
     collapsed: pr.collapsedDirs,
     onToggleDir: pr.toggleDir,
+    selectBottom: pr.selectBottomOfFiles,
   );
 }
 
-class _CommitList extends StatelessWidget {
+class _CommitList extends StatefulWidget {
   const _CommitList({required this.pr});
 
   final PrState pr;
 
   @override
-  Widget build(BuildContext context) => SelectionArea(
-    child: ListView.builder(
-      itemCount: pr.commits.length,
-      itemBuilder: (context, i) {
-        final c = pr.commits[i];
-        final cursor = pr.pane == PrPane.commits && i == pr.commitCursor;
-        return CommitRow(commit: c, selected: cursor || c.sha == pr.narrowed?.sha, onTap: () => pr.narrow(c));
-      },
-    ),
-  );
+  State<_CommitList> createState() => _CommitListState();
+}
+
+class _CommitListState extends State<_CommitList> {
+  final _scroll = ScrollController();
+  final _cursorKey = GlobalKey();
+  int _cursor = 0;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pr = widget.pr;
+    if (pr.commitCursor != _cursor) {
+      _cursor = pr.commitCursor;
+      revealIndex(_scroll, _cursorKey, _cursor);
+    }
+    return SelectionArea(
+      child: ListView.builder(
+        controller: _scroll,
+        itemCount: pr.commits.length,
+        itemBuilder: (context, i) {
+          final c = pr.commits[i];
+          final cursor = pr.pane == PrPane.commits && i == pr.commitCursor;
+          return CommitRow(
+            key: i == pr.commitCursor ? _cursorKey : null,
+            commit: c,
+            selected: cursor || c.sha == pr.narrowed?.sha,
+            onTap: () => pr.narrow(c),
+          );
+        },
+      ),
+    );
+  }
 }
 
 // Molecules ---------------------------------------------------------------------------------------
@@ -391,8 +448,10 @@ class RevPicker extends StatefulWidget {
 
 class _RevPickerState extends State<RevPicker> {
   final _text = TextEditingController();
-  bool _typed = false; // the text differs from the value because the user typed
   Timer? _auto;
+
+  /// A click on the field opened the list of all branches (a click again closes it).
+  bool _open = false;
 
   @override
   void initState() {
@@ -420,17 +479,20 @@ class _RevPickerState extends State<RevPicker> {
   }
 
   void _onFocus() {
-    _typed = false;
     if (widget.focus.hasFocus) {
       _text.selection = TextSelection(baseOffset: 0, extentOffset: _text.text.length);
     } else {
       _auto?.cancel();
+      _open = false;
       _text.text = widget.value ?? '';
     }
   }
 
+  /// Whether the text is what the picker shows when it just got the keyboard (the current value).
+  bool _untouched(String q) => q == (widget.value ?? '');
+
   List<String> _filter(String q) {
-    if (!_typed || q.trim().isEmpty) return widget.names;
+    if (_untouched(q) || q.trim().isEmpty) return widget.names;
     final l = q.trim().toLowerCase();
     return widget.names.where((n) => n.toLowerCase().contains(l)).toList();
   }
@@ -439,7 +501,7 @@ class _RevPickerState extends State<RevPicker> {
     _auto?.cancel();
     final rev = v.trim();
     if (rev.isEmpty) return;
-    _typed = false;
+    _open = false;
     _text.text = rev;
     if (rev != widget.value) widget.onPick(rev);
     final next = widget.next;
@@ -449,7 +511,7 @@ class _RevPickerState extends State<RevPicker> {
   /// Typing: when the filter leaves one branch, pick it after a short pause, so a fast typist's
   /// next keys don't land in the next picker.
   void _changed(String q) {
-    _typed = true;
+    _open = false;
     _auto?.cancel();
     final hits = _filter(q);
     if (hits.length != 1 || q.trim().isEmpty) return;
@@ -461,7 +523,7 @@ class _RevPickerState extends State<RevPicker> {
   /// Enter: a revision that matches no branch (sha, tag, HEAD~3) is taken as typed; otherwise
   /// the highlighted branch.
   void _submit(String v, VoidCallback pickHighlighted) {
-    if (_filter(v).isEmpty || widget.names.contains(v.trim())) {
+    if (_untouched(v) || _filter(v).isEmpty || widget.names.contains(v.trim())) {
       _pick(v);
     } else {
       pickHighlighted();
@@ -469,6 +531,16 @@ class _RevPickerState extends State<RevPicker> {
   }
 
   void _cancel() => widget.focus.unfocus();
+
+  /// A click on the field opens the list of all branches, or closes it when it is open. The list
+  /// follows the text, which RawAutocomplete only re-reads when the text changes, so the text is
+  /// changed and put back.
+  void _toggleList() {
+    _open = !_open;
+    final v = _text.value;
+    _text.value = v.copyWith(text: '${v.text} ');
+    _text.value = v;
+  }
 
   @override
   Widget build(BuildContext context) => Row(
@@ -478,7 +550,8 @@ class _RevPickerState extends State<RevPicker> {
         child: RawAutocomplete<String>(
           textEditingController: _text,
           focusNode: widget.focus,
-          optionsBuilder: (v) => _filter(v.text),
+          // The drop-down opens when the user starts typing, not when the keys land here.
+          optionsBuilder: (v) => _untouched(v.text) ? (_open ? widget.names : const <String>[]) : _filter(v.text),
           onSelected: _pick,
           fieldViewBuilder: (context, controller, focus, submit) => _RevField(
             controller: controller,
@@ -486,6 +559,7 @@ class _RevPickerState extends State<RevPicker> {
             onChanged: _changed,
             onSubmitted: (v) => _submit(v, submit),
             onCancel: _cancel,
+            onTap: _toggleList,
           ),
           optionsViewBuilder: (context, onSelected, options) => _RevOptions(
             options: options.toList(),
@@ -505,29 +579,35 @@ class _RevField extends StatelessWidget {
     required this.onChanged,
     required this.onSubmitted,
     required this.onCancel,
+    required this.onTap,
   });
 
   final TextEditingController controller;
   final FocusNode focus;
   final ValueChanged<String> onChanged, onSubmitted;
-  final VoidCallback onCancel;
+  final VoidCallback onCancel, onTap;
 
   @override
   Widget build(BuildContext context) => CallbackShortcuts(
     bindings: {const SingleActivator(LogicalKeyboardKey.escape): onCancel},
-    child: TextField(
+    child: ClearOnAltX(
       controller: controller,
-      focusNode: focus,
-      style: T.body,
-      decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.call_split, size: 13, color: C.muted),
-        prefixIconConstraints: const BoxConstraints(minWidth: 28),
-        suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
-        suffixIconConstraints: ClearButton.constraints,
-        hintText: 'branch, tag or sha',
+      onCleared: onChanged,
+      child: TextField(
+        controller: controller,
+        focusNode: focus,
+        style: T.body,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.call_split, size: 13, color: C.muted),
+          prefixIconConstraints: const BoxConstraints(minWidth: 28),
+          suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
+          suffixIconConstraints: ClearButton.constraints,
+          hintText: 'branch, tag or sha',
+        ),
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        onTap: onTap,
       ),
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
     ),
   );
 }

@@ -309,22 +309,26 @@ class _PaletteFieldState extends State<_PaletteField> {
   }
 
   @override
-  Widget build(BuildContext context) => TextField(
+  Widget build(BuildContext context) => ClearOnAltX(
     controller: _text,
-    autofocus: true,
-    style: const TextStyle(fontSize: 15),
-    decoration: InputDecoration(
-      hintText: 'Type a command or search…',
-      filled: false,
-      border: InputBorder.none,
-      contentPadding: const EdgeInsets.all(16),
-      suffixIcon: Padding(
-        padding: const EdgeInsets.only(right: 10),
-        child: ClearButton(controller: _text, onCleared: widget.onChanged),
+    onCleared: widget.onChanged,
+    child: TextField(
+      controller: _text,
+      autofocus: true,
+      style: const TextStyle(fontSize: 15),
+      decoration: InputDecoration(
+        hintText: 'Type a command or search…',
+        filled: false,
+        border: InputBorder.none,
+        contentPadding: const EdgeInsets.all(16),
+        suffixIcon: Padding(
+          padding: const EdgeInsets.only(right: 10),
+          child: ClearButton(controller: _text, onCleared: widget.onChanged),
+        ),
+        suffixIconConstraints: ClearButton.constraints,
       ),
-      suffixIconConstraints: ClearButton.constraints,
+      onChanged: widget.onChanged,
     ),
-    onChanged: widget.onChanged,
   );
 }
 

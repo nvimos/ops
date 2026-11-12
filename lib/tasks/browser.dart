@@ -177,6 +177,22 @@ class TaskBrowser extends ChangeNotifier {
 
   int get inboxCount => inbox(ws, lastSeen()).length;
 
+  /// Every sidebar entry in the order shown: Inbox, the task views by status, the sources, and the
+  /// labels when they are open.
+  List<NavTarget> navAll() => [
+    NavTarget('Inbox', TView.inbox, count: inboxCount),
+    ...navTasks(),
+    ...navSources(),
+    if (labelsOpen) ...navLabels(),
+  ];
+
+  /// Up / Down in the sidebar: the entry [delta] away from the current one becomes the current one.
+  void moveNav(int delta) {
+    final all = navAll();
+    final i = all.indexWhere(isCurrent);
+    go(all[(i < 0 ? 0 : i + delta).clamp(0, all.length - 1)]);
+  }
+
   bool isCurrent(NavTarget n) {
     if (n.view != view) return false;
     if (view != TView.tasks) return true;

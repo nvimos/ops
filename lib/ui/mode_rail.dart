@@ -40,16 +40,25 @@ class RailEntry {
     required this.selected,
     required this.onTap,
     this.sub = false,
+    this.marked = false,
+    this.cursor = false,
   });
 
   final IconData icon;
   final String label, tip;
   final bool selected, sub;
+
+  /// Part of the current mode's group (the mode and its two views): lit with the mode's line. A
+  /// sub entry that is also [selected] is the current view and gets a line twice as wide.
+  final bool marked;
+
+  /// The rail has the keyboard and its cursor is on this entry.
+  final bool cursor;
   final VoidCallback onTap;
 }
 
-/// The left rail: the expand/collapse toggle, one entry per mode, and under Pull request (while
-/// it is shown) the unified and side-by-side views. Collapsed: icons only, the tooltip names the
+/// The left rail: the expand/collapse toggle, one entry per mode, and under Pull request or
+/// Changes (while shown) the unified and side-by-side views. Collapsed: icons only, the tooltip names the
 /// mode; expanded: labels, the tooltip explains the mode.
 class ModeRail extends StatelessWidget {
   const ModeRail({
@@ -57,6 +66,8 @@ class ModeRail extends StatelessWidget {
     required this.mode,
     required this.expanded,
     required this.layout,
+    this.cursor,
+    this.toggleCursor = false,
     required this.onSelect,
     required this.onToggle,
     required this.onLayout,
@@ -65,8 +76,14 @@ class ModeRail extends StatelessWidget {
   final Mode mode;
   final bool expanded;
 
-  /// The Pull request diff layout; null: no Pull request state yet (not connected).
+  /// The diff layout shared by Pull request and Changes; null: not connected.
   final DiffLayout? layout;
+
+  /// The mode under the cursor while the rail has the keyboard; null otherwise.
+  final Mode? cursor;
+
+  /// The rail has the keyboard and its cursor is on the expand / collapse button.
+  final bool toggleCursor;
   final ValueChanged<Mode> onSelect;
   final VoidCallback onToggle;
   final ValueChanged<DiffLayout> onLayout;
@@ -77,6 +94,7 @@ class ModeRail extends StatelessWidget {
       label: 'Collapse',
       tip: expanded ? 'Collapse the sidebar (Ctrl+B)' : 'Expand the sidebar (Ctrl+B)',
       selected: false,
+      cursor: toggleCursor,
       onTap: onToggle,
     ),
     for (final m in Mode.values) ...[
@@ -85,18 +103,22 @@ class ModeRail extends StatelessWidget {
         label: m.label,
         tip: expanded ? m.explain : m.label,
         selected: m == mode,
+        cursor: m == cursor,
         onTap: () => onSelect(m),
       ),
-      if (m == Mode.pullRequest && mode == Mode.pullRequest && layout != null) ..._layouts(),
+      if (m == mode && _hasLayouts(m) && layout != null) ..._layouts(),
     ],
   ];
+
+  /// The modes that show diffs.
+  static bool _hasLayouts(Mode m) => m == Mode.pullRequest || m == Mode.changes;
 
   List<RailEntry> _layouts() => [
     for (final (l, icon, label) in [
       (DiffLayout.unified, Icons.subject, 'Unified'),
       (DiffLayout.sideBySide, Icons.compare, 'Side by side'),
     ])
-      RailEntry(icon: icon, label: label, tip: '$label diff (v)', selected: layout == l, onTap: () => onLayout(l), sub: true),
+      RailEntry(icon: icon, label: label, tip: '$label diff (v)', selected: layout == l, onTap: () => onLayout(l), sub: true, marked: true),
   ];
 
   @override
@@ -124,16 +146,20 @@ class RailItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = entry;
-    final color = e.selected ? C.text : C.muted;
+    final color = e.selected || e.cursor ? C.text : C.muted;
+    final lit = e.selected || e.marked;
+    final line = e.sub && e.selected ? 4.0 : 2.0; // the current view: twice as wide as the mode's line
+    final left = (e.sub ? (expanded ? 26.0 : 14.0) : 13.0) - (line - 2); // the icons stay in line
     return Tooltip(
       message: e.tip,
       child: InkWell(
         onTap: e.onTap,
         child: Container(
           height: e.sub ? 32 : 44,
-          padding: EdgeInsets.only(left: e.sub ? (expanded ? 26 : 14) : 13),
+          padding: EdgeInsets.only(left: left),
           decoration: BoxDecoration(
-            border: Border(left: BorderSide(color: e.selected ? C.accent : Colors.transparent, width: 2)),
+            color: e.cursor ? C.surface2 : null,
+            border: Border(left: BorderSide(color: lit ? C.accent : Colors.transparent, width: line)),
           ),
           child: Row(
             children: [

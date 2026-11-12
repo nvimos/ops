@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/state/session.dart';
 
@@ -51,5 +53,35 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 2500));
     expect(connecting, 1);
     s.dispose();
+  });
+
+  // Something listens on the port but never answers (not a Neovim): the attempt must not hang.
+  Future<ServerSocket> silentServer() => ServerSocket.bind('127.0.0.1', 0);
+
+  test('a listener that never answers: the attempt times out with a message', () async {
+    final server = await silentServer();
+    server.listen((c) {}); // accept, say nothing
+    final s = Session(port: server.port)..connectTimeout = const Duration(milliseconds: 600);
+    await s.connect();
+    expect(s.conn, Conn.disconnected);
+    expect(s.error, contains('no answer from 127.0.0.1:'));
+    s.dispose();
+    await server.close();
+  });
+
+  test('Cancel ends a hanging attempt at once and the buttons can start again', () async {
+    final server = await silentServer();
+    server.listen((c) {});
+    final s = Session(port: server.port); // the default timeout would take 8 s
+    final attempt = s.connect();
+    await until(() => s.conn == Conn.connecting);
+    s.cancelConnect();
+    expect(s.conn, Conn.disconnected);
+    expect(s.notice, 'connecting cancelled');
+    await attempt; // the cancelled attempt ends without touching the state
+    expect(s.conn, Conn.disconnected);
+    expect(s.error, isNull);
+    s.dispose();
+    await server.close();
   });
 }

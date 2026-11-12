@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../backend/models.dart';
 import '../state/session.dart';
+import 'debug_bar.dart';
 import 'theme.dart';
 
 /// Active Directory, current branch, Neovim's current file and cursor (live), connection state.
@@ -27,6 +28,8 @@ class StatusBar extends StatelessWidget {
           if (head != null) _Item(icon: Icons.call_split, text: head, tip: 'Current branch'),
           Expanded(child: cur == null ? const SizedBox() : _Cursor(cursor: cur, root: s.repo?.root)),
           _Connection(conn: s.conn, address: s.address),
+          const SizedBox(width: 10),
+          const _DebugToggle(),
         ],
       ),
     );
@@ -97,4 +100,21 @@ class _Connection extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The bottom-right button that shows or hides the debug bar.
+class _DebugToggle extends StatelessWidget {
+  const _DebugToggle();
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: debugBarVisible,
+    builder: (context, on, _) => Tooltip(
+      message: on ? 'Hide the debug bar' : 'Show the debug bar (what has the focus)',
+      child: InkWell(
+        onTap: () => debugBarVisible.value = !on,
+        child: Icon(Icons.bug_report_outlined, size: 14, color: on ? C.yellow : C.muted),
+      ),
+    ),
+  );
 }
