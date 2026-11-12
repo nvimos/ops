@@ -446,6 +446,8 @@ keyboard J/K/Enter/Esc/C and /.
 - picking a dir doesn't count as a use; frecency stays as Neovim records it
 - the list is filterable;
   when the filter leaves one item, it is selected and becomes the Active Directory.
+  - switching to this mode (keys or the rail) puts the keyboard in the filter;
+    Esc, Tab or arrow down move it to the list
 - clicking an item selects it as the Active Directory
 - the Active Directory
   - default: the connected Neovim does `:cd` there; the backend follows the cwd,
