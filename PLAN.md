@@ -67,11 +67,13 @@ Global
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `M-]` / `M-[`      | next / previous mode (next is down the rail)            |
+| `M-]` / `M-[`      | next / previous mode (next is down the rail; the mouse  |
+|                    | wheel over the rail does the same)                      |
 | `M-1` … `M-5`      | mode by its place on the rail                           |
 | `Ctrl+B`           | expand / collapse the sidebar                           |
 | `Ctrl+K`           | command palette: every action and record (Tasks)        |
 | `?`                | the Help mode: this key table                           |
+| `b`                | show / hide the debug bar                               |
 | `Ctrl+Arrow`       | jump to the pane in that direction (PR: head picker,    |
 |                    | FILES, COMMITS, diff, the rail; Changes: STAGED,        |
 |                    | CHANGES, message, diff, the rail)                       |
@@ -82,6 +84,9 @@ Global
 |                    | Tasks and Directories: filter, list. The mode rail is one|
 |                    | stop in front of the first (not each mode in it)        |
 | `/`                | filter the list (Tasks, Directories)                    |
+| `.`                | widen or narrow the detail panel (Tasks)                |
+| `Shift`+wheel      | over the Facets or the task list: previous / next item  |
+| middle click       | over the Facets or the task list: the wheel steps items (like Up / Down) or scrolls |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
 
 Any list (files, commits, branches, dirs, tasks)
@@ -214,6 +219,7 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `pr.dart`: Pull request state: branches, base and head, commits, the diff
   - `changes.dart`: Changes state: working tree status, the selected file's diff, actions
   - `nvim_launcher.dart`: finds the backend checkout and starts Neovim in its own console
+  - `diff_prefs.dart`: the diff layout, wrapping and scroll steps, shared by Pull request and Changes
   - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json`
   - a git hint from the backend makes each state re-query what it shows
 
@@ -222,7 +228,8 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
     living specs, legacy notes, milestones
   - `workspace.dart`: loads the planning files through the backend, links them,
     reloads on git hints, filters them by project
-  - `edits.dart`: line-level edits that refuse to apply if the file changed meanwhile
+  - `edits.dart`: line-level edits that refuse to apply if the file changed meanwhile; the checkbox
+    mark cycle (open, x, ., ~, n) of the Neovim tilde plugin
   - `archive.dart`, `inbox.dart`: archiving a change into its spec, the inbox
 
 - `timing/ui_timing.dart`: UI timing instrumentation (see Performance)
@@ -231,6 +238,13 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `shell.dart`: the window, mode rail, status bar
   - `connect.dart`, `pr_view.dart`, `changes_view.dart`, `tasks/`: the views below (aka Modes)
   - `diff_view.dart`, `file_tree.dart`, `widgets.dart`, `theme.dart`: shared pieces
+  - `nav_keys.dart`: the one mapping of arrows, hjkl and WASD to directions
+  - `key_sequence.dart`: two-key commands with counts (`gg`, `]f`, `2gi`)
+  - `reveal.dart`: keeps a list's selected row in view from the real render positions
+  - `resizable_pane.dart`: a left pane the user drags wider or narrower
+  - `wheel_mode.dart`: the mouse wheel over a list: scroll, or step through items (middle click)
+  - `debug_bar.dart`: the debug bar and the role names of focused elements
+  - `mode_rail.dart`, `help_view.dart`, `status_bar.dart`: the rail, the Help mode, the status bar
 
 - `test/`: unit tests per state and parser; `test/support/nvim.dart` runs a headless Neovim
   with the backend for the RPC and backend tests.
@@ -279,7 +293,7 @@ mode area, which shrinks upward.
   the right edge while they hold text; a click clears the field (`ClearButton` in `ui/widgets.dart`)
   - Alt+X in such a field does the same, and refreshes what it filters, so the filtering resets
   - Left in a filter moves the text cursor; at the leftmost edge, or in an empty field, it goes to
-    the pane on the left (the mode rail; in Tasks the sidebar)
+    the pane on the left (the mode rail; in Tasks the Facets)
 
 - Lists keep the selected row in view
   - how: the row's real position is read from the render tree (`revealIndex` in `ui/reveal.dart`);
@@ -366,6 +380,7 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
 - the selected mode has an accent bar on its left edge and a brighter icon
   - Pull request and Changes show their two views under the mode; the mode and both views carry the
     accent bar, 2 px wide, and the current view's bar is twice as wide (4 px)
+- the mouse wheel over the rail steps to the previous or next mode, like Alt+[ and Alt+], round the ends
 - the rail is one stop in the Tab cycle, in front of the first pane (not each mode in it)
   - while it has the keyboard, a cursor starts on the current mode; Up / Down move it over the
     expand / collapse button and the modes; Enter, Right or Space presses the button, or switches
@@ -384,6 +399,7 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
 
 <!-- {{{ debug bar -->
 - for finding out where the focus goes; off at start, toggled with the bug button in the status bar
+  or the `b` key (not while typing in a field, and not in Help, where `b` is search text)
 - a pane above the status bar that takes its height from the mode area (not an overlay)
 - three lines high; items stack three to a column and continue in the next column, so it never
   becomes one long line
@@ -393,6 +409,11 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - Mode, then the mode's state: in Pull request the commit under the cursor ("3 of 8" and its
     short hash), file and hunk; in Changes file (staged or not) and hunk
   - Key: the last key pressed
+  - Mouse: the last mouse event: a button going down or up (Left, Middle, Right) and the wheel
+    (down, up), with the modifiers held; moves are not shown
+  - the bar reads the focus and the mode's state again after every key, click and wheel step
+  - a click in a pane makes it the active pane, as a key that goes there does (Pull request: files,
+    commits, diff; Changes: STAGED, CHANGES; Tasks: Facets, list), so "Focus" follows the mouse too
 - roles come from a table (`focusRoles` and the pane tables in `ui/debug_bar.dart`): a focus node
   has a label, the label has a role; a node that serves several panes (Pull request, Changes,
   Tasks) takes its pane from the mode
@@ -522,10 +543,17 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
       mode; Enter, Right (l, d) or Space switches to it and goes into it; Esc goes back
   - moving up into a list from a pane below it selects the lowest visible item, not the first or
     last one (COMMITS up to FILES CHANGED, CHANGES up to STAGED, the message up to CHANGES)
-  - Tasks has three panes: the sidebar (Inbox, task views, sources, labels), the list and the
-    detail of the current task; Left and Right (h, l, a, d) go between them, the sidebar's Left
+  - Tasks has three panes: the Facets (Inbox, task views, sources, labels: the ways to narrow the list), the list and the
+    detail of the current task; Left and Right (h, l, a, d) go between them, the Facets' Left
     goes to the rail
-    - Up / Down in the sidebar make the next entry the current view
+    - the mouse wheel over the Facets scrolls the pane; a middle click on it switches the wheel to
+      stepping through the entries like Up / Down (a thin accent line at the pane's bottom edge shows
+      it), and a middle click again switches back (on the user's setup the middle button arrives as
+      Shift+Insert, so that key over the pane toggles too: a local exception marked in
+      `wheel_mode.dart`)
+    - Shift + the wheel steps in either mode
+    - the task list does the same, stepping the current task (`WheelMode`, `ui/wheel_mode.dart`)
+    - Up / Down in the Facets make the next entry the current view
     - Right from the list goes to the current task's detail; there the direction keys move from
       element to element (buttons, fields, rows), not by lines; Left past the leftmost element
       goes back to the list; Tab visits the elements in order and on to the rail; Esc closes it
@@ -555,6 +583,13 @@ keyboard J/K/Enter/Esc/C and /.
   backend's `files.*` (unsaved Neovim edits show too), links tasks and changes, reloads on git hints.
 - `tasks/edits.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
   proposal) sent as `files.set_lines`; each refuses if the line changed meanwhile.
+- Checkboxes in the detail panel
+  - the box and the text next to it are one target: the pointer cursor and a hover background show it
+  - a left click ticks an open box and clears any other mark
+  - Ctrl+click or a right click steps the mark round the order of the Neovim tilde plugin
+    (`genja/ext/tilde.lua`): open, `x`, `.`, `~`, `n`, and open again
+  - icons: `x` a ticked box (counts as done), `.` a box with a dot (in progress), `~` a box with a
+    dash (partly done), `n` a crossed box, dimmed (will not do); only `x` counts as done
 - Ticking the last open box moves the task on by itself (`tasks/auto_status.dart`)
   - every build step ticked (Acceptance Criteria, or a change's Build), hand checks left: Needs Test
   - every box ticked, Verify too: Done
@@ -573,7 +608,7 @@ keyboard J/K/Enter/Esc/C and /.
     without it one per month of archive dates
   - a planned name not among them is a milestone of its own, listed under Planned with Next;
     `2027 Q1`, `2027-03` or `2027` give its closing date
-- Sidebar labels: collapsed at first under a LABELS header that shows how many there are
+- Facets labels: collapsed at first under a LABELS header that shows how many there are
   - the chevron expands and collapses the list
   - a click on the title sorts them by name or by number of tasks (most first); the header says which
 - Detail panel header: Open in Neovim, widen, close
@@ -590,8 +625,8 @@ keyboard J/K/Enter/Esc/C and /.
   - a task belongs to the project when it has the project's label,
     or none of the labels listed as `projects: [...]` in `backlog/config.yml` (shared)
   - a change goes with its task; a change without a task, the specs and legacy notes always show
-  - on by default when `.nvimos` names a project; `a` or the pill in the sidebar shows every project's tasks
-  - the sidebar header says "from <folder>" when the planning folder is outside the repo
+  - on by default when `.nvimos` names a project; `a` or the pill in the Facets shows every project's tasks
+  - the Facets header says "from <folder>" when the planning folder is outside the repo
   - new tasks get the project label; task numbers count every project's tasks, so they don't collide
 
 #### Directories mode
@@ -607,7 +642,8 @@ keyboard J/K/Enter/Esc/C and /.
   when the filter leaves one item, it is selected and becomes the Active Directory.
   - switching to this mode (keys or the rail) puts the keyboard in the filter;
     Esc, Tab or arrow down move it to the list
-- clicking an item selects it as the Active Directory
+- clicking an item selects it as the Active Directory;
+  clicking the Active Directory once more opens the Tasks mode
 - the Active Directory
   - default: the connected Neovim does `:cd` there; the backend follows the cwd,
     sends a new git snapshot and every mode reloads
