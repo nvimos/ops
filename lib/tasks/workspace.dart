@@ -9,6 +9,7 @@ import 'archive.dart';
 import 'auto_status.dart';
 import 'edits.dart';
 import 'markdown.dart';
+import 'milestones.dart';
 import 'model.dart';
 import 'parse.dart';
 import '../timing/ui_timing.dart';
@@ -42,6 +43,10 @@ class Workspace extends ChangeNotifier {
   List<LegacyItem> legacy = [];
   List<Milestone> milestones = [];
   bool milestonesFromFile = false;
+  List<Milestone>? _fileMilestones;
+
+  /// Each change's milestone name, by change folder (see `planMilestones`).
+  Map<String, String> _milestoneOf = {};
   List<String> statuses = defaultStatuses;
   String projectName = '';
   Branches? branches;
@@ -227,7 +232,8 @@ class Workspace extends ChangeNotifier {
     legacy = [for (final p in files.keys) ...?_legacyOf[p]];
     final ms = files['milestones.md'];
     milestonesFromFile = ms != null;
-    milestones = ms != null ? parseMilestones(ms) : monthlyMilestones(changes);
+    _fileMilestones = ms == null ? null : parseMilestones(ms);
+    _planMilestones();
   }
 
   // Projects ----------------------------------------------------------------------------------
@@ -260,7 +266,7 @@ class Workspace extends ChangeNotifier {
   void setProjectOnly(bool on) {
     projectOnly = on;
     _filter();
-    milestones = milestonesFromFile ? milestones : monthlyMilestones(changes);
+    _planMilestones();
     _notify();
   }
 
@@ -559,16 +565,19 @@ class Workspace extends ChangeNotifier {
     return out;
   }
 
-  /// Archived changes of a milestone (between the previous milestone's date and this one's).
-  List<Change> changesIn(Milestone m) {
-    final i = milestones.indexOf(m);
-    final from = i > 0 ? milestones[i - 1].date : null;
-    return changes.where((c) {
-      final d = c.archiveDate;
-      if (d == null) return false;
-      return (from == null || d.isAfter(from)) && (m.date == null || !d.isAfter(m.date!));
-    }).toList();
+  /// The milestones from milestones.md or the archive months, plus the ones tasks plan for.
+  void _planMilestones() {
+    String planned(Change c) => taskFor(c)?.milestone ?? '';
+    final dated = _fileMilestones ?? monthlyMilestones(changes.where((c) => planned(c).isEmpty).toList());
+    final plan = planMilestones(dated, [
+      for (final c in changes) (key: c.dir, archived: c.archived, archiveDate: c.archiveDate, planned: planned(c)),
+    ]);
+    milestones = plan.milestones;
+    _milestoneOf = plan.of;
   }
+
+  /// The changes of the milestone named [name] ([openMilestone] included).
+  List<Change> changesOf(String name) => changes.where((c) => _milestoneOf[c.dir] == name).toList();
 
   void _notify() {
     if (!_disposed) notifyListeners();

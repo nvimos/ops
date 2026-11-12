@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 
 import 'inbox.dart';
+import 'milestones.dart';
 import 'model.dart';
 import 'workspace.dart';
+
+export 'milestones.dart' show openMilestone;
 
 /// What the Tasks mode's main list shows.
 enum TView { inbox, tasks, changes, specs, legacy, milestones }
@@ -47,16 +50,10 @@ class MilestoneKey {
   int get hashCode => name.hashCode;
 }
 
-const openMilestone = 'Next';
 
-/// Changes of a milestone: archived ones between the previous milestone and this one, or for the
-/// open milestone everything not archived yet.
-List<Change> milestoneChanges(Workspace ws, String name) {
-  if (name == openMilestone) return ws.changes.where((c) => !c.archived).toList();
-  final m = ws.milestones.where((m) => m.name == name).firstOrNull;
-  if (m == null) return [];
-  return ws.changesIn(m)..sort((a, b) => b.archiveDate!.compareTo(a.archiveDate!));
-}
+/// Changes of a milestone (see `planMilestones`): open ones first, then archived, newest first.
+List<Change> milestoneChanges(Workspace ws, String name) =>
+    ws.changesOf(name)..sort((a, b) => (b.archiveDate ?? DateTime(9999)).compareTo(a.archiveDate ?? DateTime(9999)));
 
 String fmtDate(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
@@ -317,9 +314,14 @@ class TaskBrowser extends ChangeNotifier {
   }
 
   List<ListRow> _milestoneRows() {
-    final names = [openMilestone, ...ws.milestones.reversed.map((m) => m.name)].where(_matches).toList();
+    final planned = [openMilestone, ...ws.milestones.reversed.where((m) => m.planned).map((m) => m.name)];
+    final dated = ws.milestones.reversed.where((m) => !m.planned).map((m) => m.name);
     final title = ws.milestonesFromFile ? 'milestones.md' : 'By month of archiving';
-    return grouped([title], {title: names}, (n) => MilestoneKey(n));
+    return grouped(
+      ['Planned', title],
+      {'Planned': planned.where(_matches).toList(), title: dated.where(_matches).toList()},
+      (n) => MilestoneKey(n),
+    );
   }
 
   List<ListRow> _specRows() => [

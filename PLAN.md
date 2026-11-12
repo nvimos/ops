@@ -401,6 +401,14 @@ keyboard J/K/Enter/Esc/C and /.
   else merge its deltas into the living spec (`tasks/archive.dart`) and move the folder
   as `files.move`; new tasks and promoted legacy notes are written as `files.create`.
 - UI: sidebar (Inbox, Tasks, Changes, Specs, Legacy, Milestones), list with grouping, detail panel.
+- Milestones hold changes (`tasks/milestones.dart`)
+  - a change goes to its task's `milestone:` (Backlog.md's field), archived or not
+  - else, archived: the first dated milestone closing on or after its archive date
+  - else: Next, the open one
+  - dated milestones are the `## Name (YYYY-MM-DD)` sections of `milestones.md`,
+    without it one per month of archive dates
+  - a planned name not among them is a milestone of its own, listed under Planned with Next;
+    `2027 Q1`, `2027-03` or `2027` give its closing date
 - Detail panel header: Open in Neovim, widen, close
   - widen makes the panel twice as wide (at most the list's width) and lays it over the list,
     for long text; the list keeps its width underneath
