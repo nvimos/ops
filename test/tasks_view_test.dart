@@ -43,6 +43,13 @@ void main() {
     expect(find.text('Inbox'), findsWidgets);
     expect(find.text('demo'), findsOneWidget); // project name from backlog/config.yml
 
+    // Labels: collapsed at first, with their count; the chevron opens the list.
+    expect(find.byIcon(Icons.label_outline), findsNothing);
+    expect(find.textContaining('LABELS', findRichText: true), findsOneWidget);
+    await t.tap(find.byIcon(Icons.chevron_right));
+    await t.pump();
+    expect(find.byIcon(Icons.label_outline), findsOneWidget); // TASK-1's label "a"
+
     await tap('All tasks');
     expect(find.text('first'), findsOneWidget);
     expect(find.text('second'), findsOneWidget);

@@ -409,6 +409,9 @@ keyboard J/K/Enter/Esc/C and /.
     without it one per month of archive dates
   - a planned name not among them is a milestone of its own, listed under Planned with Next;
     `2027 Q1`, `2027-03` or `2027` give its closing date
+- Sidebar labels: collapsed at first under a LABELS header that shows how many there are
+  - the chevron expands and collapses the list
+  - a click on the title sorts them by name or by number of tasks (most first); the header says which
 - Detail panel header: Open in Neovim, widen, close
   - widen makes the panel twice as wide (at most the list's width) and lays it over the list,
     for long text; the list keeps its width underneath

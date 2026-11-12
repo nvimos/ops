@@ -64,8 +64,16 @@ class TasksNav extends StatelessWidget {
         ..._taskItems(),
         const SizedBox(height: 10),
         for (final n in browser.navSources()) _item(n, icon: _sourceIcon(n.view)),
-        if (labels.isNotEmpty) const NavSection('LABELS'),
-        for (final n in labels) _item(n, icon: Icons.label_outline),
+        if (labels.isNotEmpty)
+          LabelsHeader(
+            count: labels.length,
+            open: browser.labelsOpen,
+            byCount: browser.labelsByCount,
+            onToggleOpen: browser.toggleLabelsOpen,
+            onToggleSort: browser.toggleLabelSort,
+          ),
+        if (browser.labelsOpen)
+          for (final n in labels) _item(n, icon: Icons.label_outline),
       ],
     );
   }
@@ -119,6 +127,57 @@ class NavSection extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(14, 16, 12, 6),
     child: Text(title, style: T.section),
+  );
+}
+
+/// The LABELS header: a chevron that expands / collapses the list, how many labels there are, and
+/// the sort, which a click on the title switches between name and task count.
+class LabelsHeader extends StatelessWidget {
+  const LabelsHeader({
+    super.key,
+    required this.count,
+    required this.open,
+    required this.byCount,
+    required this.onToggleOpen,
+    required this.onToggleSort,
+  });
+
+  final int count;
+  final bool open, byCount;
+  final VoidCallback onToggleOpen, onToggleSort;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(6, 10, 12, 2),
+    child: Row(
+      children: [
+        IconButton(
+          tooltip: open ? 'Collapse the labels' : 'Expand the labels',
+          visualDensity: VisualDensity.compact,
+          iconSize: 16,
+          onPressed: onToggleOpen,
+          icon: Icon(open ? Icons.expand_more : Icons.chevron_right, color: C.muted),
+        ),
+        Expanded(child: _title()),
+      ],
+    ),
+  );
+
+  Widget _title() => Tooltip(
+    message: 'Click: sort by name / by number of tasks',
+    child: InkWell(
+      onTap: onToggleSort,
+      child: Text.rich(
+        TextSpan(
+          text: 'LABELS',
+          style: T.section,
+          children: [
+            TextSpan(text: '  $count', style: T.section.copyWith(color: C.text)),
+            if (open) TextSpan(text: byCount ? '  BY COUNT' : '  BY NAME', style: T.section.copyWith(color: C.faint)),
+          ],
+        ),
+      ),
+    ),
   );
 }
 

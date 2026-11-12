@@ -151,9 +151,29 @@ class TaskBrowser extends ChangeNotifier {
     NavTarget('Legacy notes', TView.legacy, count: ws.legacy.length),
   ];
 
-  List<NavTarget> navLabels() => [
-    for (final l in ws.labels) NavTarget(l, TView.tasks, byLabel: l, count: ws.tasks.where((t) => t.labels.contains(l)).length),
-  ];
+  /// The sidebar's labels by name, or by how many tasks have them (most first).
+  bool labelsByCount = false;
+
+  void toggleLabelSort() {
+    labelsByCount = !labelsByCount;
+    notifyListeners();
+  }
+
+  /// Whether the sidebar lists the labels; collapsed at first.
+  bool labelsOpen = false;
+
+  void toggleLabelsOpen() {
+    labelsOpen = !labelsOpen;
+    notifyListeners();
+  }
+
+  List<NavTarget> navLabels() {
+    final out = [
+      for (final l in ws.labels) NavTarget(l, TView.tasks, byLabel: l, count: ws.tasks.where((t) => t.labels.contains(l)).length),
+    ];
+    if (labelsByCount) out.sort((a, b) => b.count != a.count ? b.count.compareTo(a.count) : a.label.compareTo(b.label));
+    return out;
+  }
 
   int get inboxCount => inbox(ws, lastSeen()).length;
 
