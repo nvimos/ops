@@ -136,6 +136,7 @@ class _ShellState extends State<Shell> {
       LogicalKeyboardKey.keyB when hw.isControlPressed && !hw.isAltPressed => _run(_toggleRail),
       LogicalKeyboardKey.keyD when hw.isControlPressed && _inPr && !_typing() => _run(() => _pr!.moveCursor(10)),
       LogicalKeyboardKey.keyU when hw.isControlPressed && _inPr && !_typing() => _run(() => _pr!.moveCursor(-10)),
+      LogicalKeyboardKey.tab when _inPicker && !hw.isControlPressed && !hw.isAltPressed => _run(_prTab),
       _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed || _typing() => false,
       _ when e.character == '?' => _run(() => _setMode(Mode.help)),
       _ when _mode == Mode.pullRequest => _prKey(e),
@@ -153,15 +154,23 @@ class _ShellState extends State<Shell> {
 
   bool get _inPr => _mode == Mode.pullRequest && _pr != null;
 
+  /// A revision picker has the keyboard: Tab still moves on, as it does from the panes.
+  bool get _inPicker => _inPr && (_pr!.baseFocus.hasFocus || _pr!.headFocus.hasFocus);
+
+  /// Tab / Shift+Tab in Pull request: base picker, head picker, files, commits, diff.
+  void _prTab() {
+    final picker = _pr?.nextPane(HardwareKeyboard.instance.isShiftPressed ? -1 : 1);
+    (picker ?? _focus).requestFocus();
+  }
+
   /// Pull request keys that aren't characters: Enter, Esc, Tab, arrows; the rest go to [_prKeys].
   bool _prKey(KeyEvent e) {
     final pr = _pr;
     if (pr == null) return false;
-    final shift = HardwareKeyboard.instance.isShiftPressed;
     final action = switch (e.logicalKey) {
       LogicalKeyboardKey.escape when pr.narrowed != null => pr.showAllCommits,
       LogicalKeyboardKey.enter => pr.enter,
-      LogicalKeyboardKey.tab => () => pr.nextPane(shift ? -1 : 1),
+      LogicalKeyboardKey.tab => _prTab,
       LogicalKeyboardKey.arrowDown => () => pr.moveCursor(1),
       LogicalKeyboardKey.arrowUp => () => pr.moveCursor(-1),
       _ => null,
