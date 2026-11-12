@@ -11,12 +11,6 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      # The default %TEMP% is an 8.3 short path (C:\Users\RUNNER~1); git reports the long one, so
-      # the tests' path comparisons fail. The runner's own temp dir has no short parts.
-      - name: TEMP without short names
-        run: |
-          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
-          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - uses: actions/checkout@v4
       - name: backend plugin
         uses: actions/checkout@v4
@@ -32,6 +26,13 @@ jobs:
         with:
           neovim: true
           version: stable
+      # The default %TEMP% is an 8.3 short path (C:\Users\RUNNER~1); git reports the long one, so
+      # the tests' path comparisons fail. The runner's own temp dir has no short parts. After the
+      # setup steps: they move downloads from TEMP to C:, which fails across drives.
+      - name: TEMP without short names
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
       - name: git identity for the test repos
         run: |
           git config --global user.name ci
