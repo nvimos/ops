@@ -170,6 +170,12 @@ void tasksPaneTest() {
     expect(tasks.pane, TasksPane.detail);
     expect(tasks.browser.selected, isNotNull);
 
+    expect(tasks.wide, isFalse);
+    await press(LogicalKeyboardKey.period, ch: '.'); // widen / narrow, from the detail
+    expect(tasks.wide, isTrue);
+    await press(LogicalKeyboardKey.period, ch: '.');
+    expect(tasks.wide, isFalse);
+
     // Left moves from element to element in the detail; past the leftmost one it is the list again.
     for (var i = 0; i < 30 && tasks.pane == TasksPane.detail; i++) {
       await press(LogicalKeyboardKey.keyA, ch: 'a');

@@ -20,7 +20,7 @@ abstract class TaskActions {
   void openInNeovim(String path, int line);
   Future<void> setStatus(Task t, String status);
   Future<void> setPriority(Task t, String priority);
-  Future<void> toggleCheck(String path, Check c);
+  Future<void> toggleCheck(String path, Check c, {bool cycle = false});
   Future<void> review(Task t, String branch);
   Future<void> linkBranch(Task t, String? branch);
 }
@@ -35,7 +35,7 @@ class TaskDetail extends StatelessWidget {
   final Workspace ws;
   final TaskActions actions;
 
-  void _check(Check c) => actions.toggleCheck(task.path, c);
+  void _check(Check c, bool cycle) => actions.toggleCheck(task.path, c, cycle: cycle);
 
   @override
   Widget build(BuildContext context) {

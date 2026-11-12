@@ -24,12 +24,25 @@ LineEdit taskPriorityEdit(Task t, String priority) {
   return LineEdit(end, end, priority.isEmpty ? [] : [line], expect: []);
 }
 
-/// `- [ ]` <-> `- [x]` on a checklist line.
-LineEdit toggleCheckEdit(List<String> lines, Check c) {
+/// The order of the Neovim tilde plugin (`genja/ext/tilde.lua`): open, done, in progress,
+/// partly done, will not do, and round again.
+const checkCycle = [' ', 'x', '.', '~', 'n'];
+
+/// The mark after [mark]: a plain click ticks an open box and clears any other; [cycle] (Ctrl+click)
+/// goes one step round [checkCycle].
+String nextMark(String mark, {bool cycle = false}) {
+  final m = mark == 'X' ? 'x' : mark;
+  if (!cycle) return m == ' ' ? 'x' : ' ';
+  final i = checkCycle.indexOf(m);
+  return checkCycle[(i + 1) % checkCycle.length];
+}
+
+/// `- [ ]` -> `- [x]` and back on a checklist line; with [cycle], on to the next mark of [checkCycle].
+LineEdit toggleCheckEdit(List<String> lines, Check c, {bool cycle = false}) {
   final old = lines[c.line];
-  final m = RegExp(r'^(\s*[-*+] \[)([ xX])(\].*)$').firstMatch(old);
+  final m = RegExp(r'^(\s*[-*+] \[)([ xX.~n])(\].*)$').firstMatch(old);
   if (m == null) throw StateError('line ${c.line + 1} is not a checklist item');
-  final now = '${m.group(1)}${m.group(2) == ' ' ? 'x' : ' '}${m.group(3)}';
+  final now = '${m.group(1)}${nextMark(m.group(2)!, cycle: cycle)}${m.group(3)}';
   return LineEdit(c.line, c.line + 1, [now], expect: [old]);
 }
 

@@ -333,11 +333,13 @@ class Workspace extends ChangeNotifier {
 
   /// Toggle a checkbox. Ticking the last open box of a task (or of its change's tasks.md) moves the
   /// task on: to Needs Test when only hand checks are left, to Done when nothing is.
-  Future<String?> toggleCheck(String path, Check c) async {
+  ///
+  /// [cycle]: go one step round the marks (open, x, ., ~, n) instead of ticking.
+  Future<String?> toggleCheck(String path, Check c, {bool cycle = false}) async {
     final lines = _files[path];
     if (lines == null || c.line >= lines.length) return '$path changed; refresh';
-    final err = await edit(path, [toggleCheckEdit(lines, c)]);
-    if (err != null || c.done) return err;
+    final err = await edit(path, [toggleCheckEdit(lines, c, cycle: cycle)]);
+    if (err != null || nextMark(c.mark, cycle: cycle) != 'x') return err;
     return _autoStatus(path);
   }
 

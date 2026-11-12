@@ -4,9 +4,14 @@
 
 /// A checklist item `- [ ] text` / `- [x] text` at [line] (0-based).
 class Check {
-  Check(this.line, this.done, this.text, this.indent);
+  Check(this.line, this.done, this.text, this.indent, {String? mark}) : mark = mark ?? (done ? 'x' : ' ');
   final int line;
+
+  /// Ticked with x. The other marks (`.`, `~`, `n`) are not done.
   final bool done;
+
+  /// The character in the brackets: ' ' open, x done, . in progress, ~ partly done, n will not do.
+  final String mark;
   final String text;
   final int indent;
 }
@@ -36,13 +41,14 @@ class FrontMatter {
       values[key] is List ? (values[key] as List).map((e) => '$e').toList() : (str(key).isEmpty ? [] : [str(key)]);
 }
 
-final _checkRe = RegExp(r'^(\s*)[-*+] \[([ xX])\] (.*)$');
+final _checkRe = RegExp(r'^(\s*)[-*+] \[([ xX.~n])\] (.*)$');
 final _bulletRe = RegExp(r'^(\s*)[-*+] (.*)$');
 
 Check? parseCheck(String line, int i) {
   final m = _checkRe.firstMatch(line);
   if (m == null) return null;
-  return Check(i, m.group(2) != ' ', m.group(3)!.trim(), m.group(1)!.length);
+  final mark = m.group(2)!;
+  return Check(i, mark == 'x' || mark == 'X', m.group(3)!.trim(), m.group(1)!.length, mark: mark);
 }
 
 String _unquote(String v) {
