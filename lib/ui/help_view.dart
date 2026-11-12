@@ -11,10 +11,11 @@ const keyTable = [
   (
     'Everywhere',
     [
-      ('Alt+[]', 'previous or next mode'),
+      ('Alt+[]', 'previous or next mode (also the mouse wheel on the rail)'),
       ('Alt+1…5', 'mode by its place on the rail'),
       ('Ctrl+B', 'expand or collapse the sidebar'),
       ('?', 'this list (the Help mode)'),
+      ('b', 'show or hide the debug bar'),
       ('Tab', 'next element'),
       ('Shift+Tab', 'previous element'),
       ('Ctrl+{up}{down}{left}{right}', 'jump to the pane in that direction'),
@@ -67,13 +68,23 @@ const keyTable = [
     [
       ('/', 'filter'),
       ('Esc', 'close the detail panel'),
+      ('.', 'widen or narrow the detail panel'),
       ('c  t  p', 'new task, cycle status, cycle priority'),
       ('Ctrl+K', 'command palette'),
       ('Shift+A', 'filter only this or all projects'),
-      ('Ctrl+click', 'open the file in a new nvim-qt'),
     ],
   ),
   ('Directories', [('Enter', 'make it the Active Directory'), ('/', 'filter'), ('n', 'New Neovim per directory')]),
+  (
+    'Mouse',
+    [
+      ('Shift+wheel', 'Facets, task list: item'),
+      ('Middle click', 'Facets, task list: wheel steps items or scrolls'),
+      ('Click', 'pick or select; checkbox ticks; Active Directory again: Tasks'),
+      ('Right click,Ctrl+click', 'checkbox: next mark'),
+      ('Ctrl+click', 'task: open its file in nvim-qt'),
+    ],
+  ),
 ];
 
 /// Splits the key groups, in order, into at most [columns] columns so the tallest is lowest.
