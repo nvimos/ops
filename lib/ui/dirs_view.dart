@@ -39,6 +39,10 @@ class DirsViewState extends State<DirsView> {
 
   DirsState get st => widget.state;
 
+  /// The shell calls this on a switch to Directories: the filter takes the keyboard, so typing
+  /// filters at once; Esc, Tab or arrow down go to the list.
+  void focusFilter() => _filterFocus.requestFocus();
+
   @override
   void dispose() {
     _keys.dispose();

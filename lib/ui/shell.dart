@@ -103,7 +103,7 @@ class _ShellState extends State<Shell> {
   void _focusMode(Mode m) => switch (m) {
     Mode.changes => _changesKey.currentState?.focus.requestFocus(),
     Mode.tasks => _tasksKey.currentState?.focus.requestFocus(),
-    Mode.directories => _dirsKey.currentState?.focus.requestFocus(),
+    Mode.directories => _dirsKey.currentState?.focusFilter(),
     _ => _focus.requestFocus(),
   };
 
