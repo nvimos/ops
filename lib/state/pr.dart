@@ -163,6 +163,21 @@ class PrState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A click in [p] (a file, a commit, the diff): that pane is the active one, as it is after a key
+  /// that goes there. Not for a folded or empty pane.
+  void clickPane(PrPane p) {
+    if (!_panes.contains(p) || pane == p) return;
+    pane = p;
+    notifyListeners();
+  }
+
+  /// A click on commit [i]: the commits pane is active, the cursor is on it, and the diff narrows to it.
+  void clickCommit(int i) {
+    commitCursor = i;
+    pane = PrPane.commits;
+    narrow(commits[i]);
+  }
+
   // Keys -------------------------------------------------------------------------------------------
 
   List<PrPane> get _panes => [

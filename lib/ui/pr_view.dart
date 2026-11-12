@@ -134,6 +134,13 @@ class _PrMain extends StatelessWidget {
     if (pr.diff == null) return Empty(pr.loading ? 'Loading…' : 'No diff.');
     if (pr.diff!.files.isEmpty) return const Empty('No changes between these revisions.');
     if (f == null) return const Empty('Pick a file.');
+    return Listener(
+      onPointerDown: (_) => pr.clickPane(PrPane.diff),
+      child: _diff(f),
+    );
+  }
+
+  Widget _diff(DiffFile f) {
     return DiffView(
       file: f,
       sideBySide: pr.layout == DiffLayout.sideBySide,
@@ -308,7 +315,10 @@ class _Files extends StatelessWidget {
         TreeFile(path: f.path, status: f.status, additions: f.additions, deletions: f.deletions),
     ],
     selected: pr.selected,
-    onSelect: pr.select,
+    onSelect: (path) {
+      pr.clickPane(PrPane.files);
+      pr.select(path);
+    },
     collapsed: pr.collapsedDirs,
     onToggleDir: pr.toggleDir,
     selectBottom: pr.selectBottomOfFiles,
@@ -353,7 +363,7 @@ class _CommitListState extends State<_CommitList> {
             key: i == pr.commitCursor ? _cursorKey : null,
             commit: c,
             selected: cursor || c.sha == pr.narrowed?.sha,
-            onTap: () => pr.narrow(c),
+            onTap: () => pr.clickCommit(i),
           );
         },
       ),
