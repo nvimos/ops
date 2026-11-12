@@ -1,6 +1,8 @@
+import 'dart:async' show scheduleMicrotask;
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'theme.dart';
@@ -29,7 +31,7 @@ const paneNodes = {'shell', 'changes', 'tasks'};
 
 /// Panes by what they are in the interface: Pull request and Changes, by the state's pane name.
 const prPaneRoles = {'files': 'Files changed list', 'commits': 'Commits list', 'diff': 'Diff'};
-const tasksPaneRoles = {'nav': 'Task views and labels', 'list': 'Task list', 'detail': 'Task detail'};
+const tasksPaneRoles = {'nav': 'Facets', 'list': 'Task list', 'detail': 'Task detail'};
 const changesPaneRoles = {'staged': 'Staged files list', 'unstaged': 'Changed files list', 'diff': 'Diff'};
 
 /// Widget classes that are an interface element on their own, for focus without a labelled node
@@ -68,18 +70,22 @@ class DebugBar extends StatefulWidget {
 
 class _DebugBarState extends State<DebugBar> {
   String _key = '-';
+  String _mouse = '-';
+  int _downButtons = 0;
 
   @override
   void initState() {
     super.initState();
     FocusManager.instance.addListener(_refresh);
     HardwareKeyboard.instance.addHandler(_onKey);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
   }
 
   @override
   void dispose() {
     FocusManager.instance.removeListener(_refresh);
     HardwareKeyboard.instance.removeHandler(_onKey);
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
     super.dispose();
   }
 
@@ -94,6 +100,24 @@ class _DebugBarState extends State<DebugBar> {
       Future<void>.delayed(Duration.zero, _refresh);
     }
     return false;
+  }
+
+  /// Sees every pointer event: a button going down or up, and the wheel (not the moves).
+  void _onPointer(PointerEvent e) {
+    final name = switch (e) {
+      PointerDownEvent() => '${buttonName(_downButtons = e.buttons)} down',
+      PointerUpEvent() => '${buttonName(_downButtons)} up',
+      PointerScrollEvent() when e.scrollDelta.dy != 0 || e.scrollDelta.dx != 0 =>
+        'Wheel ${(e.scrollDelta.dy != 0 ? e.scrollDelta.dy : e.scrollDelta.dx) > 0 ? 'down' : 'up'}',
+      _ => null,
+    };
+    if (name == null) return;
+    _mouse = [..._modifiers(), name].join('+');
+    scheduleMicrotask(_refresh);
+    // A click or wheel step changes the focus and the mode's state after this event; read them again
+    // once the frame that shows the change is done.
+    WidgetsBinding.instance.scheduleFrame();
+    WidgetsBinding.instance.endOfFrame.then((_) => _refresh());
   }
 
   static const _style = TextStyle(fontSize: 11, height: 1.3, fontFamily: mono, color: C.yellow);
@@ -122,7 +146,7 @@ class _DebugBarState extends State<DebugBar> {
   @override
   Widget build(BuildContext context) {
     final role = uiRole(FocusManager.instance.primaryFocus, pane: widget.pane());
-    final items = ['Focus: $role', ...widget.info(), 'Key: $_key'];
+    final items = ['Focus: $role', ...widget.info(), 'Key: $_key', 'Mouse: $_mouse'];
     // Columns of three items each: the next column starts after the third line, whatever the
     // font's exact line height (a Wrap in a box of three lines broke too early).
     final columns = [for (var i = 0; i < items.length; i += _lines) items.sublist(i, math.min(i + _lines, items.length))];
@@ -154,13 +178,24 @@ class _DebugBarState extends State<DebugBar> {
 
 /// The key as typed: modifiers, then the character or the key's name ("Ctrl+Alt+j", "ArrowRight").
 String keyName(KeyEvent e) {
-  final hw = HardwareKeyboard.instance;
   final c = e.character;
   final name = c != null && c.trim().isNotEmpty ? c : e.logicalKey.keyLabel.isEmpty ? e.logicalKey.debugName ?? '?' : e.logicalKey.keyLabel;
-  return [
-    if (hw.isControlPressed) 'Ctrl',
-    if (hw.isAltPressed) 'Alt',
-    if (hw.isShiftPressed && (c == null || c.trim().isEmpty)) 'Shift',
-    name,
-  ].join('+');
+  return [..._modifiers(shift: c == null || c.trim().isEmpty), name].join('+');
+}
+
+List<String> _modifiers({bool shift = true}) {
+  final hw = HardwareKeyboard.instance;
+  return [if (hw.isControlPressed) 'Ctrl', if (hw.isAltPressed) 'Alt', if (hw.isShiftPressed && shift) 'Shift'];
+}
+
+/// The mouse button in a pointer event's `buttons` bit field: Left, Right, Middle (or the others).
+String buttonName(int buttons) {
+  final names = [
+    if (buttons & kPrimaryButton != 0) 'Left',
+    if (buttons & kSecondaryButton != 0) 'Right',
+    if (buttons & kMiddleMouseButton != 0) 'Middle',
+    if (buttons & kBackMouseButton != 0) 'Back',
+    if (buttons & kForwardMouseButton != 0) 'Forward',
+  ];
+  return names.isEmpty ? 'Button' : names.join('+');
 }
