@@ -72,7 +72,8 @@ Global
 | `Ctrl+B`           | expand / collapse the sidebar                           |
 | `Ctrl+K`           | command palette: every action and record (Tasks)        |
 | `?`                | the Help mode: this key table                           |
-| `Tab` / `S-Tab`    | next / previous pane: PR files, commits, diff; Changes  |
+| `Tab` / `S-Tab`    | next / previous pane: PR base, head, files, commits,    |
+|                    | diff (also from inside a picker); Changes               |
 |                    | files and message; Tasks and Directories list and filter |
 | `/`                | filter the list (Tasks, Directories)                    |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |

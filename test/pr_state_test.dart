@@ -116,8 +116,14 @@ void main() {
     await until(() => !pr.loading && pr.diff!.files.length == 2);
     pr.nextPane(1);
     expect(pr.pane, PrPane.diff);
-    pr.nextPane(1);
-    expect(pr.pane, PrPane.files);
+    // After the diff come the base and head pickers (focus only; the pane stays).
+    expect(pr.nextPane(1), same(pr.baseFocus));
+    expect(pr.pane, PrPane.diff);
+    pr.pane = PrPane.files;
+    expect(pr.nextPane(-1), same(pr.headFocus));
+    expect(pr.nextPane(1), isNull);
+    expect(pr.pane, PrPane.commits);
+    pr.pane = PrPane.files;
     pr.select('sub/c.txt');
     pr.moveHunk(1);
     expect(pr.hunk, 0);

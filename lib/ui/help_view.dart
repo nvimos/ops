@@ -14,7 +14,7 @@ const keyTable = [
       ('Alt+1 … Alt+5', 'mode by its place on the rail'),
       ('Ctrl+B', 'expand / collapse the sidebar'),
       ('?', 'this list (the Help mode)'),
-      ('Tab / Shift+Tab', 'next / previous pane'),
+      ('Tab / Shift+Tab', 'next / previous pane (PR: also the base and head pickers)'),
     ],
   ),
   (

@@ -157,12 +157,17 @@ class PrState extends ChangeNotifier {
 
   List<PrPane> get _panes => [PrPane.files, if (!commitsCollapsed && commits.isNotEmpty) PrPane.commits, PrPane.diff];
 
-  /// Tab / Shift+Tab.
-  void nextPane(int delta) {
+  /// Tab / Shift+Tab: the base picker, the head picker, then the panes. Returns the picker to
+  /// focus, or null when a pane takes the keys.
+  FocusNode? nextPane(int delta) {
     final panes = _panes;
     final i = panes.indexOf(pane);
-    pane = panes[((i < 0 ? 0 : i) + delta) % panes.length];
+    final at = baseFocus.hasFocus ? 0 : (headFocus.hasFocus ? 1 : 2 + (i < 0 ? 0 : i));
+    final to = (at + delta) % (panes.length + 2);
+    if (to < 2) return to == 0 ? baseFocus : headFocus;
+    pane = panes[to - 2];
     notifyListeners();
+    return null;
   }
 
   /// j/k, gg/G, Ctrl+D/U: move in the active pane.
