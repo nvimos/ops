@@ -1,8 +1,11 @@
 # nvimos-poc-frontend
 
-[![test](https://github.com/nvimos/ops/actions/workflows/test.yml/badge.svg)](https://github.com/nvimos/ops/actions/workflows/test.yml)
+[![ops test](https://github.com/nvimos/ops/actions/workflows/test.yml/badge.svg)](https://github.com/nvimos/ops/actions/workflows/test.yml)
 
-Flutter Windows app over a running Neovim (backend: `~/es/nvimos-poc-backend`). Plan: [PLAN.md](PLAN.md).
+Flutter Windows app over a running Neovim. Plan: [PLAN.md](PLAN.md).
+
+Backend: [relay](https://github.com/nvimos/relay), the Neovim plugin (checkout `~/es/nvimos-poc-backend`)
+[![relay test](https://github.com/nvimos/relay/actions/workflows/test.yml/badge.svg)](https://github.com/nvimos/relay/actions/workflows/test.yml)
 
 ## Run
 
