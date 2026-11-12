@@ -158,6 +158,8 @@ class _ShellState extends State<Shell> {
       _ when e.character == '?' => _run(() => _setMode(Mode.help)),
       _ when e.character == '/' && _mode == Mode.help => _run(() => _helpKey.currentState?.startSearch()),
       _ when _mode == Mode.help && _printable(e.character) => _run(() => _helpKey.currentState?.type(e.character!)),
+      // `b` (bug): the debug bar, as the bug button in the status bar; in Help it is search text.
+      LogicalKeyboardKey.keyB when !hw.isShiftPressed => _run(() => debugBarVisible.value = !debugBarVisible.value),
       _ when _railFocus.hasFocus => false,
       _ when _mode == Mode.pullRequest => _prKey(e),
       _ => false,
@@ -401,6 +403,7 @@ class _ShellState extends State<Shell> {
             cursor: _railFocus.hasFocus && _railCursor > 0 ? Mode.values[_railCursor - 1] : null,
             toggleCursor: _railFocus.hasFocus && _railCursor == 0,
             onSelect: _setMode,
+            onStep: _stepMode,
             onToggle: _toggleRail,
             onLayout: _setLayout,
           ),
@@ -425,7 +428,7 @@ class _ShellState extends State<Shell> {
       PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
       ChangesView(key: _changesKey, onRail: _focusRail),
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
-      DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail),
+      DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpenTasks: () => _setMode(Mode.tasks)),
       _help(),
     ],
   );

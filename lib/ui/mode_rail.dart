@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../state/diff_prefs.dart';
@@ -69,6 +70,7 @@ class ModeRail extends StatelessWidget {
     this.cursor,
     this.toggleCursor = false,
     required this.onSelect,
+    this.onStep,
     required this.onToggle,
     required this.onLayout,
   });
@@ -85,6 +87,9 @@ class ModeRail extends StatelessWidget {
   /// The rail has the keyboard and its cursor is on the expand / collapse button.
   final bool toggleCursor;
   final ValueChanged<Mode> onSelect;
+
+  /// The mouse wheel over the rail: -1 the previous mode, 1 the next (like Alt+[ and Alt+]).
+  final ValueChanged<int>? onStep;
   final VoidCallback onToggle;
   final ValueChanged<DiffLayout> onLayout;
 
@@ -121,9 +126,21 @@ class ModeRail extends StatelessWidget {
       RailEntry(icon: icon, label: label, tip: '$label diff (v)', selected: layout == l, onTap: () => onLayout(l), sub: true, marked: true),
   ];
 
+  void _wheel(PointerSignalEvent e) {
+    if (e is! PointerScrollEvent || e.scrollDelta.dy == 0 || onStep == null) return;
+    GestureBinding.instance.pointerSignalResolver.register(e, (_) => onStep!(e.scrollDelta.dy > 0 ? 1 : -1));
+  }
+
   @override
   Widget build(BuildContext context) {
     final entries = _entries();
+    return Listener(
+      onPointerSignal: _wheel,
+      child: _body(entries),
+    );
+  }
+
+  Widget _body(List<RailEntry> entries) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
       width: expanded ? 180 : 48,

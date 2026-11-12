@@ -16,12 +16,15 @@ import 'widgets.dart';
 ///
 /// Page: owns keys and event handlers; [DirsState] does the work.
 class DirsView extends StatefulWidget {
-  const DirsView({super.key, required this.state, this.onRail});
+  const DirsView({super.key, required this.state, this.onRail, this.onOpenTasks});
 
   final DirsState state;
 
   /// Gives the keyboard to the mode rail (Left, Tab round the cycle).
   final VoidCallback? onRail;
+
+  /// A click on the Active Directory again: on to the Tasks mode.
+  final VoidCallback? onOpenTasks;
 
   @override
   State<DirsView> createState() => DirsViewState();
@@ -82,7 +85,9 @@ class DirsViewState extends State<DirsView> {
     _pickCursor();
   }
 
+  /// A click picks the directory; a click on the one that already is the Active Directory opens Tasks.
   void _tap(String dir) {
+    if (dir == st.active && widget.onOpenTasks != null) return widget.onOpenTasks!();
     focus.requestFocus();
     _pick(dir);
   }
