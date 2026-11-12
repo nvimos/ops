@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
+import 'list_pair.dart';
 import 'session.dart';
 
 /// State of the Changes view: working tree vs HEAD, the selected file's diff, and actions.
@@ -29,6 +30,12 @@ class ChangesState extends ChangeNotifier {
   int _pending = 0;
   bool _disposed = false;
 
+  /// STAGED (0) over CHANGES (1), as in the Pull request view; CHANGES have the room at start.
+  final lists = ListPair(dominant: 1);
+
+  /// The folded folders of each list.
+  final collapsedDirs = [<String>{}, <String>{}];
+
   @override
   void notifyListeners() {
     if (!_disposed) super.notifyListeners();
@@ -36,6 +43,44 @@ class ChangesState extends ChangeNotifier {
 
   List<StatusFile> get staged => status?.files.where((f) => f.staged).toList() ?? [];
   List<StatusFile> get unstaged => status?.files.where((f) => f.unstaged || f.untracked || f.conflicted).toList() ?? [];
+
+  List<StatusFile> files(int list) => list == 0 ? staged : unstaged;
+
+  // Lists ----------------------------------------------------------------------------------------
+
+  void toggleList(int i) => _lists(() => lists.toggleCollapsed(i));
+  void makeDominant(int i) => _lists(() => lists.toggleDominant(i));
+  void toggleDir(int list, String dir) => _lists(() {
+    final c = collapsedDirs[list];
+    c.contains(dir) ? c.remove(dir) : c.add(dir);
+  });
+
+  /// The header button: collapse every folder but the selected file's; when any is folded, expand all.
+  void toggleAllDirs(int list) => _lists(() {
+    final c = collapsedDirs[list];
+    final folded = c.isNotEmpty;
+    c.clear();
+    if (!folded) c.addAll(foldAll(files(list).map((f) => f.path), keep: selected));
+  });
+
+  /// zR / zM: every folder of both lists.
+  void expandAllDirs() => _lists(() {
+    for (final c in collapsedDirs) {
+      c.clear();
+    }
+  });
+  void collapseAllDirs() => _lists(() {
+    for (final i in [0, 1]) {
+      collapsedDirs[i]
+        ..clear()
+        ..addAll(foldAll(files(i).map((f) => f.path), keep: selected));
+    }
+  });
+
+  void _lists(void Function() change) {
+    change();
+    notifyListeners();
+  }
 
   Future<void> refresh() => UiTiming.instance.time('changes.refresh', _refresh);
 
@@ -77,6 +122,7 @@ class ChangesState extends ChangeNotifier {
     if (path != selected || staged != selectedStaged) hunk = -1;
     selected = path;
     selectedStaged = staged;
+    collapsedDirs[staged ? 0 : 1].remove(dirOf(path));
     diff = null;
     notifyListeners();
     refresh();

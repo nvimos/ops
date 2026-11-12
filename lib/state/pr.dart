@@ -2,13 +2,13 @@ import 'package:flutter/widgets.dart';
 
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
+import 'list_pair.dart';
 import 'session.dart';
+
+export 'list_pair.dart' show dirOf;
 
 /// Unified or side-by-side diff.
 enum DiffLayout { unified, sideBySide }
-
-/// Which left-pane list takes the free height in the Pull request view.
-enum Dominant { files, commits }
 
 /// The part of the Pull request view the list keys (j/k, gg/G, Enter) act on; Tab cycles them.
 enum PrPane { files, commits, diff }
@@ -36,8 +36,8 @@ class PrState extends ChangeNotifier {
   // View choices, for this session only.
   DiffLayout layout = DiffLayout.unified;
   bool wrap = true;
-  Dominant dominant = Dominant.files;
-  bool commitsCollapsed = false;
+  /// FILES CHANGED (0) over COMMITS (1); files have the room at start.
+  final lists = ListPair();
   Set<String> collapsedDirs = {};
 
   /// Where the keys act: the active pane, the commit under the cursor, the current hunk of the
@@ -143,8 +143,18 @@ class PrState extends ChangeNotifier {
   void pickBase(String rev) => pick(base: rev);
   void pickHead(String rev) => pick(head: rev);
   void showAllCommits() => narrow(null);
-  void makeFilesDominant() => toggleDominant(Dominant.files);
-  void makeCommitsDominant() => toggleDominant(Dominant.commits);
+  void makeFilesDominant() => _lists(() => lists.toggleDominant(0));
+  void makeCommitsDominant() => _lists(() => lists.toggleDominant(1));
+  void toggleFiles() => _lists(() => lists.toggleCollapsed(0));
+  void toggleCommits() => _lists(() => lists.toggleCollapsed(1));
+  bool get filesCollapsed => lists.collapsed[0];
+  bool get commitsCollapsed => lists.collapsed[1];
+
+  void _lists(void Function() change) {
+    change();
+    if (!_panes.contains(pane)) pane = PrPane.diff;
+    notifyListeners();
+  }
 
   void select(String path) {
     if (path != selected) hunk = -1;
@@ -155,7 +165,11 @@ class PrState extends ChangeNotifier {
 
   // Keys -------------------------------------------------------------------------------------------
 
-  List<PrPane> get _panes => [PrPane.files, if (!commitsCollapsed && commits.isNotEmpty) PrPane.commits, PrPane.diff];
+  List<PrPane> get _panes => [
+    if (!filesCollapsed) PrPane.files,
+    if (!commitsCollapsed && commits.isNotEmpty) PrPane.commits,
+    PrPane.diff,
+  ];
 
   /// Tab / Shift+Tab: the base picker, the head picker, then the panes. Returns the picker to
   /// focus, or null when a pane takes the keys.
@@ -260,18 +274,6 @@ class PrState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleDominant(Dominant d) {
-    dominant = dominant == d ? (d == Dominant.files ? Dominant.commits : Dominant.files) : d;
-    if (dominant == Dominant.commits) commitsCollapsed = false;
-    notifyListeners();
-  }
-
-  void toggleCommits() {
-    commitsCollapsed = !commitsCollapsed;
-    if (commitsCollapsed && dominant == Dominant.commits) dominant = Dominant.files;
-    notifyListeners();
-  }
-
   void toggleDir(String dir) {
     collapsedDirs.contains(dir) ? collapsedDirs.remove(dir) : collapsedDirs.add(dir);
     notifyListeners();
@@ -282,10 +284,7 @@ class PrState extends ChangeNotifier {
     if (collapsedDirs.isNotEmpty) {
       collapsedDirs = {};
     } else {
-      // Top-level files have no folder row, so '' never folds.
-      collapsedDirs = {for (final f in diff?.files ?? <DiffFile>[]) dirOf(f.path)}
-        ..remove('')
-        ..remove(dirOf(selected ?? ''));
+      collapsedDirs = foldAll(diff?.files.map((f) => f.path) ?? const [], keep: selected);
     }
     notifyListeners();
   }
@@ -309,11 +308,6 @@ class PrState extends ChangeNotifier {
     headFocus.dispose();
     super.dispose();
   }
-}
-
-String dirOf(String path) {
-  final i = path.lastIndexOf('/');
-  return i < 0 ? '' : path.substring(0, i);
 }
 
 /// Paths in the order the file tree shows them: folders sorted, files sorted inside them.
