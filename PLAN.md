@@ -72,9 +72,15 @@ Global
 | `Ctrl+B`           | expand / collapse the sidebar                           |
 | `Ctrl+K`           | command palette: every action and record (Tasks)        |
 | `?`                | the Help mode: this key table                           |
-| `Tab` / `S-Tab`    | next / previous pane: PR base, head, files, commits,    |
-|                    | diff (also from inside a picker); Changes               |
-|                    | files and message; Tasks and Directories list and filter |
+| `Ctrl+Arrow`       | jump to the pane in that direction (PR: head picker,    |
+|                    | FILES, COMMITS, diff, the rail; Changes: STAGED,        |
+|                    | CHANGES, message, diff, the rail)                       |
+| `Tab` / `S-Tab`    | next / previous stop, in visual order (left column top  |
+|                    | to bottom, then the right), wrapping round, as in a     |
+|                    | Windows or HTML page. PR: base, head, files, commits,   |
+|                    | diff. Changes: STAGED, CHANGES, commit message, diff.   |
+|                    | Tasks and Directories: filter, list. The mode rail is one|
+|                    | stop in front of the first (not each mode in it)        |
 | `/`                | filter the list (Tasks, Directories)                    |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
 
@@ -82,11 +88,18 @@ Any list (files, commits, branches, dirs, tasks)
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `j` / `k`, arrows  | next / previous item                                    |
+| `j` / `k`, `Down` / `Up` | next / previous item; in a diff, scroll 3 lines   |
+| `S-Up` / `S-Down`, `K` / `J` | in a diff, scroll 10 lines                     |
+| `{` / `}` (Shift+[ / Shift+]) | three items up / down in a list (PR, Changes, |
+|                    | Tasks, Directories); no hop to another pane             |
+| `h` / `l`, `Left` / `Right` | from a list to the diff / back (PR, Changes)    |
+| `Down` past the last item | the pane visually below the list; `Up` past the    |
+|                    | first item: the pane above (PR: head picker, FILES,     |
+|                    | COMMITS; Changes: STAGED, CHANGES, commit message)      |
 | `gg` / `G`         | first / last item                                       |
 | `Ctrl+D` / `Ctrl+U`| half a page down / up                                   |
 | `Enter`            | open or pick the item                                   |
-| `l` / `h`          | unfold / fold the selected file's folder (PR files)     |
+| `zo` / `zc`        | unfold / fold the selected file's folder (PR files)     |
 | `zR` / `zM`        | expand / collapse all folders                           |
 | `o`                | open the item in Neovim, like a click                   |
 
@@ -94,11 +107,11 @@ Pull request
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `gb` / `gh`        | focus the base / head picker                            |
+| `i`, `gi` / `2gi`  | focus the base picker / the head picker (go input)      |
 | `gs`               | swap base and head                                      |
-| `]f` / `[f`        | next / previous file                                    |
+| `[f` / `]f`        | previous / next file                                    |
 | `]c` / `[c`        | next / previous hunk                                    |
-| `v`                | unified / side-by-side                                  |
+| `v`                | unified / side-by-side (also in Changes)                |
 | `zw`               | toggle line wrapping                                    |
 | `Enter` on a commit| narrow to that commit; `Esc` returns to the full range  |
 
@@ -108,7 +121,7 @@ Changes
 |--------------------|---------------------------------------------------------|
 | `]c` / `[c`        | next / previous hunk; the keys below then act on it     |
 | `-`                | stage or unstage the current hunk, or the file          |
-| `s` / `u`          | stage / unstage                                         |
+| `Space` / `u`      | stage / unstage the current hunk, or the file           |
 | `X`                | discard (asks first)                                    |
 | `cc`               | focus the commit message                                |
 | `Ctrl+Enter`       | commit (in the message field); `Esc` back to the files  |
@@ -118,9 +131,9 @@ Tasks
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
 | `c`                | new task                                                |
-| `s`                | cycle the status                                        |
+| `t`                | cycle the status                                        |
 | `p`                | cycle the priority                                      |
-| `a`                | this project / all projects (shared planning folder)    |
+| `A`                | this project / all projects (shared planning folder)    |
 | Ctrl+click a file  | open it in a new nvim-qt (detail panel)                 |
 | `Esc`              | close the detail panel                                  |
 
@@ -134,7 +147,7 @@ Directories
 <!-- }}} -->
 
 
-### How errors are shown now:
+### How errors are shown now
 
 _not strictly normative_ <!-- {{{ -->
 
@@ -226,8 +239,56 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
 
 Description of the UI.
 
-- Search and filter fields (Tasks, Directories, branch pickers, command palette) have an x at
+### Layout of the window
+
+_not strictly normative_
+
+<!-- {{{ layout -->
+The window is one column: the mode area (everything above the bars), the debug bar when it is
+on, and the status bar. The debug bar is a pane, not an overlay: it takes its height from the
+mode area, which shrinks upward.
+
+```
+┌────┬───────────────────────────────────────────────────────────────┐
+│    │ Mode area                                                     │
+│    │ ┌───────────────┬──────────────────────────────┬────────────┐ │
+│ R  │ │ Left pane     │ Main pane                    │ Review     │ │
+│ a  │ │               │                              │ panel      │ │
+│ i  │ │ Revision      │ Diff                         │ (only when │ │
+│ l  │ │ pickers       │                              │ reviewing) │ │
+│    │ │               │                              │            │ │
+│    │ │ Files         │                              │            │ │
+│    │ │               │                              │            │ │
+│    │ │ Commits       │                              │            │ │
+│    │ └───────────────┴──────────────────────────────┴────────────┘ │
+├────┴───────────────────────────────────────────────────────────────┤
+│ Debug bar (when on)                                                │
+├────────────────────────────────────────────────────────────────────┤
+│ Status bar                                              [bug]      │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+- the rail is as high as the mode area; the two bars span the whole width
+- Pull request and Changes have the left pane (resizable), the main pane and, while reviewing, the
+  review panel; Changes' left pane holds Staged, Changed and the commit message instead
+- Tasks, Directories and Help fill the mode area with one pane
+- the bug button at the right end of the status bar shows and hides the debug bar
+<!-- }}} -->
+
+- Search and filter fields (Tasks, Directories, branch pickers, command palette, Help) have an x at
   the right edge while they hold text; a click clears the field (`ClearButton` in `ui/widgets.dart`)
+  - Alt+X in such a field does the same, and refreshes what it filters, so the filtering resets
+  - Left in a filter moves the text cursor; at the leftmost edge, or in an empty field, it goes to
+    the pane on the left (the mode rail; in Tasks the sidebar)
+
+- Lists keep the selected row in view
+  - how: the row's real position is read from the render tree (`revealIndex` in `ui/reveal.dart`);
+    a row that is not built yet is reached by the average height of the rows that are, frame by
+    frame, until it exists
+  - no row height is written down anywhere, because heights change with the font size, which is
+    meant to become a setting; the folder rows (25 px) and file rows (29 px) of today are not used
+  - found by a bug: an assumed 24 / 26 px per row left the last file, in a folder at the end of
+    the list, below the pane
 
 - Initial view (Connect to Neovim)
   <!-- {{{ initial view -->
@@ -237,7 +298,10 @@ Description of the UI.
   - the app tries to connect once on startup without waiting for a click
   - an address field with a Retry button; Enter in the field also connects
   - a new address drops the current connection and connects there
-  - while connecting, the button reads "Connecting…" and is disabled
+  - while connecting (or while a Neovim start waits to connect) the button reads "Cancel";
+    it ends the attempt at once and shows "connecting cancelled"; the start buttons work again
+  - an attempt gives up after 8 s with "no answer from <address> within 8 s" (a listener that
+    accepts but never answers: a hung Neovim, another program); its socket is closed
   - a failed attempt shows a short reason under the field:
     "no Neovim listening on <address>", "the nvimos plugin is not loaded in this Neovim"
     or a backend API version mismatch
@@ -254,7 +318,13 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
     - the plugin checkout is `NVIMOS_BACKEND`, else a `relay` or `nvimos-poc-backend` folder
       holding `plugin/nvimos.lua`, next to a parent folder
       of the working directory or of the exe
-    - the pressed button reads "Starting…" while the app waits up to about 10 s for it to listen
+    - the pressed button reads "Starting…" while the app waits up to 12 s for it to listen
+      (3 s per connect attempt); then "Neovim did not listen on <address> within 12 s"
+    - when something already accepts connections on the address, nothing is started and the
+      field says "<address> is taken by a program that does not answer as Neovim with the
+      nvimos plugin; close it or use another address"
+    - every failure on this path (a launcher exception included) ends as text under the field,
+      and the buttons never stay disabled for good
     - "nvim is not on PATH" (or nvim-qt) or a missing plugin checkout show under the field
   - a Stop headless button stops every `nvim.exe --headless` of this user, found in the process list
     - "stopped <n> headless Neovim" or "no headless Neovim running" shows under the field
@@ -279,11 +349,29 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
     so every key fits on one screen; the groups keep their order and the columns even out in height
   - a narrow pane gets fewer columns and scrolls
+  - the text is selectable
+  - each key row: the keys, then the description right after them; the key column is as wide as the
+    group's widest key, so descriptions line up inside a group and sit close to their keys
+  - key labels: every key in the accent colour; the `+` of a chord and the `,` between alternatives
+    in a near-background colour; arrows as thin chevron icons; no slash between keys: single keys
+    that go together are written together (`jk`, `hl`), longer ones are separated by a space
+    (`gg  G`, `[c  ]c`); the left bracket comes first
+  - descriptions are words ("next or previous item"), not slashes; the navigation rows just say
+    "navigate", the Shift row "scroll fast"; Tab and Shift+Tab are two rows
+  - typing anywhere searches: the matches of the typed text are highlighted in keys, descriptions
+    and group titles; `/` empties the field and the highlights, Esc empties it and leaves, Enter
+    leaves and keeps the highlights
 - collapsed: icons only, hovering shows the mode name as a tooltip;
   expanded: hovering shows the brief explanation (see above)
 - the selected mode has an accent bar on its left edge and a brighter icon
+  - Pull request and Changes show their two views under the mode; the mode and both views carry the
+    accent bar, 2 px wide, and the current view's bar is twice as wide (4 px)
+- the rail is one stop in the Tab cycle, in front of the first pane (not each mode in it)
+  - while it has the keyboard, a cursor starts on the current mode; Up / Down move it over the
+    expand / collapse button and the modes; Enter, Right or Space presses the button, or switches
+    to the mode and goes into it; Esc goes back
 - a click switches the mode
-  - <M-]> and <M-[> go to previous / next mode. next is down
+  - `<M-]>` and `<M-[>` go to previous / next mode. next is down
 - visible at all times, also while not connected; a mode picked then shows once the app connects
 - modes stay alive in the background, so switching back keeps their selection and scroll position
 - no repo name and no current branch here; the current branch is in the status bar.
@@ -292,11 +380,30 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - see "Directories mode" below
 <!-- }}} -->
 
+### Debug bar
+
+<!-- {{{ debug bar -->
+- for finding out where the focus goes; off at start, toggled with the bug button in the status bar
+- a pane above the status bar that takes its height from the mode area (not an overlay)
+- three lines high; items stack three to a column and continue in the next column, so it never
+  becomes one long line
+- each item is "Label: value" with the colons of a column on one line:
+  - Focus: the focused element by its role in the interface (not its class), e.g. "Commits list",
+    "Base revision field", "Mode rail", "Task detail"
+  - Mode, then the mode's state: in Pull request the commit under the cursor ("3 of 8" and its
+    short hash), file and hunk; in Changes file (staged or not) and hunk
+  - Key: the last key pressed
+- roles come from a table (`focusRoles` and the pane tables in `ui/debug_bar.dart`): a focus node
+  has a label, the label has a role; a node that serves several panes (Pull request, Changes,
+  Tasks) takes its pane from the mode
+<!-- }}} -->
+
 ### Status bar
 
 <!-- {{{ status bar -->
 - appears at the bottom of the app
 - Active Directory, current branch, Neovim's current file and cursor (live), connection state
+- at the right end, a bug button shows and hides the debug bar (see "Debug bar")
 <!-- }}} -->
 
 ### Views (Modes)
@@ -306,7 +413,8 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
 - layout
   <!-- {{{ -->
   - three columns, left to right
-    - left pane, 300 px fixed
+    - left pane, resizable by dragging its right edge (double-click: back to automatic)
+      - automatic width: the narrowest that shows all its text, between 150 and 360 px
       - Base Picker - a Swap button (swaps base and head)
         - base defaults to the checked-out branch (main or master only when HEAD is detached),
           head to the newest other branch
@@ -321,12 +429,16 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - thin dividers between the columns and between the left pane's sections
   <!-- }}} -->
 
-- base and head pickers 
+- base and head pickers
   <!-- {{{ -->
   - commit/branch list that is used by git to show the diffs, the  `base..head` parameter
   - lists the local branches; any revision git accepts can also be typed:
     a sha, a tag, `HEAD~3`
   - the list is filterable. when only one item is left by filter, it is automatically selected and the focus moves to the next picker
+  - the list of all branches drops down when the field is clicked (a click again closes it), and
+    when the user starts typing, where it shows the matches; it does not open when the keys land
+    in the field (Tab, `i`, `gi`, `2gi`, Ctrl+Up)
+  - Enter in a field that was not typed in keeps its value and moves on
   - when both pickers are selected, we show the diff view
   <!-- }}} -->
 
@@ -371,7 +483,7 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - switching view keeps the active file and shows it after switching
   - both view have a row of actions or toggles at the top
     - toggle line wrapping
-  - switching side-by-side and unified: when the PR mode is selected, the sidebar rail gets
+  - switching side-by-side and unified: when the PR or Changes mode is selected, the sidebar rail gets
     two items under the pull request icon, one per view, unified first, then side-by-side
   - unified diff of the selected file, like GitHub's "Files changed" tab.
   - Side-by-side diff and syntax colors come later.
@@ -389,11 +501,48 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
 
 - STAGED over CHANGES behave like the Pull request files and commits: foldable headers,
   the most-room button (CHANGES have it at start), expand / collapse all folders (zR / zM)
+- unified and side-by-side diffs, like the Pull request mode
+  - the rail shows the two views under Changes while it is selected; `v` switches
+  - one choice for both modes (and the line-wrapping toggle, `zw`)
+- the left pane is resizable, like in Pull request
+  - drag its right edge with the mouse; double-click the edge for the automatic width
+  - automatic width: the narrowest that shows all file, folder and header text and the commit
+    button, between 160 and 384 px; dragging is limited to 70 % of the window
+- the files are listed, and walked by the keys, in the order the tree shows them: files of the top
+  folder first, then the folders, each sorted by path (not git's status order)
+- panes: STAGED, CHANGES, the diff (and the commit message for Tab)
+  - Right (l): from a list to the diff; Left (h): from the diff back to the list it came from
+  - Up / Down (j / k): the previous / next file of the active list, in the order shown (top-level
+    files, then folders); in the diff they scroll it 3 lines at a time, with Shift 10 (]c / [c still jump hunks)
+  - past the last item, Down goes to the pane visually below (STAGED to CHANGES, CHANGES to the
+    commit message); past the first, Up goes to the one above; never to the diff
+  - Left (h, a) from a list, with no pane to its left, gives the keyboard to the mode rail
+    - Tab and Shift+Tab visit the rail as one stop, before the first and after the last stop
+    - in the rail, Up / Down (k, j, w, s) move a cursor over the modes, which starts on the current
+      mode; Enter, Right (l, d) or Space switches to it and goes into it; Esc goes back
+  - moving up into a list from a pane below it selects the lowest visible item, not the first or
+    last one (COMMITS up to FILES CHANGED, CHANGES up to STAGED, the message up to CHANGES)
+  - Tasks has three panes: the sidebar (Inbox, task views, sources, labels), the list and the
+    detail of the current task; Left and Right (h, l, a, d) go between them, the sidebar's Left
+    goes to the rail
+    - Up / Down in the sidebar make the next entry the current view
+    - Right from the list goes to the current task's detail; there the direction keys move from
+      element to element (buttons, fields, rows), not by lines; Left past the leftmost element
+      goes back to the list; Tab visits the elements in order and on to the rail; Esc closes it
+  - one special case for the user's layout: the key where D is on QWERTY is Right whatever letter
+    it types (found by its scan code); no other key is matched by position
+  - the arrow keys, h j k l and W A S D do the same (Tasks and Directories have no panes: only
+    w / s there); the commands that had `s` and `a` moved: stage is Space in Changes, status is `t`
+    and the project scope Shift+A in Tasks
+  - the file and commit lists scroll to keep the selected row in view
+  - Tab / Shift+Tab: STAGED, CHANGES, commit message, diff, wrapping round
+  - entering a list selects its first file unless one of its files is selected
+  - the active list has its title lit
 
 
 #### Tasks mode ("Folio")
 
-A Linear-style workspace for the repo's OpenSpec and Backlog.md files: 
+A Linear-style workspace for the repo's OpenSpec and Backlog.md files:
 sidebar, issue list, detail panel from the right, inbox with
 "Needs attention", requirement cards with Added/Modified/Removed pills,
 no raw Markdown,
@@ -516,19 +665,26 @@ _not strictly normative_
   - source: `assets/icon/ops.svg`, only `<polygon>`
   - `make icon` (`tool/icon.ps1`) renders 16, 24, 32, 48 and 256 px into `windows/runner/resources/app_icon.ico`
 
-##  implementation details
+## implementation details
 
-_not strictly normative_ 
+_not strictly normative_
+
+- `make live` logs
+  - everything flutter and the app print is also written to `out/live.log` (a new file per run)
+  - `out/` is ignored by git
+  - read its last lines when diagnosing what the running app did
+- tests
+  - 11 s per test (`dart_test.yaml`, `make test`); run analyze and the whole suite after a change
 
 ## Open questions
 
-_not strictly normative_ 
+_not strictly normative_
 
 - Flutter on exFAT (`H:`): if builds fail on symlinks or file locks, move the SDK to an NTFS drive.
 
 ### Steps (one commit each)
 
-_not strictly normative_ 
+_not strictly normative_
 
 1. `flutter create --platforms=windows`, app shell with the sidebar and an empty main area.
 2. RPC client with tests against a headless `nvim --listen`.

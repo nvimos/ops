@@ -8,10 +8,14 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 ## Running tests
 
 - Never wait on a hung test. Every run has a timeout at two levels:
-  - per test: `dart_test.yaml` sets `timeout: 45s`, and `make test` passes `--timeout 45s`;
+  - per test: `dart_test.yaml` sets `timeout: 11s`, and `make test` passes `--timeout 11s`;
     a test that needs longer sets its own `timeout:` explicitly
   - per command: give the shell tool call a timeout of a few minutes, not the 10-minute maximum,
     and run one test file (`flutter test test/<file>.dart`) while iterating.
+  - file operations (`cat`, here-docs, `sed`, small scripts that write files) get a shell tool
+    timeout of 10 s at most: they never take longer.
+- Run only the test files that cover the change or feature (`flutter test test/a_test.dart
+  test/b_test.dart`), not the whole suite; analyze (`make analyze`) after every change.
 - Widget tests run on a fake clock: no real sockets or `await` on real I/O in the test body (it
   never completes), no `pumpAndSettle` with a repeating animation or timer (spinners, retry
   timers). Use `pump(duration)`. For real Neovim in a widget test, do the I/O inside
@@ -22,6 +26,8 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 - Flutter: `C:/tools/flutter` (Makefile `FLUTTER_ROOT`), `PUB_CACHE=C:/tools/pub-cache`.
 - `make analyze` lists `package:flutter/material.dart` deprecation infos on every file
   (Flutter 3.50); anything else is a real finding.
+- New code uses no deprecated APIs (Flutter, Dart, packages): look up the replacement instead. The
+  `material.dart` import infos are the one accepted exception, until the move to `material_ui`.
 
 ## UI code
 
@@ -54,6 +60,30 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   `autofocus` in a mode, or a hidden mode in the IndexedStack takes the keys.
 - Plain keys are ignored while a text field has focus (`_typing()` in the shell).
 - Two-key commands (`gs`, `]f`, `zw`) go through `KeySequence` (`lib/ui/key_sequence.dart`).
+- Panes and lists: a pane is a part of a mode that takes the keys; a list is a pane that enumerates
+  items (files, commits, directories, tasks). Every mode with panes follows the same motion rules:
+  - Up / Down and `j` / `k` (arrows, hjkl and WASD are the same keys; a command that wanted one of those
+    keys moved, and conflicts are the user's to decide). A handler never binds these letters itself:
+    it asks `navKey(event)` (`lib/ui/nav_keys.dart`), so they cannot drift apart (the one exception is
+    the key at D's position on QWERTY, matched by scan code: it is Right on the user's layout); a pending key
+    sequence (`KeySequence.pending`, the `w` of `zw`) goes first: the previous / next item of the
+    active list, in the order the list shows them (file trees: top-level files, then folders)
+  - past the last item, one more Down goes to the pane visually below the list, past the first item
+    Up goes to the pane visually above it; never to the diff
+    (PR: head picker < FILES < COMMITS; Changes: STAGED < CHANGES < commit message)
+  - Right / `l` goes from a list to the pane on its right (the diff); Left / `h` comes back to the
+    list it came from
+  - in a diff, Up / Down scroll 3 lines, Shift (or `J` / `K`) 10; `]c` / `[c` jump hunks
+  - Tab / Shift+Tab visit every stop in visual order and wrap round, like a Windows or HTML page;
+    the mode rail is one stop in front of the first (not each mode in it); Ctrl+arrow jumps to the
+    pane in that direction; Left from a leftmost list goes to the rail
+  - going up into a list from a lower pane selects its lowest visible item
+  - a list keeps its selected row in view (`lib/ui/reveal.dart`); the active list's title is lit
+  - the logic lives in the state class (`movePane`, `moveCursor`), not in the key handler, so a
+    test can drive it; the debug bar (bug button, bottom right) shows where the focus is
+  - the debug bar names the focused element by its role in the interface, not its class: a new
+    `FocusNode` gets a `debugLabel` and an entry in `focusRoles` (`lib/ui/debug_bar.dart`); a
+    mode with several panes under one node adds its panes to the pane tables there
 - A new key goes into three places: the handler, `keyTable` in `lib/ui/help_view.dart` (the Help
   mode), and the Keys table in `PLAN.md`.
 
