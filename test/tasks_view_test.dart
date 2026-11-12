@@ -6,6 +6,7 @@ import 'package:nvimos_poc/tasks/workspace.dart';
 import 'package:nvimos_poc/ui/tasks/tasks_nav.dart';
 import 'package:nvimos_poc/ui/tasks/tasks_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
+import 'package:nvimos_poc/ui/widgets.dart';
 
 import 'session_test.dart' show until;
 import 'support/nvim.dart';
@@ -101,6 +102,12 @@ void main() {
     await t.pump();
     expect(find.text('first'), findsNothing);
     expect(find.text('second'), findsNWidgets(2)); // the row and the filter field
+
+    // The x in the field clears it, and every row is back.
+    await t.tap(find.descendant(of: find.byType(ClearButton), matching: find.byIcon(Icons.close)));
+    await t.pump();
+    expect(find.text('first'), findsOneWidget);
+    expect(find.descendant(of: find.byType(ClearButton), matching: find.byIcon(Icons.close)), findsNothing);
 
     await t.pumpWidget(const SizedBox());
     await t.runAsync(() async {

@@ -290,22 +290,41 @@ class _PaletteState extends State<Palette> {
   }
 }
 
-class _PaletteField extends StatelessWidget {
+class _PaletteField extends StatefulWidget {
   const _PaletteField({required this.onChanged});
 
   final ValueChanged<String> onChanged;
 
   @override
+  State<_PaletteField> createState() => _PaletteFieldState();
+}
+
+class _PaletteFieldState extends State<_PaletteField> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => TextField(
+    controller: _text,
     autofocus: true,
     style: const TextStyle(fontSize: 15),
-    decoration: const InputDecoration(
+    decoration: InputDecoration(
       hintText: 'Type a command or search…',
       filled: false,
       border: InputBorder.none,
-      contentPadding: EdgeInsets.all(16),
+      contentPadding: const EdgeInsets.all(16),
+      suffixIcon: Padding(
+        padding: const EdgeInsets.only(right: 10),
+        child: ClearButton(controller: _text, onCleared: widget.onChanged),
+      ),
+      suffixIconConstraints: ClearButton.constraints,
     ),
-    onChanged: onChanged,
+    onChanged: widget.onChanged,
   );
 }
 

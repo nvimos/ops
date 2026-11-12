@@ -158,3 +158,36 @@ class Spinner extends StatelessWidget {
     child: const CircularProgressIndicator(strokeWidth: 1.5),
   );
 }
+
+/// An x at the right edge of a search field, shown while it has text; a click clears the field and
+/// reports the empty text, as typing would.
+class ClearButton extends StatelessWidget {
+  const ClearButton({super.key, required this.controller, required this.onCleared});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onCleared;
+
+  /// For InputDecoration.suffixIconConstraints, so the x doesn't make the field taller.
+  static const constraints = BoxConstraints(minWidth: 26, minHeight: 20);
+
+  void _clear() {
+    controller.clear();
+    onCleared('');
+  }
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<TextEditingValue>(
+    valueListenable: controller,
+    builder: (context, v, _) => v.text.isEmpty
+        ? const SizedBox.shrink()
+        : Tooltip(
+            message: 'Clear',
+            child: InkWell(
+              canRequestFocus: false,
+              borderRadius: BorderRadius.circular(8),
+              onTap: _clear,
+              child: const Padding(padding: EdgeInsets.all(3), child: Icon(Icons.close, size: 14, color: C.muted)),
+            ),
+          ),
+  );
+}
