@@ -9,7 +9,7 @@ export PUB_CACHE ?= C:/tools/pub-cache
 FLUTTER := $(FLUTTER_ROOT)/bin/flutter.bat
 PORT    ?= 6666
 
-.PHONY: help run live build test analyze nvim timings measure
+.PHONY: help run live build dist single test analyze nvim timings measure
 
 # `make help` prints the `##@` lines as section headers and `target: ## text` as entries.
 .DEFAULT_GOAL := help
@@ -27,6 +27,14 @@ live: ## run the app (debug) and hot-reload it on every save under lib/ (RESTART
 
 build: ## build the release exe (build/windows/x64/runner/Release)
 	$(FLUTTER) build windows --release
+
+VERSION ?= $(shell pwsh -NoProfile -Command "Get-Date -Format yyyy-MM-dd")
+
+dist: build ## release build zipped as dist/ops-windows-x64-<VERSION>.zip (VERSION= defaults to today)
+	pwsh -NoProfile -File tool/dist.ps1 -Zip -Version '$(VERSION)'
+
+single: build ## one-file exe dist/ops-windows-x64-<VERSION>-single.exe (needs Enigma Virtual Box)
+	pwsh -NoProfile -File tool/dist.ps1 -Single -Version '$(VERSION)'
 
 ##@ test
 
