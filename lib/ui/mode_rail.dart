@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
-import '../state/pr.dart';
+import '../state/diff_prefs.dart';
 import 'theme.dart';
 
 enum Mode { pullRequest, changes, tasks, directories, help }

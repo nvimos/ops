@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Colors: dense and calm, one strong accent (Linear-like, dark first).
 class C {
