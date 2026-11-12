@@ -23,7 +23,7 @@ run: ## run the app (debug); connects to 127.0.0.1:6666
 	$(FLUTTER) run -d windows
 
 live: ## run the app (debug) and hot-reload it on every save under lib/ (RESTART=1: hot restart)
-	pwsh -NoProfile -File tool/live.ps1 -Flutter '$(FLUTTER)' $(if $(RESTART),-Restart,)
+	pwsh -NoProfile -File tool/live.ps1 -Flutter "$(FLUTTER)" $(if $(RESTART),-Restart,)
 
 build: ## build the release exe (build/windows/x64/runner/Release)
 	$(FLUTTER) build windows --release
@@ -41,8 +41,8 @@ release: build ## both downloads from one build: the zip and the single exe
 
 ##@ test
 
-test: ## unit and integration tests (the RPC tests start a headless Neovim); 45 s per test
-	$(FLUTTER) test --timeout 45s
+test: ## unit and integration tests (the RPC tests start a headless Neovim); 11 s per test
+	$(FLUTTER) test --timeout 11s
 
 analyze: ## static analysis
 	$(FLUTTER) analyze
