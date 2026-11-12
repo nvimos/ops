@@ -84,7 +84,8 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
     test can drive it; the debug bar (bug button, bottom right) shows where the focus is
   - the debug bar names the focused element by its role in the interface, not its class: a new
     `FocusNode` gets a `debugLabel` and an entry in `focusRoles` (`lib/ui/debug_bar.dart`); a
-    mode with several panes under one node adds its panes to the pane tables there
+    mode with several panes under one node adds its panes to the pane tables there; it also shows
+    the last key and the last mouse button or wheel event
 - A new key goes into three places: the handler, `keyTable` in `lib/ui/help_view.dart` (the Help
   mode), and the Keys table in `PLAN.md`.
 
