@@ -674,7 +674,7 @@ _not strictly normative_
   - `out/` is ignored by git
   - read its last lines when diagnosing what the running app did
 - tests
-  - 11 s per test (`dart_test.yaml`, `make test`); run analyze and the whole suite after a change
+  - 11 s per test (`TEST_TIMEOUT` in the Makefile, `dart_test.yaml`); run analyze and the test files of the change after it, not the whole suite
 
 ## Open questions
 
