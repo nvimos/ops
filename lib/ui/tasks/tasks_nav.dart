@@ -6,7 +6,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'icons.dart';
 
-/// The Tasks sidebar: project, running agents, Inbox, task views by status, sources, labels.
+/// The Tasks Facets pane: project, running agents, Inbox, task views by status, sources, labels.
 class TasksNav extends StatelessWidget {
   const TasksNav({
     super.key,
@@ -17,9 +17,14 @@ class TasksNav extends StatelessWidget {
     required this.jobs,
     required this.onCancelJob,
     this.active = false,
+    this.scrolls = true,
   });
 
-  /// The keys act on the sidebar: its current entry is drawn in the accent colour.
+  /// The mouse wheel scrolls the pane; false: the wheel steps through the entries instead (the
+  /// owner does that), so the pane does not scroll.
+  final bool scrolls;
+
+  /// The keys act on the Facets: its current entry is drawn in the accent colour.
   final bool active;
   final TaskBrowser browser;
   final String projectName;
@@ -58,6 +63,7 @@ class TasksNav extends StatelessWidget {
     final inbox = NavTarget('Inbox', TView.inbox, count: browser.inboxCount);
     final labels = browser.navLabels();
     return ListView(
+      physics: scrolls ? null : const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(vertical: 10),
       children: [
         ProjectHeader(name: projectName, loading: loading),
@@ -83,7 +89,7 @@ class TasksNav extends StatelessWidget {
   }
 }
 
-/// A sidebar entry: icon, label, count.
+/// A Facets entry: icon, label, count.
 class NavItem extends StatelessWidget {
   const NavItem({
     super.key,

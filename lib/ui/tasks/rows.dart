@@ -19,6 +19,7 @@ class TaskRows extends StatelessWidget {
     required this.ws,
     required this.selected,
     required this.scroll,
+    this.scrolls = true,
     required this.headerIcons,
     required this.onTap,
   });
@@ -30,6 +31,9 @@ class TaskRows extends StatelessWidget {
   final Object? selected;
   final ScrollController scroll;
 
+  /// False while the wheel steps through the rows instead (see `WheelMode`): no scrolling by it.
+  final bool scrolls;
+
   /// Group titles are statuses or stages: show their icon.
   final bool headerIcons;
   final ValueChanged<Object?> onTap;
@@ -39,6 +43,7 @@ class TaskRows extends StatelessWidget {
     if (rows.isEmpty) return const Empty('Nothing here.');
     return ListView.builder(
       controller: scroll,
+      physics: scrolls ? null : const NeverScrollableScrollPhysics(),
       itemExtent: rowHeight,
       itemCount: rows.length,
       itemBuilder: (context, i) {

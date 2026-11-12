@@ -21,7 +21,7 @@ class WidenButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IconButton(
-    tooltip: widen.wide ? 'Narrow the panel' : 'Widen the panel over the list',
+    tooltip: widen.wide ? 'Narrow the panel (.)' : 'Widen the panel over the list (.)',
     visualDensity: VisualDensity.compact,
     iconSize: 18,
     onPressed: widen.onToggle,
@@ -258,7 +258,7 @@ class ChecksSection extends StatelessWidget {
 
   final String title;
   final List<Check> checks;
-  final ValueChanged<Check> onCheck;
+  final void Function(Check c, bool cycle) onCheck;
   final ValueChanged<String>? onTask;
 
   @override
@@ -269,7 +269,7 @@ class ChecksSection extends StatelessWidget {
         for (final c in checks)
           Padding(
             padding: const EdgeInsets.only(bottom: 5),
-            child: CheckRow(c, onTap: () => onCheck(c), onTask: onTask),
+            child: CheckRow(c, onCheck: (cycle) => onCheck(c, cycle), onTask: onTask),
           ),
       ],
     ),

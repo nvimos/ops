@@ -24,7 +24,8 @@ class ReviewPanel extends StatelessWidget {
 
   Future<void> _status(Task t, String s) async => onError?.call(await ws.setTaskStatus(t, s));
 
-  Future<void> _check(Task t, Check c) async => onError?.call(await ws.toggleCheck(t.path, c));
+  Future<void> _check(Task t, Check c, bool cycle) async =>
+      onError?.call(await ws.toggleCheck(t.path, c, cycle: cycle));
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -37,7 +38,7 @@ class ReviewPanel extends StatelessWidget {
         children: [
           _ReviewTitle(task: t, onOpenTask: onOpenTask),
           const Divider(height: 1),
-          Expanded(child: _ReviewChecks(task: t, onCheck: (c) => _check(t, c), onTask: onOpenTask)),
+          Expanded(child: _ReviewChecks(task: t, onCheck: (c, cycle) => _check(t, c, cycle), onTask: onOpenTask)),
           _Outcomes(current: t.status, onPick: (s) => _status(t, s)),
         ],
       );
@@ -75,7 +76,7 @@ class _ReviewChecks extends StatelessWidget {
   const _ReviewChecks({required this.task, required this.onCheck, required this.onTask});
 
   final Task task;
-  final ValueChanged<Check> onCheck;
+  final void Function(Check c, bool cycle) onCheck;
   final void Function(String id)? onTask;
 
   @override

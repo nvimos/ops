@@ -214,7 +214,7 @@ class _TasksTab extends StatelessWidget {
       itemBuilder: (_, i) => ChecksSection(
         title: groups[i].$1,
         checks: groups[i].$2,
-        onCheck: (ch) => actions.toggleCheck(change.tasks!.path, ch),
+        onCheck: (ch, cycle) => actions.toggleCheck(change.tasks!.path, ch, cycle: cycle),
         onTask: actions.openTask,
       ),
     );

@@ -13,6 +13,7 @@ import '../../tasks/workspace.dart';
 import '../error_view.dart';
 import '../key_sequence.dart';
 import '../nav_keys.dart';
+import '../wheel_mode.dart';
 import '../widgets.dart';
 import 'change_detail.dart';
 import 'detail_parts.dart';
@@ -30,7 +31,7 @@ export '../../tasks/browser.dart' show ChangeKey, LegacyKey, SpecKey, MilestoneK
 ///
 /// Page: owns dialogs, keys and event handlers; [TaskBrowser] holds what is shown and selected,
 /// [Workspace] the files.
-/// The panes of the Tasks mode the arrow keys move between: the sidebar, the task list and the
+/// The panes of the Tasks mode the arrow keys move between: the Facets, the task list and the
 /// detail of the current task (where the keys move from element to element, not by lines).
 enum TasksPane { nav, list, detail }
 
@@ -52,7 +53,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   late final browser = TaskBrowser(widget.ws, lastSeen: lastSeen);
   Session? _session;
 
-  /// Where the up / down keys act: the sidebar's entries or the task list.
+  /// Where the up / down keys act: the Facets' entries or the task list.
   TasksPane pane = TasksPane.list;
 
   void _goPane(TasksPane p) {
@@ -60,14 +61,14 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     focus.requestFocus();
   }
 
-  /// Left: from the detail to the list, from the list to the sidebar, from the sidebar to the rail.
+  /// Left: from the detail to the list, from the list to the Facets, from the Facets to the rail.
   void _left() => switch (pane) {
     TasksPane.detail => _goPane(TasksPane.list),
     TasksPane.list => _goPane(TasksPane.nav),
     TasksPane.nav => _toRail(),
   };
 
-  /// Right: from the sidebar to the list, from the list to the detail of the current task.
+  /// Right: from the Facets to the list, from the list to the detail of the current task.
   void _right() {
     if (pane == TasksPane.nav) {
       _goPane(TasksPane.list);
@@ -128,6 +129,10 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       return KeyEventResult.handled;
     }
     final typing = primary?.context?.widget is EditableText || primary?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (k == LogicalKeyboardKey.period && !typing) {
+      toggleWide();
+      return KeyEventResult.handled;
+    }
     final nav = typing ? null : navKey(e);
     if (nav == null) return KeyEventResult.ignored;
     final moved = primary?.focusInDirection(switch (nav.dir) {
@@ -140,7 +145,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     return KeyEventResult.handled;
   }
 
-  /// Up / Down and friends: the next sidebar entry or task, whichever pane has the keys.
+  /// Up / Down and friends: the next Facets entry or task, whichever pane has the keys.
   void _step(int delta) => pane == TasksPane.nav ? browser.moveNav(delta) : move(delta);
 
   /// Ctrl+arrow, sent by the shell: only Left and Right go anywhere here.
@@ -349,7 +354,8 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Future<void> setPriority(Task t, String priority) async => _snack(await ws.setTaskPriority(t, priority));
 
   @override
-  Future<void> toggleCheck(String path, Check c) async => _snack(await ws.toggleCheck(path, c));
+  Future<void> toggleCheck(String path, Check c, {bool cycle = false}) async =>
+      _snack(await ws.toggleCheck(path, c, cycle: cycle));
 
   @override
   Future<void> review(Task t, String branch) async => widget.onReview?.call(t, branch);
@@ -366,7 +372,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   void _toRail() => widget.onRail?.call();
 
-  /// Tab from the rail: the sidebar; Shift+Tab from the rail: the list.
+  /// Tab from the rail: the Facets; Shift+Tab from the rail: the list.
   void enterFromRail({required bool forward}) {
     if (forward) return _goPane(TasksPane.nav);
     browser.selected == null ? _goPane(TasksPane.list) : _enterDetail(last: true);
@@ -425,7 +431,8 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       LogicalKeyboardKey.enter when browser.selected == null => () => move(1),
       LogicalKeyboardKey.escape when browser.selected != null => close,
       LogicalKeyboardKey.slash => filterFocus.requestFocus,
-      // Tab goes round: rail, sidebar, filter, list, rail.
+      LogicalKeyboardKey.period when browser.selected != null => toggleWide,
+      // Tab goes round: rail, Facets, filter, list, rail.
       LogicalKeyboardKey.tab => (pane == TasksPane.nav) != hw.isShiftPressed
           ? filterFocus.requestFocus
           : (pane == TasksPane.list && !hw.isShiftPressed && browser.selected != null ? _enterDetail : _toRail),
@@ -469,6 +476,15 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   void _tapRow(Object? key) {
     focus.requestFocus();
     browser.toggle(key);
+  }
+
+  /// A click in a pane makes it the one the keys act on, as a key that goes there does (so the
+  /// debug bar and the Up / Down keys agree with what was clicked). Only the Facets and the list:
+  /// the detail has its own focus, and a click on one of its buttons does not hand it the keys.
+  void _clicked(TasksPane p) {
+    if (pane == p) return;
+    setState(() => pane = p);
+    focus.requestFocus();
   }
 
   // Layout ---------------------------------------------------------------------------------------
@@ -521,7 +537,16 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     );
   }
 
-  Widget _nav() => TasksNav(
+  Widget _nav() => Listener(
+    onPointerDown: (_) => _clicked(TasksPane.nav),
+    child: WheelMode(
+      onStep: browser.moveNav,
+      builder: (context, steps) => _navPane(scrolls: !steps),
+    ),
+  );
+
+  Widget _navPane({required bool scrolls}) => TasksNav(
+    scrolls: scrolls,
     active: pane == TasksPane.nav,
     browser: browser,
     projectName: ws.projectName,
@@ -548,13 +573,21 @@ class TasksViewState extends State<TasksView> implements TaskActions {
         action: _viewAction(),
       ),
       Expanded(
-        child: TaskRows(
-          rows: rows,
-          ws: ws,
-          selected: browser.selected,
-          scroll: scroll,
-          headerIcons: browser.view == TView.changes || (browser.view == TView.tasks && browser.groupBy == 'status'),
-          onTap: _tapRow,
+        child: Listener(
+          onPointerDown: (_) => _clicked(TasksPane.list),
+          child: WheelMode(
+            onStep: move,
+            builder: (context, steps) => TaskRows(
+              rows: rows,
+              ws: ws,
+              selected: browser.selected,
+              scroll: scroll,
+              scrolls: !steps,
+              headerIcons:
+                  browser.view == TView.changes || (browser.view == TView.tasks && browser.groupBy == 'status'),
+              onTap: _tapRow,
+            ),
+          ),
         ),
       ),
     ],

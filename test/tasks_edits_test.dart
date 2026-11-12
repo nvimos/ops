@@ -54,6 +54,30 @@ void main() {
     expect(applyEdits(taskLines, [toggleCheckEdit(taskLines, nested)])[10], '  - [ ] nested');
   });
 
+  test('Ctrl+click steps the mark round the tilde plugin order: open, x, ., ~, n', () {
+    var lines = ['- [ ] a'];
+    final seen = <String>[];
+    for (var i = 0; i < 6; i++) {
+      final c = parseCheck(lines[0], 0)!;
+      seen.add(c.mark);
+      lines = applyEdits(lines, [toggleCheckEdit(lines, c, cycle: true)]);
+    }
+    expect(seen, [' ', 'x', '.', '~', 'n', ' ']);
+    expect(parseCheck('- [~] a', 0)!.done, isFalse);
+    expect(parseCheck('- [x] a', 0)!.done, isTrue);
+  });
+
+  test('a plain click ticks an open box and clears any other mark', () {
+    String click(String l) => applyEdits([l], [toggleCheckEdit([l], parseCheck(l, 0)!)]).single;
+    expect([click('- [ ] a'), click('- [x] a'), click('- [.] a'), click('- [~] a'), click('- [n] a')], [
+      '- [x] a',
+      '- [ ] a',
+      '- [ ] a',
+      '- [ ] a',
+      '- [ ] a',
+    ]);
+  });
+
   test('change status edit keeps the backlog reference', () {
     final c = parseChanges({
       'openspec/changes/7-a/proposal.md': ['# 7. a', '', 'Status: To Do (backlog TASK-7)'],

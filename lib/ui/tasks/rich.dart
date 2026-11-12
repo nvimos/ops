@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../tasks/markdown.dart';
@@ -91,7 +92,7 @@ class Blocks extends StatelessWidget {
 
   final List<Block> blocks;
   final void Function(String id)? onTask;
-  final void Function(Check c)? onCheck;
+  final void Function(Check c, bool cycle)? onCheck;
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +121,7 @@ class Blocks extends StatelessWidget {
               ),
               CheckBlock(:final check) => CheckRow(
                 check,
-                onTap: onCheck == null ? null : () => onCheck!(check),
+                onCheck: onCheck == null ? null : (cycle) => onCheck!(check, cycle),
                 onTask: onTask,
               ),
               CodeBlock(:final lines) => Container(
@@ -140,43 +141,93 @@ class Blocks extends StatelessWidget {
   }
 }
 
-/// A checklist item: a box you can click, the text without `- [ ]`.
-class CheckRow extends StatelessWidget {
-  const CheckRow(this.check, {super.key, this.onTap, this.onTask});
+/// A checklist item: a box, the text without `- [ ]`. A click on the box or the text ticks it
+/// (or clears it), Ctrl+click or right click steps it round the marks (see `nextMark`).
+/// [onCheck] gets whether to cycle.
+class CheckRow extends StatefulWidget {
+  const CheckRow(this.check, {super.key, this.onCheck, this.onTask});
 
   final Check check;
-  final VoidCallback? onTap;
+  final void Function(bool cycle)? onCheck;
   final void Function(String id)? onTask;
 
   @override
+  State<CheckRow> createState() => _CheckRowState();
+}
+
+class _CheckRowState extends State<CheckRow> {
+  bool _hover = false;
+
+  void _enter(bool on) {
+    if (widget.onCheck != null) setState(() => _hover = on);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final check = widget.check;
+    final onCheck = widget.onCheck;
     final text = check.text.replaceFirst(RegExp(r'^#\d+\s+'), '').replaceFirst(RegExp(r'^\d+(\.\d+)*\s+'), '');
-    return Padding(
-      padding: EdgeInsets.only(left: check.indent * 6.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(0, 2, 8, 0),
-              child: Icon(
-                check.done ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded,
-                size: 17,
-                color: check.done ? C.accent : C.muted,
+    final muted = check.done || check.mark == 'n';
+    return MouseRegion(
+      cursor: onCheck == null ? MouseCursor.defer : SystemMouseCursors.click,
+      onEnter: (_) => _enter(true),
+      onExit: (_) => _enter(false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onCheck == null ? null : () => onCheck(HardwareKeyboard.instance.isControlPressed),
+        onSecondaryTap: onCheck == null ? null : () => onCheck(true),
+        child: Container(
+          decoration: BoxDecoration(color: _hover ? C.hover : Colors.transparent, borderRadius: BorderRadius.circular(4)),
+          padding: EdgeInsets.only(left: check.indent * 6.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(padding: const EdgeInsets.fromLTRB(2, 2, 8, 0), child: CheckMark(check.mark)),
+              Expanded(
+                child: RichLine(
+                  text,
+                  onTask: widget.onTask,
+                  style: T.body.copyWith(height: 1.45, color: muted ? C.muted : C.text),
+                ),
               ),
-            ),
+            ],
           ),
-          Expanded(
-            child: RichLine(
-              text,
-              onTask: onTask,
-              style: T.body.copyWith(height: 1.45, color: check.done ? C.muted : C.text),
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+}
+
+/// The box for a checklist [mark]: blank open, x ticked, `.` in progress (a dot in the box), `~`
+/// partly done (a dash), `n` will not do (a cross, dimmed).
+class CheckMark extends StatelessWidget {
+  const CheckMark(this.mark, {super.key, this.size = 17});
+
+  final String mark;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (mark) {
+      'x' || 'X' => Icon(Icons.check_box_rounded, size: size, color: C.accent),
+      '~' => Icon(Icons.indeterminate_check_box_rounded, size: size, color: C.yellow),
+      'n' => Icon(Icons.disabled_by_default_rounded, size: size, color: C.faint),
+      '.' => SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(Icons.check_box_outline_blank_rounded, size: size, color: C.accent),
+            Container(
+              width: size * .3,
+              height: size * .3,
+              decoration: const BoxDecoration(color: C.accent, shape: BoxShape.circle),
+            ),
+          ],
+        ),
+      ),
+      _ => Icon(Icons.check_box_outline_blank_rounded, size: size, color: C.muted),
+    };
   }
 }
