@@ -75,7 +75,7 @@ void main() {
   test('bracket keys list the left bracket first', () {
     final keys = [for (final (_, rows) in keyTable) for (final (k, _) in rows) k];
     expect(keys, containsAll(['Alt+[]', '[f  ]f', '[c  ]c']));
-    expect(keys.where((k) => k.contains(']') && k.indexOf(']') < (k.indexOf('[') < 0 ? 1 << 20 : k.indexOf('['))), isEmpty);
+    expect(keys.where((k) => k.contains(']') && (!k.contains('[') || k.indexOf(']') < k.indexOf('['))), isEmpty);
   });
 
   testWidgets('every key is accent-coloured; plus and comma fade; no box around a key', (tester) async {
