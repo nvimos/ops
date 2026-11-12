@@ -1,5 +1,7 @@
 # nvimos-poc-frontend
 
+[![test](https://github.com/nvimos/ops/actions/workflows/test.yml/badge.svg)](https://github.com/nvimos/ops/actions/workflows/test.yml)
+
 Flutter Windows app over a running Neovim (backend: `~/es/nvimos-poc-backend`). Plan: [PLAN.md](PLAN.md).
 
 ## Run

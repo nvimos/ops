@@ -1,0 +1,38 @@
+# Analyze and test the app on Windows, with a real Neovim and the backend plugin (nvimos/relay).
+name: test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: backend plugin
+        uses: actions/checkout@v4
+        with:
+          repository: nvimos/relay
+          path: relay
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+          cache: true
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: git identity for the test repos
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.com
+          git config --global init.defaultBranch main
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+      - run: flutter test --timeout 45s
+        env:
+          NVIMOS_BACKEND: ${{ github.workspace }}/relay
