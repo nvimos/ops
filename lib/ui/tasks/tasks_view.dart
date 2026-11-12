@@ -12,6 +12,7 @@ import '../../tasks/model.dart';
 import '../../tasks/workspace.dart';
 import '../error_view.dart';
 import '../key_sequence.dart';
+import '../nav_keys.dart';
 import '../widgets.dart';
 import 'change_detail.dart';
 import 'detail_parts.dart';
@@ -29,8 +30,15 @@ export '../../tasks/browser.dart' show ChangeKey, LegacyKey, SpecKey, MilestoneK
 ///
 /// Page: owns dialogs, keys and event handlers; [TaskBrowser] holds what is shown and selected,
 /// [Workspace] the files.
+/// The panes of the Tasks mode the arrow keys move between: the sidebar, the task list and the
+/// detail of the current task (where the keys move from element to element, not by lines).
+enum TasksPane { nav, list, detail }
+
 class TasksView extends StatefulWidget {
-  const TasksView({super.key, required this.ws, this.onReview});
+  const TasksView({super.key, required this.ws, this.onReview, this.onRail});
+
+  /// Gives the keyboard to the mode rail (Left, Tab round the cycle).
+  final VoidCallback? onRail;
 
   final Workspace ws;
   final void Function(Task task, String branch)? onReview;
@@ -44,13 +52,112 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   late final browser = TaskBrowser(widget.ws, lastSeen: lastSeen);
   Session? _session;
 
+  /// Where the up / down keys act: the sidebar's entries or the task list.
+  TasksPane pane = TasksPane.list;
+
+  void _goPane(TasksPane p) {
+    setState(() => pane = p);
+    focus.requestFocus();
+  }
+
+  /// Left: from the detail to the list, from the list to the sidebar, from the sidebar to the rail.
+  void _left() => switch (pane) {
+    TasksPane.detail => _goPane(TasksPane.list),
+    TasksPane.list => _goPane(TasksPane.nav),
+    TasksPane.nav => _toRail(),
+  };
+
+  /// Right: from the sidebar to the list, from the list to the detail of the current task.
+  void _right() {
+    if (pane == TasksPane.nav) {
+      _goPane(TasksPane.list);
+    } else if (pane == TasksPane.list) {
+      _enterDetail();
+    }
+  }
+
+  void _navigate(NavKey k) {
+    switch (k.dir) {
+      case NavDir.up || NavDir.down:
+        _step(k.delta);
+      case NavDir.left:
+        _left();
+      case NavDir.right:
+        _right();
+    }
+  }
+
+  // The detail pane ------------------------------------------------------------------------------
+
+  /// The elements of the detail that take the keyboard (buttons, fields, rows), in tree order.
+  final _detailScope = FocusScopeNode(debugLabel: 'task detail');
+
+  List<FocusNode> _detailElements() => _detailScope.traversalDescendants.where((n) => n.canRequestFocus).toList();
+
+  /// Right from the list: the keyboard goes to the first (with [last]: last) element of the current
+  /// task's detail. With no element to take it, the pane is still active.
+  void _enterDetail({bool last = false}) {
+    if (browser.selected == null) move(1); // nothing is current yet: the first task
+    if (browser.selected == null) return;
+    setState(() => pane = TasksPane.detail);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final els = _detailElements();
+      els.isEmpty ? focus.requestFocus() : (last ? els.last : els.first).requestFocus();
+    });
+  }
+
+  /// Keys while the detail has the keyboard: the direction keys move to the neighbouring element
+  /// (Left past the first one goes back to the list); Tab goes through the elements in order, and
+  /// on from the last one to the rail; Esc closes the detail. Enter and Space belong to the element.
+  KeyEventResult _detailKey(KeyEvent e) {
+    final primary = FocusManager.instance.primaryFocus;
+    final k = e.logicalKey;
+    if (k == LogicalKeyboardKey.escape) {
+      close();
+      _goPane(TasksPane.list);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.tab) {
+      final els = _detailElements();
+      final i = primary == null ? -1 : els.indexOf(primary);
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        i > 0 ? els[i - 1].requestFocus() : _goPane(TasksPane.list);
+      } else {
+        i + 1 < els.length ? els[i + 1].requestFocus() : (i < 0 && els.isNotEmpty ? els.first.requestFocus() : _toRail());
+      }
+      return KeyEventResult.handled;
+    }
+    final typing = primary?.context?.widget is EditableText || primary?.context?.findAncestorWidgetOfExactType<EditableText>() != null;
+    final nav = typing ? null : navKey(e);
+    if (nav == null) return KeyEventResult.ignored;
+    final moved = primary?.focusInDirection(switch (nav.dir) {
+      NavDir.up => TraversalDirection.up,
+      NavDir.down => TraversalDirection.down,
+      NavDir.left => TraversalDirection.left,
+      NavDir.right => TraversalDirection.right,
+    });
+    if (moved != true && nav.dir == NavDir.left) _goPane(TasksPane.list);
+    return KeyEventResult.handled;
+  }
+
+  /// Up / Down and friends: the next sidebar entry or task, whichever pane has the keys.
+  void _step(int delta) => pane == TasksPane.nav ? browser.moveNav(delta) : move(delta);
+
+  /// Ctrl+arrow, sent by the shell: only Left and Right go anywhere here.
+  void ctrlArrow({required bool vertical, required int dir}) {
+    if (vertical) return;
+    dir < 0 ? _left() : _right();
+  }
+
   final focus = FocusNode(debugLabel: 'tasks');
   final filterFocus = FocusNode(debugLabel: 'tasks filter');
   final filter = TextEditingController();
   final scroll = ScrollController();
   late final _keys = KeySequence({
-    'gg': () => _moveTo(first: true),
-    'G': () => _moveTo(first: false),
+    '{': () => _step(-3),
+    '}': () => _step(3),
+    'gg': () => _step(-1 << 20),
+    'G': () => _step(1 << 20),
     'o': _openSelectedInNeovim,
   });
 
@@ -96,6 +203,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     ws.autoStatus.removeListener(_onAutoStatus);
     _keys.dispose();
     browser.dispose();
+    _detailScope.dispose();
     focus.dispose();
     filterFocus.dispose();
     filter.dispose();
@@ -256,7 +364,13 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   void move(int delta) => _scrollTo(browser.move(delta));
 
-  void _moveTo({required bool first}) => move(first ? -1 << 20 : 1 << 20);
+  void _toRail() => widget.onRail?.call();
+
+  /// Tab from the rail: the sidebar; Shift+Tab from the rail: the list.
+  void enterFromRail({required bool forward}) {
+    if (forward) return _goPane(TasksPane.nav);
+    browser.selected == null ? _goPane(TasksPane.list) : _enterDetail(last: true);
+  }
 
   void _page(int dir) {
     final view = scroll.hasClients ? scroll.position.viewportDimension : 400.0;
@@ -298,24 +412,37 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
     final hw = HardwareKeyboard.instance;
     if (filterFocus.hasFocus) return _filterKey(e.logicalKey);
+    if (pane == TasksPane.detail && browser.selected == null) pane = TasksPane.list;
+    if (pane == TasksPane.detail && !hw.isControlPressed && !hw.isAltPressed && !hw.isMetaPressed) {
+      return _detailKey(e);
+    }
     final action = switch (e.logicalKey) {
       LogicalKeyboardKey.keyK when hw.isControlPressed => openPalette,
       LogicalKeyboardKey.keyD when hw.isControlPressed => () => _page(1),
       LogicalKeyboardKey.keyU when hw.isControlPressed => () => _page(-1),
       _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed => null,
-      LogicalKeyboardKey.keyJ || LogicalKeyboardKey.arrowDown => () => move(1),
-      LogicalKeyboardKey.keyK || LogicalKeyboardKey.arrowUp => () => move(-1),
+      LogicalKeyboardKey.enter when pane == TasksPane.nav => _right,
       LogicalKeyboardKey.enter when browser.selected == null => () => move(1),
       LogicalKeyboardKey.escape when browser.selected != null => close,
-      LogicalKeyboardKey.slash || LogicalKeyboardKey.tab => filterFocus.requestFocus,
+      LogicalKeyboardKey.slash => filterFocus.requestFocus,
+      // Tab goes round: rail, sidebar, filter, list, rail.
+      LogicalKeyboardKey.tab => (pane == TasksPane.nav) != hw.isShiftPressed
+          ? filterFocus.requestFocus
+          : (pane == TasksPane.list && !hw.isShiftPressed && browser.selected != null ? _enterDetail : _toRail),
       LogicalKeyboardKey.keyC => createTask,
-      LogicalKeyboardKey.keyS => cycleStatus,
+      LogicalKeyboardKey.keyT => cycleStatus,
       LogicalKeyboardKey.keyP => cyclePriority,
-      LogicalKeyboardKey.keyA when ws.project != null => toggleProjectOnly,
+      LogicalKeyboardKey.keyA when ws.project != null && hw.isShiftPressed => toggleProjectOnly,
       _ => null,
     };
     if (action != null) {
       action();
+      return KeyEventResult.handled;
+    }
+    // The arrows, hjkl and wasd are one set of keys (see nav_keys.dart); a pending `g` owns the next key.
+    final nav = _keys.pending ? null : navKey(e);
+    if (nav != null) {
+      _navigate(nav);
       return KeyEventResult.handled;
     }
     return _keys.press(e.character) ? KeyEventResult.handled : KeyEventResult.ignored;
@@ -323,9 +450,18 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   /// In the filter: Esc, Enter or Tab go back to the list, arrow down also moves into it.
   KeyEventResult _filterKey(LogicalKeyboardKey k) {
+    if (k == LogicalKeyboardKey.tab && HardwareKeyboard.instance.isShiftPressed) {
+      _goPane(TasksPane.nav);
+      return KeyEventResult.handled;
+    }
+    // Left moves the text cursor, except at the leftmost edge (or in an empty field): the rail.
+    if (k == LogicalKeyboardKey.arrowLeft && !HardwareKeyboard.instance.isShiftPressed && cursorAtStart(filter)) {
+      _goPane(TasksPane.nav);
+      return KeyEventResult.handled;
+    }
     const back = [LogicalKeyboardKey.escape, LogicalKeyboardKey.enter, LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.tab];
     if (!back.contains(k)) return KeyEventResult.ignored;
-    focus.requestFocus();
+    _goPane(TasksPane.list);
     if (k == LogicalKeyboardKey.arrowDown) move(1);
     return KeyEventResult.handled;
   }
@@ -371,12 +507,22 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     return Stack(
       children: [
         Positioned.fill(right: detail == null ? 0 : normal, child: _list(rows)),
-        Positioned(top: 0, bottom: 0, right: 0, child: DetailPanel(width: panel, child: detail)),
+        Positioned(
+          top: 0,
+          bottom: 0,
+          right: 0,
+          child: DetailPanel(
+            width: panel,
+            active: pane == TasksPane.detail,
+            child: detail == null ? null : FocusScope(node: _detailScope, child: detail),
+          ),
+        ),
       ],
     );
   }
 
   Widget _nav() => TasksNav(
+    active: pane == TasksPane.nav,
     browser: browser,
     projectName: ws.projectName,
     scope: ScopeInfo(

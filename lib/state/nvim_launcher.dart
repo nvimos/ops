@@ -74,16 +74,18 @@ List<String> qtArgs({Map<String, String>? env, bool Function(String path)? exist
 /// Start Neovim as [kind], listening on [address] with the backend plugin; returns why it could not,
 /// or null.
 Future<String?> launchNeovim(String address, {NvimKind kind = NvimKind.console}) async {
-  final backend = findBackendDir();
-  if (backend == null) return 'the relay plugin not found; set NVIMOS_BACKEND to its checkout';
-  final where = await Process.run('where', [kind.exe]);
-  if (where.exitCode != 0) return '${kind.exe} is not on PATH';
-  final (exe, args) = nvimCommand(kind, address, backend);
   try {
+    final backend = findBackendDir();
+    if (backend == null) return 'the relay plugin not found; set NVIMOS_BACKEND to its checkout';
+    final where = await Process.run('where', [kind.exe]);
+    if (where.exitCode != 0) return '${kind.exe} is not on PATH';
+    final (exe, args) = nvimCommand(kind, address, backend);
     await Process.start(exe, args, mode: ProcessStartMode.detached);
     return null;
   } on ProcessException catch (e) {
     return 'could not start ${kind.exe}: ${e.message}';
+  } catch (e) {
+    return 'could not start ${kind.exe}: $e';
   }
 }
 

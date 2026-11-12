@@ -148,4 +148,66 @@ void main() {
     s.dispose();
     await nvim.stop();
   });
+
+  test('Right goes from a list to the diff, Left back to that list', () async {
+    final repo = await makeRepo();
+    await git(repo, ['checkout', '-q', '-b', 'agent/x']);
+    await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');
+    await git(repo, ['commit', '-q', '-am', 'agent edit']);
+    await git(repo, ['checkout', '-q', 'main']);
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final pr = PrState(s);
+    await until(() => !pr.loading && pr.diff != null);
+
+    expect(pr.pane, PrPane.files);
+    pr.movePane(-1); // nothing to the left of the lists
+    expect(pr.pane, PrPane.files);
+    pr.movePane(1); // Right from the file list: the diff
+    expect(pr.pane, PrPane.diff);
+    pr.movePane(1);
+    expect(pr.pane, PrPane.diff);
+    pr.movePane(-1); // Left: back to the list it came from
+    expect(pr.pane, PrPane.files);
+    pr.nextPane(1); // Tab: the commits
+    expect(pr.pane, PrPane.commits);
+    pr.movePane(1);
+    expect(pr.pane, PrPane.diff);
+    pr.movePane(-1);
+    expect(pr.pane, PrPane.commits);
+
+    pr.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
+  test('Down past the last file goes to COMMITS, Up past the first commit back, Up past the first file to the picker', () async {
+    final repo = await makeRepo();
+    await git(repo, ['checkout', '-q', '-b', 'agent/x']);
+    await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');
+    await git(repo, ['commit', '-q', '-am', 'agent edit']);
+    await git(repo, ['checkout', '-q', 'main']);
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final pr = PrState(s);
+    await until(() => !pr.loading && pr.diff != null && pr.selected == 'a.txt');
+
+    expect(pr.pane, PrPane.files);
+    expect(pr.diff!.files.length, 1); // a.txt is both the first and the last file
+    expect(pr.moveCursor(1), isNull);
+    expect(pr.pane, PrPane.commits); // not the diff
+    expect(pr.moveCursor(1), isNull); // one commit: nothing below the last commit
+    expect(pr.pane, PrPane.commits);
+    expect(pr.moveCursor(-1), isNull);
+    expect(pr.pane, PrPane.files);
+    expect(pr.moveCursor(-1), pr.headFocus); // above the first file: the head picker
+
+    pr.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
 }

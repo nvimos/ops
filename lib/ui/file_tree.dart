@@ -31,7 +31,8 @@ Color statusColor(String status) => switch (status) {
 
 /// Changed files grouped by folder, folders sorted, files sorted inside them.
 /// With [onToggleDir], a click on a folder collapses or expands it; [collapsed] holds the folded ones.
-class FileTree extends StatelessWidget {
+/// The list scrolls to keep the [selected] file in view when it changes (arrow keys).
+class FileTree extends StatefulWidget {
   const FileTree({
     super.key,
     required this.files,
@@ -39,32 +40,97 @@ class FileTree extends StatelessWidget {
     required this.onSelect,
     this.collapsed = const {},
     this.onToggleDir,
+    this.selectBottom,
   });
 
   final List<TreeFile> files;
+
+  /// Notifies when the keyboard enters this list from below: the file lowest in the visible part of
+  /// the list is selected (not the heading, not the last file when the list is scrolled).
+  final Listenable? selectBottom;
   final String? selected;
   final ValueChanged<String> onSelect;
   final Set<String> collapsed;
   final ValueChanged<String>? onToggleDir;
 
   @override
+  State<FileTree> createState() => _FileTreeState();
+}
+
+/// Estimated row heights, for scrolling the selected file into view.
+const _treePad = 4.0;
+
+class _FileTreeState extends State<FileTree> {
+  final _scroll = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    widget.selectBottom?.addListener(_onBottomRequest);
+  }
+
+  void _onBottomRequest() => WidgetsBinding.instance.addPostFrameCallback((_) => _selectBottom());
+
+  /// Selects the last file whose row is completely inside the visible part of the list (the file
+  /// nearest the bottom edge; a folder row there is passed over).
+  void _selectBottom() {
+    if (!mounted) return;
+    final rows = treeRows(widget.files, widget.collapsed);
+    var i = lastFullyVisibleIndex(_scroll) ?? rows.length - 1;
+    while (i >= 0 && rows[i] is! FileEntry) {
+      i--;
+    }
+    final pick = i >= 0 ? (rows[i] as FileEntry).file.path : rows.whereType<FileEntry>().firstOrNull?.file.path;
+    if (pick != null) widget.onSelect(pick);
+  }
+
+  @override
+  void didUpdateWidget(FileTree old) {
+    super.didUpdateWidget(old);
+    if (widget.selectBottom != old.selectBottom) {
+      old.selectBottom?.removeListener(_onBottomRequest);
+      widget.selectBottom?.addListener(_onBottomRequest);
+    }
+    if (widget.selected != old.selected) _reveal();
+  }
+
+  @override
+  void dispose() {
+    widget.selectBottom?.removeListener(_onBottomRequest);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// The row of the selected file, so its real position can be found.
+  final _selectedKey = GlobalKey();
+
+  /// Scrolls the selected file into view (see [revealIndex]); no row height is assumed.
+  void _reveal() {
+    final rows = treeRows(widget.files, widget.collapsed);
+    final i = rows.indexWhere((e) => e is FileEntry && e.file.path == widget.selected);
+    if (i >= 0) revealIndex(_scroll, _selectedKey, i);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final rows = treeRows(files, collapsed);
+    final rows = treeRows(widget.files, widget.collapsed);
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      controller: _scroll,
+      padding: const EdgeInsets.symmetric(vertical: _treePad),
       itemCount: rows.length,
       itemBuilder: (context, i) => switch (rows[i]) {
         FolderEntry(:final dir, :final count, :final folded) => FolderRow(
           dir: dir,
           count: count,
           folded: folded,
-          onTap: onToggleDir == null ? null : () => onToggleDir!(dir),
+          onTap: widget.onToggleDir == null ? null : () => widget.onToggleDir!(dir),
         ),
         FileEntry(:final file, :final nested) => FileRow(
+          key: file.path == widget.selected ? _selectedKey : null,
           file: file,
           nested: nested,
-          selected: file.path == selected,
-          onTap: () => onSelect(file.path),
+          selected: file.path == widget.selected,
+          onTap: () => widget.onSelect(file.path),
         ),
       },
     );

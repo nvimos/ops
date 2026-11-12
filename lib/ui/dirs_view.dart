@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../state/dirs.dart';
 import 'error_view.dart';
 import 'key_sequence.dart';
+import 'nav_keys.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -15,9 +16,12 @@ import 'widgets.dart';
 ///
 /// Page: owns keys and event handlers; [DirsState] does the work.
 class DirsView extends StatefulWidget {
-  const DirsView({super.key, required this.state});
+  const DirsView({super.key, required this.state, this.onRail});
 
   final DirsState state;
+
+  /// Gives the keyboard to the mode rail (Left, Tab round the cycle).
+  final VoidCallback? onRail;
 
   @override
   State<DirsView> createState() => DirsViewState();
@@ -30,14 +34,19 @@ class DirsViewState extends State<DirsView> {
   Timer? _auto;
   static const _far = 1 << 20;
   late final _keys = KeySequence({
-    'j': () => st.move(1),
-    'k': () => st.move(-1),
+    '{': () => st.move(-3),
+    '}': () => st.move(3),
     'gg': () => st.move(-_far),
     'G': () => st.move(_far),
     'n': st.toggleNewNeovim,
   });
 
   DirsState get st => widget.state;
+
+  void _toRail() => widget.onRail?.call();
+
+  /// Tab from the rail: the filter; Shift+Tab from the rail: the list.
+  void enterFromRail({required bool forward}) => forward ? focusFilter() : focus.requestFocus();
 
   /// The shell calls this on a switch to Directories: the filter takes the keyboard, so typing
   /// filters at once; Esc, Tab or arrow down go to the list.
@@ -64,6 +73,13 @@ class DirsViewState extends State<DirsView> {
   void _pickCursor() {
     final shown = st.shown;
     if (shown.isNotEmpty) _pick(shown[st.cursor.clamp(0, shown.length - 1)]);
+  }
+
+  /// Enter in the filter: the field drops its focus on submit (to the route scope, outside the
+  /// shell's keys), so the list takes the keyboard back before the pick.
+  void _submitFilter() {
+    focus.requestFocus();
+    _pickCursor();
   }
 
   void _tap(String dir) {
@@ -98,10 +114,9 @@ class DirsViewState extends State<DirsView> {
       LogicalKeyboardKey.keyD when hw.isControlPressed => () => st.move(10),
       LogicalKeyboardKey.keyU when hw.isControlPressed => () => st.move(-10),
       _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed => null,
-      LogicalKeyboardKey.arrowDown => () => st.move(1),
-      LogicalKeyboardKey.arrowUp => () => st.move(-1),
       LogicalKeyboardKey.enter => _pickCursor,
-      LogicalKeyboardKey.slash || LogicalKeyboardKey.tab => _filterFocus.requestFocus,
+      LogicalKeyboardKey.slash => _filterFocus.requestFocus,
+      LogicalKeyboardKey.tab => hw.isShiftPressed ? _filterFocus.requestFocus : _toRail,
       LogicalKeyboardKey.escape when _filter.text.isNotEmpty => _clearFilter,
       _ => null,
     };
@@ -109,11 +124,27 @@ class DirsViewState extends State<DirsView> {
       action();
       return KeyEventResult.handled;
     }
+    // The arrows, hjkl and wasd are one set of keys (see nav_keys.dart); a pending `g` owns the next key.
+    final nav = _keys.pending || hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed ? null : navKey(e);
+    if (nav != null) {
+      if (nav.vertical) st.move(nav.delta);
+      if (nav.dir == NavDir.left) _toRail();
+      return KeyEventResult.handled;
+    }
     return _keys.press(e.character) ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
   /// In the filter: Esc, Tab or arrow down go back to the list.
   KeyEventResult _filterKey(LogicalKeyboardKey k) {
+    if (k == LogicalKeyboardKey.tab && HardwareKeyboard.instance.isShiftPressed) {
+      _toRail();
+      return KeyEventResult.handled;
+    }
+    // Left moves the text cursor, except at the leftmost edge (or in an empty field): the rail.
+    if (k == LogicalKeyboardKey.arrowLeft && !HardwareKeyboard.instance.isShiftPressed && cursorAtStart(_filter)) {
+      _toRail();
+      return KeyEventResult.handled;
+    }
     const back = [LogicalKeyboardKey.escape, LogicalKeyboardKey.arrowDown, LogicalKeyboardKey.tab];
     if (!back.contains(k)) return KeyEventResult.ignored;
     focus.requestFocus();
@@ -132,7 +163,7 @@ class DirsViewState extends State<DirsView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _DirsHeader(source: st.dirs?.source, newNeovim: st.newNeovim, onToggle: st.toggleNewNeovim, onReload: st.load),
-          _DirsFilter(controller: _filter, focus: _filterFocus, onChanged: _filtered, onSubmitted: _pickCursor),
+          _DirsFilter(controller: _filter, focus: _filterFocus, onChanged: _filtered, onSubmitted: _submitFilter),
           Expanded(child: _body()),
         ],
       ),
@@ -188,19 +219,23 @@ class _DirsFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-    child: TextField(
+    child: ClearOnAltX(
       controller: controller,
-      focusNode: focus,
-      style: T.body,
-      decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.search, size: 15, color: C.muted),
-        prefixIconConstraints: const BoxConstraints(minWidth: 30),
-        suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
-        suffixIconConstraints: ClearButton.constraints,
-        hintText: 'Filter (/)',
+      onCleared: onChanged,
+      child: TextField(
+        controller: controller,
+        focusNode: focus,
+        style: T.body,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.search, size: 15, color: C.muted),
+          prefixIconConstraints: const BoxConstraints(minWidth: 30),
+          suffixIcon: ClearButton(controller: controller, onCleared: onChanged),
+          suffixIconConstraints: ClearButton.constraints,
+          hintText: 'Filter (/)',
+        ),
+        onChanged: onChanged,
+        onSubmitted: (_) => onSubmitted(),
       ),
-      onChanged: onChanged,
-      onSubmitted: (_) => onSubmitted(),
     ),
   );
 }

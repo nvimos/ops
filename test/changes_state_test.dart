@@ -108,4 +108,167 @@ void main() {
     s.dispose();
     await nvim.stop();
   });
+
+  test('Right goes from the file list to the diff, Left back; up / down move files', () async {
+    final repo = await makeRepo();
+    final lines = [for (var i = 1; i <= 12; i++) 'line $i'];
+    await File('${repo.path}/a.txt').writeAsString('${lines.join('\n')}\n');
+    await git(repo, ['commit', '-q', '-am', 'twelve']);
+    lines[0] = 'LINE 1';
+    lines[11] = 'LINE 12';
+    await File('${repo.path}/a.txt').writeAsString('${lines.join('\n')}\n');
+    await File('${repo.path}/c.txt').writeAsString('new\n');
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.diff != null && st.unstaged.length == 2);
+
+    expect(st.pane, ChangesPane.unstaged); // nothing is staged yet
+    expect(st.selected, 'a.txt');
+    st.moveCursor(1); // files pane: the next file
+    expect(st.selected, 'c.txt');
+    st.moveCursor(-1);
+    await until(() => st.diff != null && st.selected == 'a.txt' && st.diff!.hunks.length == 2);
+
+    st.movePane(1); // Right from the file list: the diff
+    expect(st.pane, ChangesPane.diff);
+    st.moveCursor(1); // diff pane: scrolls (no scroll view in a unit test), the file stays
+    expect(st.selected, 'a.txt');
+    st.movePane(-1); // Left: back to the list it came from
+    expect(st.pane, ChangesPane.unstaged);
+
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
+  test('Tab cycles STAGED, CHANGES, the commit message, the diff, and round; Shift+Tab goes back', () async {
+    final repo = await makeRepo();
+    await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');
+    await File('${repo.path}/c.txt').writeAsString('new\n');
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.diff != null && st.unstaged.length == 2);
+    expect(await st.act('stage', (b) => b.stage('c.txt')), isNull);
+    await until(() => st.staged.length == 1 && st.unstaged.length == 1);
+
+    st.goTo(ChangesPane.staged);
+    expect(st.selected, 'c.txt');
+    expect(st.tabFrom(fromMessage: false, delta: 1), ChangesPane.unstaged);
+    expect(st.selected, 'a.txt'); // entering a list selects its first file
+    expect(st.tabFrom(fromMessage: false, delta: 1), isNull); // the commit message
+    expect(st.tabFrom(fromMessage: true, delta: 1), ChangesPane.diff);
+    expect(st.tabFrom(fromMessage: false, delta: 1), ChangesPane.staged); // round again
+    expect(st.tabFrom(fromMessage: false, delta: -1), ChangesPane.diff);
+    expect(st.tabFrom(fromMessage: false, delta: -1), isNull);
+    expect(st.tabFrom(fromMessage: true, delta: -1), ChangesPane.unstaged);
+
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
+  test('Up / Down walk the files as the tree lists them: top-level files, then folders', () async {
+    final repo = await makeRepo();
+    await Directory('${repo.path}/sub').create();
+    for (final f in ['z.txt', 'sub/b.txt', 'sub/a.txt', 'm.txt']) {
+      await File('${repo.path}/$f').writeAsString('x\n');
+    }
+    await git(repo, ['add', '-A']);
+    await git(repo, ['commit', '-q', '-m', 'files']);
+    for (final f in ['z.txt', 'sub/b.txt', 'sub/a.txt', 'm.txt', 'a.txt']) {
+      await File('${repo.path}/$f').writeAsString('changed\n');
+    }
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.unstaged.length >= 5 && st.diff != null);
+
+    // git lists a.txt, m.txt, sub/a.txt, sub/b.txt, z.txt; the tree shows z.txt before sub/.
+    final shown = [for (final f in st.unstaged) f.path];
+    expect(shown, ['a.txt', 'm.txt', 'z.txt', 'sub/a.txt', 'sub/b.txt']);
+    st.goTo(ChangesPane.unstaged);
+    final walked = <String>[st.selected!];
+    for (var i = 0; i < 4; i++) {
+      st.moveCursor(1);
+      walked.add(st.selected!);
+    }
+    expect(walked, shown);
+
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
+  test('Down past the last staged file goes to CHANGES, past the last changed file to the message; Up goes back', () async {
+    final repo = await makeRepo();
+    await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');
+    await File('${repo.path}/c.txt').writeAsString('new\n');
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.diff != null && st.unstaged.length == 2);
+    expect(await st.act('stage', (b) => b.stage('c.txt')), isNull);
+    await until(() => st.staged.length == 1 && st.unstaged.length == 1);
+
+    st.goTo(ChangesPane.staged);
+    expect(st.moveCursor(1), isFalse); // the only staged file: on to CHANGES
+    expect(st.pane, ChangesPane.unstaged);
+    expect(st.selected, 'a.txt');
+    expect(st.moveCursor(-1), isFalse); // back up to STAGED, on its last file
+    expect(st.pane, ChangesPane.staged);
+    expect(st.selected, 'c.txt');
+    st.goTo(ChangesPane.unstaged);
+    expect(st.moveCursor(1), isTrue); // below the last changed file: the commit message
+    expect(st.pane, ChangesPane.unstaged);
+
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
+  test('Shift+[ and Shift+] move three files in the list and stay in it', () async {
+    final repo = await makeRepo();
+    final names = [for (var i = 1; i <= 7; i++) 'f$i.txt'];
+    for (final n in names) {
+      await File('${repo.path}/$n').writeAsString('x\n');
+    }
+    await git(repo, ['add', '-A']);
+    await git(repo, ['commit', '-q', '-m', 'files']);
+    for (final n in names) {
+      await File('${repo.path}/$n').writeAsString('changed\n');
+    }
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.unstaged.length == 7 && st.diff != null);
+
+    st.goTo(ChangesPane.unstaged);
+    final order = [for (final f in st.unstaged) f.path];
+    st.select(order.first, staged: false);
+    st.jump(1);
+    expect(st.selected, order[3]);
+    st.jump(1);
+    expect(st.selected, order[6]);
+    st.jump(1); // the end of the list: stays, and does not hop to another pane
+    expect(st.selected, order[6]);
+    expect(st.pane, ChangesPane.unstaged);
+    st.jump(-1);
+    expect(st.selected, order[3]);
+
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
 }

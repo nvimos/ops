@@ -11,6 +11,9 @@ class C {
   static const muted = Color(0xFF8B90A0);
   static const faint = Color(0xFF5C6170);
   static const accent = Color(0xFF6C8CFF);
+
+  /// Background of search matches.
+  static const found = Color(0x66FFB84D);
   static const green = Color(0xFF4CC38A);
   static const red = Color(0xFFE5484D);
   static const yellow = Color(0xFFE6B450);

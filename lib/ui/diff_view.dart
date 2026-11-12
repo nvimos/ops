@@ -24,9 +24,13 @@ class DiffView extends StatelessWidget {
     this.sideBySide = false,
     this.wrap = true,
     this.hunk = -1,
+    this.scroll,
   });
 
   final DiffFile file;
+
+  /// The scroll position, when the caller moves it (arrow keys); else the view keeps its own.
+  final ScrollController? scroll;
   final OnDiffLine? onLine;
   final List<Widget> Function(Hunk hunk)? hunkActions;
   final List<Widget> headerActions;
@@ -132,7 +136,8 @@ class _DiffBody extends StatefulWidget {
 }
 
 class _DiffBodyState extends State<_DiffBody> {
-  final _scroll = ScrollController();
+  final _own = ScrollController();
+  ScrollController get _scroll => widget.view.scroll ?? _own;
   final _hunkKey = GlobalKey();
 
   /// A rough row height, to bring a far hunk near before it is built and can be scrolled exactly.
@@ -142,11 +147,12 @@ class _DiffBodyState extends State<_DiffBody> {
   void didUpdateWidget(_DiffBody old) {
     super.didUpdateWidget(old);
     if (widget.view.hunk != old.view.hunk || widget.file != old.file) _showHunk();
+    if (widget.file != old.file && widget.view.hunk < 0 && _scroll.hasClients) _scroll.jumpTo(0);
   }
 
   @override
   void dispose() {
-    _scroll.dispose();
+    _own.dispose();
     super.dispose();
   }
 

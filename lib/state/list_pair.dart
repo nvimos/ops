@@ -30,6 +30,12 @@ Set<String> foldAll(Iterable<String> paths, {String? keep}) => {for (final p in 
   ..remove('')
   ..remove(dirOf(keep ?? ''));
 
+/// Orders paths as the file tree lists them: by folder (top-level files first), then by path.
+int compareTreeOrder(String a, String b) {
+  final d = dirOf(a).compareTo(dirOf(b));
+  return d != 0 ? d : a.compareTo(b);
+}
+
 /// The folder part of a path; '' for a top-level file.
 String dirOf(String path) {
   final i = path.lastIndexOf('/');
