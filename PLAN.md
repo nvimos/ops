@@ -358,7 +358,13 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
 
 - the commits and files/dirs panels should have a button to make them the "dominant item"
   - when dominant they take as much space as they can vertically, but not forcing the other elements out completely
+    - the other list gets at most 6 rows, or 3 when the dominant one would not fit
   - the dominant choice and the collapsed state last for the session; every start begins with files dominant
+- both lists behave alike, and so do STAGED and CHANGES in the Changes mode
+  (`ListPair`, `lib/ui/list_pair_view.dart`):
+  - a click on the header folds or unfolds the list; the header stays
+  - a folded dominant list hands the room to the other one
+  - file trees have the expand / collapse all folders button
 
 - diff views (next main panel)
   <!-- {{{ -->
@@ -380,6 +386,9 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
 
 staged and unstaged files with checkboxes, the selected file's hunks with stage,
 unstage and discard buttons, commit message and Commit button. Click a line: Neovim opens it.
+
+- STAGED over CHANGES behave like the Pull request files and commits: foldable headers,
+  the most-room button (CHANGES have it at start), expand / collapse all folders (zR / zM)
 
 
 #### Tasks mode ("Folio")
