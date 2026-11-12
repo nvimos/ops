@@ -8,7 +8,8 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 ## Running tests
 
 - Never wait on a hung test. Every run has a timeout at two levels:
-  - per test: `dart_test.yaml` sets `timeout: 11s`, and `make test` passes `--timeout 11s`;
+  - per test: `dart_test.yaml` sets `timeout: 11s`, and `make test` passes
+    `--timeout $(TEST_TIMEOUT)` (Makefile, 11s; keep the two equal);
     a test that needs longer sets its own `timeout:` explicitly
   - per command: give the shell tool call a timeout of a few minutes, not the 10-minute maximum,
     and run one test file (`flutter test test/<file>.dart`) while iterating.
