@@ -200,6 +200,68 @@ class _Sidebar extends StatelessWidget {
   );
 }
 
+/// The line between the pickers: the swap button in the middle of it, the merge actions to its
+/// right (more can follow).
+class MergeActions extends StatelessWidget {
+  const MergeActions({super.key, required this.pr});
+
+  final PrState pr;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      const Spacer(),
+      IconButton(
+        tooltip: 'Swap (gs)',
+        iconSize: 16,
+        visualDensity: VisualDensity.compact,
+        onPressed: pr.swap,
+        icon: const Icon(Icons.swap_vert, color: C.muted),
+      ),
+      Expanded(
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 8),
+            child: Tooltip(
+              message: 'Merge head into base: a merge commit on base, local only',
+              child: SmallButton('Merge', icon: Icons.merge, onPressed: pr.canMerge ? () => mergeBranches(context, pr) : null),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+/// Ask, then merge head into base; say what happened.
+Future<void> mergeBranches(BuildContext context, PrState pr) async {
+  final (base, head) = (pr.base!, pr.head!);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      backgroundColor: C.surface,
+      title: Text('Merge $head into $base?', style: T.title),
+      content: Text(
+        'A merge commit on $base; $base is checked out first if it is not the current branch.\n'
+        'Local only: nothing is pushed. A conflict undoes the merge.',
+        style: T.body,
+      ),
+      actions: [
+        SmallButton('Cancel', onPressed: () => Navigator.pop(c, false)),
+        SmallButton('Merge', primary: true, onPressed: () => Navigator.pop(c, true)),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  final err = await pr.merge();
+  if (!context.mounted) return;
+  if (err != null) return showActionError(context, err);
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text('Merged $head into $base'), duration: const Duration(seconds: 3)));
+}
+
 class _Pickers extends StatelessWidget {
   const _Pickers({required this.pr});
 
@@ -219,15 +281,7 @@ class _Pickers extends StatelessWidget {
           next: pr.headFocus,
           onPick: pr.pickBase,
         ),
-        Center(
-          child: IconButton(
-            tooltip: 'Swap (gs)',
-            iconSize: 16,
-            visualDensity: VisualDensity.compact,
-            onPressed: pr.swap,
-            icon: const Icon(Icons.swap_vert, color: C.muted),
-          ),
-        ),
+        MergeActions(pr: pr),
         RevPicker(label: 'head', value: pr.head, names: pr.branchNames, focus: pr.headFocus, onPick: pr.pickHead),
       ],
     ),
