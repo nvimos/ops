@@ -437,9 +437,20 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - three columns, left to right
     - left pane, resizable by dragging its right edge (double-click: back to automatic)
       - automatic width: the narrowest that shows all its text, between 150 and 360 px
-      - Base Picker - a Swap button (swaps base and head)
+      - Base Picker
         - base defaults to the checked-out branch (main or master only when HEAD is detached),
           head to the newest other branch
+      - the merge actions line, between the two pickers
+        - the Swap button (swaps base and head) in the middle of the line
+        - to its right the merge actions; more can follow
+        - "Merge": head into base, a merge commit (`--no-ff`) on base, local only, nothing is pushed
+          - enabled when both sides are picked, differ and the diff has files
+          - asks first ("Merge head into base?"); base is checked out first when it is not the
+            current branch
+          - refuses unsaved buffers or uncommitted changes to tracked files, a base that is not
+            a local branch, and a head with nothing new
+          - a conflict is undone (`merge --abort`) and the error names the files
+          - done: a short note "Merged head into base"; the lists refresh
       - Head Picker
       - Files Changed
       - Commits list
