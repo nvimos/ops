@@ -25,6 +25,31 @@ void main() {
     await nvim.stop();
   });
 
+  test('merge puts head into base with a merge commit; canMerge needs a diff', () async {
+    final repo = await makeRepo();
+    await git(repo, ['checkout', '-q', '-b', 'feature']);
+    await File('${repo.path}/b.txt').writeAsString('feature\n');
+    await git(repo, ['commit', '-q', '-am', 'feature work']);
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final pr = PrState(s);
+    await until(() => !pr.loading && pr.diff != null);
+    pr.pick(base: 'main', head: 'feature');
+    await until(() => !pr.loading && pr.diff != null && pr.canMerge);
+
+    expect(await pr.merge(), isNull);
+    expect((await git(repo, ['log', '-1', '--format=%P'])).trim().split(' '), hasLength(2));
+    expect((await git(repo, ['branch', '--show-current'])).trim(), 'main');
+    expect(pr.canMerge, isFalse); // nothing left to merge
+    expect(await pr.merge(), contains('nothing that main lacks'));
+
+    pr.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
   test('picks main and the newest other branch, loads commits and diff, refreshes on git hints', () async {
     final repo = await makeRepo();
     await git(repo, ['checkout', '-q', '-b', 'agent/x']);

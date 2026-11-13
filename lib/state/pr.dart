@@ -140,6 +140,19 @@ class PrState extends ChangeNotifier {
 
   void swap() => pick(base: head, head: base);
 
+  /// Whether there is something to merge: both sides are picked and they differ.
+  bool get canMerge => base != null && head != null && base != head && (diff?.files.isNotEmpty ?? false);
+
+  /// Merge head into base (the backend checks base out when it is not the current branch).
+  /// Returns the error text, or null.
+  Future<String?> merge() async {
+    final (b, h) = (base, head);
+    if (b == null || h == null) return 'pick a base and a head first';
+    final err = await session.run((x) async => await x.merge(b, h));
+    await refresh();
+    return err;
+  }
+
   void pickBase(String rev) => pick(base: rev);
   void pickHead(String rev) => pick(head: rev);
   void showAllCommits() => narrow(null);
