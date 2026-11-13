@@ -1,4 +1,4 @@
-# What is a worktree
+# Claude uses worktrees
 
 A git worktree is a second working folder of the same repository, checked out on its own branch.
 - one repo, one history, one `.git`: commits made in any worktree are visible from all of them
