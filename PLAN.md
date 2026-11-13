@@ -228,6 +228,7 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
     living specs, legacy notes, milestones
   - `workspace.dart`: loads the planning files through the backend, links them,
     reloads on git hints, filters them by project
+  - `sorter.dart`: the sorting modes and direction of a list (the buttons are `SortButtons` in `ui/tasks/tasks_nav.dart`)
   - `edits.dart`: line-level edits that refuse to apply if the file changed meanwhile; the checkbox
     mark cycle (open, x, ., ~, n) of the Neovim tilde plugin
   - `archive.dart`, `inbox.dart`: archiving a change into its spec, the inbox
@@ -596,10 +597,31 @@ keyboard J/K/Enter/Esc/C and /.
   - only from To Do, In Progress or Needs Test; never out of Done or Dropped, never on unticking
   - a tick in a change's `tasks.md` moves its task, and the proposal's Status line and `index.tsv` with it
   - a snackbar says so ("TASK-17 is Done now"), with Undo
+    - it goes away after 3 seconds
+    - while the mouse is over it, it stays, and goes when the mouse leaves (`HoverDismiss`)
 - archiving a change (`Workspace.archive`): `openspec archive` when the CLI is installed,
   else merge its deltas into the living spec (`tasks/archive.dart`) and move the folder
   as `files.move`; new tasks and promoted legacy notes are written as `files.create`.
 - UI: sidebar (Inbox, Tasks, Changes, Specs, Legacy, Milestones), list with grouping, detail panel.
+- The list header (`TaskListHeader`): the title and count on the left, the filter and the view's own
+  buttons against the right edge with a margin, in every view
+  - the task list: "Group by" menu, then the sort buttons
+  - the Changes list: "New change", then the sort buttons
+- Sorting (`tasks/sorter.dart`, `SortButtons`): the list is sorted, two buttons control it
+  - the direction button comes first: an up arrow for ascending, a down arrow for descending, a click reverses
+  - the mode button follows: its icon is the current mode, a click goes to the next mode, round and round
+  - a lowercase one-word label beside the icon names the mode; a click on the label is a click on the button,
+    and the button keeps one width whichever word shows, so nothing beside it moves
+  - hovering the mode button shows its full name in a tooltip (by name, by modification time, by creation
+    time, by length of the title)
+  - tasks cycle name, modified, created, length; Changes cycle id, name, modified, length
+  - the default is modification time, newest first (descending)
+  - the order holds inside each group, whatever the grouping; equal keys keep their order
+  - creation time reads `created_date`; when over 80% of the tasks (from 5 tasks up) share one value it is
+    not trusted: the order uses a date found inside the task instead (a label `created:YYYY-MM-DD`, else
+    `created_at` or `created` in the header; how it is recorded is not settled), and the tooltip says the
+    creation time is suspicious
+  - any list can have the buttons: give it a `Sorter` and one `SortButtons`
 - Milestones hold changes (`tasks/milestones.dart`)
   - a change goes to its task's `milestone:` (Backlog.md's field), archived or not
   - else, archived: the first dated milestone closing on or after its archive date

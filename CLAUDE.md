@@ -40,6 +40,12 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   `lib/state/` or `lib/tasks/`, which tests can drive without widgets.
 - Never look up an InheritedWidget (`SessionScope.read(context)`) in `dispose()`; keep the
   reference from `didChangeDependencies`.
+- A label is part of its control: a click on the text next to a button or box does what the button
+  or box does (the word beside the sort button, the text of a checkbox). Wire the label into the
+  same tap target; the exception is a label that has an action of its own.
+- An interactive item shows the pointer cursor (`SystemMouseCursors.click`, the pointing hand) while
+  the mouse is over it, so it reads as clickable: buttons, rows that open something, checkboxes,
+  their labels. A `MouseRegion` or the widget's `mouseCursor`; a disabled item keeps the default.
 - Errors: `Session.run` returns the full error text (with Neovim's trace). Show a failed load
   with `ErrorPane` in place of the view, a failed action with `showActionError` (short snackbar,
   Details opens the selectable trace).
