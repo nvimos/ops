@@ -24,6 +24,7 @@ void main() {
       final other = await makeRepo();
       final target = Directory('${keepForCleanup(await Directory.systemTemp.createTemp('nvimos_cfg_')).path}/nvim')..createSync();
       File('${target.path}/init.lua').writeAsStringSync('');
+      await git(target, ['init', '-q', '-b', 'main']); // a repo with one untracked file
       final nvim = await TestNvim.start(cwd: other);
       final rpc = await nvim.connect();
       await rpc.request('nvim_set_vvar', [
@@ -78,18 +79,20 @@ void main() {
     await t.pump();
     await t.runAsync(() => until(() => norm(s.repo?.cwd ?? '') == norm(target.path)));
 
-    // A click on the Active Directory again opens the Tasks mode.
+    // A click on the Active Directory again opens the project; one untracked file: Changes.
     await alt(LogicalKeyboardKey.digit4);
     expect(shown(), Mode.directories.index);
     await t.tap(find.byType(DirRow).first);
-    await t.pump();
-    expect(shown(), Mode.tasks.index);
-
-    // The shell's keys still work: back to Changes, then forward.
-    await alt(LogicalKeyboardKey.bracketLeft);
+    for (var i = 0; i < 3; i++) {
+      await settle(); // the mode is chosen after asking git (two calls), round by round
+    }
     expect(shown(), Mode.changes.index);
+
+    // The shell's keys still work: back to Pull request, then forward.
+    await alt(LogicalKeyboardKey.bracketLeft);
+    expect(shown(), Mode.pullRequest.index);
     await alt(LogicalKeyboardKey.bracketRight);
-    expect(shown(), Mode.tasks.index);
+    expect(shown(), Mode.changes.index);
 
     await t.pumpWidget(const SizedBox());
     await t.runAsync(() async {

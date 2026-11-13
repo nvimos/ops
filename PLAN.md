@@ -716,13 +716,19 @@ keyboard J/K/Enter/Esc/C and /.
   in the same order as its Telescope picker (`:Telescope mydirs`, by frecency)
   - without genja-startdirs: the dirs of Neovim's recent files (`v:oldfiles`), most recent first
   - the backend provides the list, the app reads no files itself
-- picking a dir doesn't count as a use; frecency stays as Neovim records it
+- picking a dir counts as a use for genja-startdirs (the backend calls its `touch`, like its picker)
+  - without genja-startdirs there is nothing to count
 - the list is filterable;
   when the filter leaves one item, it is selected and becomes the Active Directory.
   - switching to this mode (keys or the rail) puts the keyboard in the filter;
     Esc, Tab or arrow down move it to the list
 - clicking an item selects it as the Active Directory;
-  clicking the Active Directory once more opens the Tasks mode
+  clicking the Active Directory once more opens the project, in the first mode with something to do
+  - Pull request when there is a local branch besides the default one (`main`, else `master`):
+    something to review
+  - else Changes when the checkout has uncommitted changes
+  - else Tasks, even when there are no tasks
+  - when git can't tell (not a repo), Tasks
 - the Active Directory
   - default: the connected Neovim does `:cd` there; the backend follows the cwd,
     sends a new git snapshot and every mode reloads
