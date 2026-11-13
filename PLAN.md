@@ -636,6 +636,13 @@ keyboard J/K/Enter/Esc/C and /.
   spec deltas split on ADDED/MODIFIED/REMOVED/RENAMED), living spec, legacy notes, `index.tsv`.
 - `tasks/workspace.dart`: loads the `backlog/`, `openspec/` and `legacy/` files through the
   backend's `files.*` (unsaved Neovim edits show too), links tasks and changes, reloads on git hints.
+- Changes and tasks: a change starts on its own, not from a task
+  - a new change's proposal names no task; its Status line is just `Status: To Do`
+  - a change can spawn tasks, and each names its change (`Change:`); the link goes from task to change
+  - no task is filed first just to give a change a number
+  - older changes that name a task (`Status: X (backlog TASK-n)`) still link both ways
+  - the planning repo still says otherwise (`nvimos-meta`: `openspec/config.yaml`, `README.md`,
+    `openspec/specs/planning/spec.md`); this rule wins
 - `tasks/edits.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
   proposal) sent as `files.set_lines`; each refuses if the line changed meanwhile.
 - The text of the detail panel is one selectable area: a drag selects across its sections, not inside one
