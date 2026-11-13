@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
@@ -69,16 +71,86 @@ void showActionError(BuildContext context, String? err) {
   );
 }
 
-/// A short note that the app did something by itself, with Undo.
-void showAutoStatus(BuildContext context, String text, {required VoidCallback onUndo}) {
+/// A short note that the app did something by itself, with Undo. It goes away after [shownFor],
+/// or, when the mouse is over it then, as soon as the mouse leaves.
+void showAutoStatus(
+  BuildContext context,
+  String text, {
+  required VoidCallback onUndo,
+  Duration shownFor = const Duration(seconds: 3),
+}) {
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
-  messenger.showSnackBar(
+  late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> shown;
+  shown = messenger.showSnackBar(
     SnackBar(
-      content: Text(text),
-      duration: const Duration(seconds: 6),
-      action: SnackBarAction(label: 'Undo', onPressed: onUndo),
+      padding: EdgeInsets.zero,
+      duration: const Duration(days: 1), // the note closes itself, see HoverDismiss
+      content: HoverDismiss(
+        after: shownFor,
+        onDismiss: () => shown.close(),
+        child: Row(
+          children: [
+            Expanded(child: Text(text)),
+            TextButton(
+              onPressed: () {
+                shown.close();
+                onUndo();
+              },
+              child: const Text('Undo'),
+            ),
+          ],
+        ),
+      ),
     ),
+  );
+}
+
+/// Calls [onDismiss] [after] a delay, but not while the mouse is over [child]: then it waits
+/// until the mouse leaves.
+class HoverDismiss extends StatefulWidget {
+  const HoverDismiss({super.key, required this.after, required this.onDismiss, required this.child});
+
+  final Duration after;
+  final VoidCallback onDismiss;
+  final Widget child;
+
+  @override
+  State<HoverDismiss> createState() => _HoverDismissState();
+}
+
+class _HoverDismissState extends State<HoverDismiss> {
+  late final Timer _timer = Timer(widget.after, _elapsed);
+  bool _hover = false;
+  bool _due = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer; // start the clock
+  }
+
+  void _elapsed() {
+    _due = true;
+    if (!_hover) widget.onDismiss();
+  }
+
+  void _hovering(bool on) {
+    _hover = on;
+    if (!on && _due) widget.onDismiss();
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => _hovering(true),
+    onExit: (_) => _hovering(false),
+    child: Padding(padding: const EdgeInsets.only(left: 24, right: 8), child: widget.child),
   );
 }
 
