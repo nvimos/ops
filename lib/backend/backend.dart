@@ -148,6 +148,8 @@ class Backend {
   Future<void> unstageHunk(String path, Hunk h) => _git('unstage_hunk', [path, h.ref]);
   Future<void> discardHunk(String path, Hunk h) => _git('discard_hunk', [path, h.ref]);
   Future<void> checkout(String branch) => _git('checkout', [branch]);
+  /// Merge [head] into the local branch [base] with a merge commit; returns the new HEAD's sha.
+  Future<String> merge(String base, String head) async => str(await _git('merge', [base, head]));
   Future<String> commit(String message) async => str(await _git('commit', [message]));
 
   // Files (Tasks mode) ------------------------------------------------------------------------
