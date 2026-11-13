@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../backend/models.dart';
 import '../../tasks/browser.dart';
+import '../../tasks/sorter.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'icons.dart';
@@ -316,15 +317,31 @@ class TaskListHeader extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 14),
     decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.border))),
     child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Flexible(child: Text(title, style: T.title, overflow: TextOverflow.ellipsis)),
-        const SizedBox(width: 8),
-        Text('$count', style: T.tiny),
-        const Spacer(),
-        Flexible(flex: 4, child: FilterField(controller: filter, focus: filterFocus, onChanged: onQuery)),
-        if (action != null) ...[const SizedBox(width: 10), action!],
+        Flexible(flex: 2, child: _titleAndCount()),
+        const SizedBox(width: 10),
+        Flexible(flex: 3, child: _controls()),
       ],
     ),
+  );
+
+  Widget _titleAndCount() => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Flexible(child: Text(title, style: T.title, overflow: TextOverflow.ellipsis)),
+      const SizedBox(width: 8),
+      Text('$count', style: T.tiny),
+    ],
+  );
+
+  /// The filter and the view's own buttons, pushed against the right edge of the header.
+  Widget _controls() => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Flexible(child: FilterField(controller: filter, focus: filterFocus, onChanged: onQuery)),
+      if (action != null) ...[const SizedBox(width: 10), action!],
+    ],
   );
 }
 
@@ -356,6 +373,90 @@ class FilterField extends StatelessWidget {
         ),
       ),
     ),
+  );
+}
+
+/// The sort button (its icon is the current mode, a click goes to the next) and the button that
+/// turns the order round. Works for any list that has a [Sorter].
+class SortButtons extends StatelessWidget {
+  const SortButtons({super.key, required this.sorter});
+
+  final Sorter<dynamic> sorter;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: sorter,
+    builder: (context, _) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconTap(
+          icon: sorter.descending ? Icons.arrow_downward : Icons.arrow_upward,
+          tooltip: sorter.descending ? 'Descending, click to reverse' : 'Ascending, click to reverse',
+          onTap: sorter.reverse,
+        ),
+        IconTap(
+          icon: sorter.mode.icon,
+          label: sorter.mode.word,
+          labelRoom: [for (final m in sorter.modes) m.word],
+          tooltip: sorter.tooltip, onTap: sorter.cycle,
+        ),
+      ],
+    ),
+  );
+}
+
+/// A small icon button with a tooltip. With a [label], a click on the label is a click on the icon.
+class IconTap extends StatelessWidget {
+  const IconTap({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.label,
+    this.labelRoom = const [],
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final String? label;
+
+  /// Every text the label can show: the button is as wide as the longest, so nothing beside it
+  /// moves when the label changes.
+  final List<String> labelRoom;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: InkWell(
+      onTap: onTap,
+      mouseCursor: SystemMouseCursors.click,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.all(5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: C.muted),
+            if (label != null) ...[const SizedBox(width: 4), _label()],
+          ],
+        ),
+      ),
+    ),
+  );
+
+  /// The label, in a box as wide as the widest of [labelRoom].
+  Widget _label() => Stack(
+    children: [
+      for (final w in {...labelRoom, label!})
+        Visibility(
+          visible: w == label,
+          maintainSize: true,
+          maintainAnimation: true,
+          maintainState: true,
+          child: Text(w, style: T.small),
+        ),
+    ],
   );
 }
 

@@ -595,9 +595,23 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   /// The button at the end of the list header: depends on the view.
   Widget? _viewAction() => switch (browser.view) {
-    TView.changes => SmallButton('New change', icon: Icons.auto_awesome, onPressed: newChange),
+    TView.changes => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SmallButton('New change', icon: Icons.auto_awesome, onPressed: newChange),
+        const SizedBox(width: 6),
+        SortButtons(sorter: browser.changeSort),
+      ],
+    ),
     TView.inbox => SmallButton('Mark all seen', icon: Icons.done_all, onPressed: markSeen),
-    TView.tasks => GroupByMenu(value: browser.groupBy, options: TaskBrowser.groupings, onPick: browser.setGroupBy),
+    TView.tasks => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GroupByMenu(value: browser.groupBy, options: TaskBrowser.groupings, onPick: browser.setGroupBy),
+        const SizedBox(width: 6),
+        SortButtons(sorter: browser.taskSort),
+      ],
+    ),
     _ => null,
   };
 
