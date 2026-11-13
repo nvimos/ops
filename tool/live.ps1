@@ -52,6 +52,7 @@ $job = [LiveJob]::Create()
 $psi = [System.Diagnostics.ProcessStartInfo]::new('cmd.exe', "/c `"`"$Flutter`" run -d windows 2>&1 | pwsh -NoProfile -File `"$PSScriptRoot/tee-log.ps1`" `"$log`"`"")
 $psi.WorkingDirectory = $root
 $psi.UseShellExecute = $false
+$psi.Environment['OPS_BUILD'] = 'live'  # the window title reads "Ops (live)" (windows/runner/main.cpp)
 $psi.RedirectStandardInput = $true  # output goes to this console and the log via tee-log.ps1
 $run = [System.Diagnostics.Process]::Start($psi)  # not $flutter: names ignore case, and -Flutter is a [string]
 [LiveJob]::Add($job, $run.Handle)  # cmd's children (flutter, the app) join the job too
