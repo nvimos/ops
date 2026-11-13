@@ -150,22 +150,29 @@ class TaskRow extends StatelessWidget {
           if (change != null) HintIcon(Icons.description_outlined, change.title, color: statusColor(change.stage)),
           if (box.maxWidth > 640)
             for (final l in t.labels.take(2)) Padding(padding: const EdgeInsets.only(left: 6), child: labelPill(l)),
-          if (box.maxWidth > 420 && checks.isNotEmpty) _Checks(checks),
+          if (box.maxWidth > 420) _Checks(checks),
         ],
       ),
     );
   }
 }
 
+/// The progress column of a row: the same width in every row, empty when there are no checks,
+/// so the bars and counts line up like columns.
 class _Checks extends StatelessWidget {
   const _Checks(this.checks);
+
+  static const double bar = 30, count = 38, gap = 10;
 
   final List<Check> checks;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(left: 10),
-    child: Progress(checks.where((c) => c.done).length, checks.length, width: 30),
+    padding: const EdgeInsets.only(left: gap),
+    child: SizedBox(
+      width: bar + 6 + count,
+      child: Progress(checks.where((c) => c.done).length, checks.length, width: bar, countWidth: count),
+    ),
   );
 }
 
@@ -190,7 +197,7 @@ class ChangeRow extends StatelessWidget {
             if (c.deltas.isNotEmpty) ...[const SizedBox(width: 8), Pill('${c.deltas.length} req', color: C.purple)],
             if (wide && t != null) _Trailing(t.id, code: true),
             if (wide && date != null) _Trailing(fmtDate(date)),
-            if (wide && c.allChecks.isNotEmpty) _Checks(c.allChecks),
+            if (wide) _Checks(c.allChecks),
           ],
         );
       },
