@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
+import 'package:material_ui/material_ui.dart' show Icons;
 
 import 'inbox.dart';
 import 'milestones.dart';
 import 'model.dart';
+import 'sorter.dart';
 import 'workspace.dart';
 
 export 'milestones.dart' show openMilestone;
@@ -116,6 +118,24 @@ class NavTarget {
 class TaskBrowser extends ChangeNotifier {
   TaskBrowser(this.ws, {required this.lastSeen});
 
+  final _sorters = <Sorter<dynamic>>[];
+
+  /// A sorter whose clicks redraw the rows; made here, not in the constructor, so a hot reload
+  /// of a running browser wires it up too.
+  Sorter<T> _sorter<T>(List<SortMode<T>> modes, {int start = 0}) {
+    final s = Sorter<T>(modes, start: start, descending: true)..addListener(notifyListeners);
+    _sorters.add(s);
+    return s;
+  }
+
+  @override
+  void dispose() {
+    for (final s in _sorters) {
+      s.dispose();
+    }
+    super.dispose();
+  }
+
   final Workspace ws;
 
   /// When the inbox was last marked seen.
@@ -228,6 +248,40 @@ class TaskBrowser extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// How the tasks, and the changes, are ordered inside each group (the buttons in the header).
+  late final taskSort = _sorter<Task>([
+    SortMode('By name', 'name', Icons.sort_by_alpha, (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase())),
+    SortMode('By modification time', 'modified', Icons.update, (a, b) => a.mtime.compareTo(b.mtime)),
+    SortMode('By creation time', 'created', Icons.event, (a, b) => _byHint ? a.createdHint.compareTo(b.createdHint) : a.created.compareTo(b.created),
+        warning: () => creationSuspicious
+            ? 'Suspicious: most tasks have the same creation time, so it is probably not when they were '
+                  'created. Ordering by the creation date found inside each task instead.'
+            : null),
+    SortMode('By length of the title', 'length', Icons.straighten, (a, b) => a.title.length.compareTo(b.title.length)),
+  ], start: 1);
+
+  late final changeSort = _sorter<Change>([
+    SortMode('By id', 'id', Icons.tag, (a, b) => a.id.compareTo(b.id)),
+    SortMode('By name', 'name', Icons.sort_by_alpha, (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase())),
+    SortMode('By modification time', 'modified', Icons.update, (a, b) => a.mtime.compareTo(b.mtime)),
+    SortMode('By length of the title', 'length', Icons.straighten, (a, b) => a.title.length.compareTo(b.title.length)),
+  ], start: 2);
+
+  bool _byHint = false;
+
+  /// Most tasks share one creation time (over 80%, from 5 tasks up): the date is no use, it was
+  /// probably set by a bulk import or copy, so the order by creation time goes by the hint inside
+  /// the task instead.
+  bool get creationSuspicious {
+    final all = ws.tasks;
+    if (all.length < 5) return false;
+    final counts = <String, int>{};
+    for (final t in all) {
+      counts.update(t.created, (n) => n + 1, ifAbsent: () => 1);
+    }
+    return counts.values.reduce((a, b) => a > b ? a : b) > all.length * 0.8;
+  }
+
   // Selection --------------------------------------------------------------------------------------
 
   void select(Object? key) {
@@ -277,12 +331,17 @@ class TaskBrowser extends ChangeNotifier {
 
   bool _matches(String text) => query.isEmpty || text.toLowerCase().contains(query.toLowerCase());
 
-  List<Task> get visibleTasks => ws.tasks.where((t) {
+  List<Task> get visibleTasks {
+    _byHint = creationSuspicious;
+    return taskSort.sorted(_filtered());
+  }
+
+  Iterable<Task> _filtered() => ws.tasks.where((t) {
     if (labelFilter != null && !t.labels.contains(labelFilter)) return false;
     if (statusFilter == 'open' && !isOpen(t)) return false;
     if (statusFilter != null && statusFilter != 'open' && t.status != statusFilter) return false;
     return _matches('${t.id} ${t.title} ${t.labels.join(' ')}');
-  }).toList();
+  });
 
   List<ListRow> rows() => switch (view) {
     TView.inbox => _inboxRows(),
@@ -370,7 +429,7 @@ class TaskBrowser extends ChangeNotifier {
   ];
 
   List<ListRow> _changeRows() {
-    final list = ws.changes.where((c) => _matches('${c.id} ${c.title}'));
+    final list = changeSort.sorted(ws.changes.where((c) => _matches('${c.id} ${c.title}')));
     return grouped(['Active', 'Draft', 'Completed'], groupBy_(list, (c) => [c.stage]), (c) => ChangeKey(c.dir));
   }
 

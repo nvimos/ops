@@ -31,6 +31,19 @@ class Task {
   /// Backlog.md's `milestone:`, the milestone the task is planned for; empty when none.
   String get milestone => front.str('milestone').trim();
   String get created => front.str('created_date');
+  /// A creation date recorded elsewhere in the task, for when `created_date` is no use: a label
+  /// `created:2026-01-31` (or `created-2026-01-31`), else the front matter's `created_at` or
+  /// `created`. Empty when there is none. How it is recorded is not settled yet.
+  String get createdHint {
+    for (final l in labels) {
+      final m = _createdTag.firstMatch(l);
+      if (m != null) return m.group(1)!;
+    }
+    final v = front.str('created_at').isNotEmpty ? front.str('created_at') : front.str('created');
+    return v;
+  }
+
+  static final _createdTag = RegExp(r'^created[:=-](\d{4}-\d{2}-\d{2})');
   int get ordinal => int.tryParse(front.str('ordinal')) ?? 0;
   late final int number = int.tryParse(id.replaceAll(_nonDigit, '')) ?? 0;
   static final _nonDigit = RegExp(r'\D');
