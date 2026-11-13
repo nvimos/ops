@@ -977,9 +977,8 @@ keyboard J/K/Enter/Esc/C and /.
     `openspec/specs/planning/spec.md`); this rule wins
 - `tasks/edits.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
   proposal) sent as `files.set_lines`; each refuses if the line changed meanwhile.
-- The text of the detail panel is one selectable area: a drag selects across its sections, not inside one
-  text at a time (the debug bar names it "Task detail text"; it is not a Tab stop, a click in the text
-  takes the keyboard)
+- the detail panel's text is selectable: one selection over the whole panel (title, proposal, task
+  text, raw file), copied with Ctrl+C; a click in the text is not a Tab stop
 - Checkboxes in the detail panel
   - the box and the text next to it are one target: the pointer cursor and a hover background show it
   - a left click ticks an open box and clears any other mark

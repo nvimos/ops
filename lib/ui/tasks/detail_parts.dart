@@ -76,11 +76,9 @@ class PanelHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          SelectionArea(
-            child: RichLine(
-              title,
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, height: 1.3, color: C.text),
-            ),
+          RichLine(
+            title,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600, height: 1.3, color: C.text),
           ),
         ],
       ),
