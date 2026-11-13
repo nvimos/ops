@@ -3,7 +3,21 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../backend/backend.dart';
+import '../backend/models.dart';
 import 'session.dart';
+
+/// The mode a project opens in: the first one with something to do.
+enum OpenTarget { pullRequest, changes, tasks }
+
+/// A branch other than the default one means a pull request to review; else uncommitted changes
+/// mean work to stage; else the tasks, even when there are none.
+OpenTarget openTarget(Branches branches, Status status) {
+  final names = branches.list.map((b) => b.name).toSet();
+  final main = names.contains('main') ? 'main' : (names.contains('master') ? 'master' : branches.current);
+  if (names.any((n) => n != main)) return OpenTarget.pullRequest;
+  if (status.files.isNotEmpty) return OpenTarget.changes;
+  return OpenTarget.tasks;
+}
 
 /// State of the Directories mode: the start dirs, a filter, and switching the Active Directory,
 /// either by `:cd` in the connected Neovim or by starting a new Neovim there.
@@ -82,6 +96,17 @@ class DirsState extends ChangeNotifier {
   void toggleNewNeovim() {
     newNeovim = !newNeovim;
     notifyListeners();
+  }
+
+  /// Where the Active Directory opens (see [openTarget]); the tasks when git can't tell.
+  Future<OpenTarget> openingTarget() async {
+    final b = session.backend;
+    if (b == null) return OpenTarget.tasks;
+    try {
+      return openTarget(await b.branches(), await b.status());
+    } catch (_) {
+      return OpenTarget.tasks;
+    }
   }
 
   /// Make [dir] the Active Directory. Returns the error text, or null.
