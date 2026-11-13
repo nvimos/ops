@@ -521,6 +521,9 @@ mode area, which shrinks upward.
           - always answers with a short note: "Rebased head onto base", or "head is already on top
             of base" when there was nothing to replay; the lists refresh
       - Head Picker
+        - each picker leaves out the branch the other one has: no `main` in the head list while
+          the base is `main`, and the other way round (the same on both sides is an empty diff)
+        - a revision typed by hand (`HEAD~2`) is still taken, whatever the other picker has
       - Files Changed
       - Commits list
     - main pane, takes the remaining width (diff view)

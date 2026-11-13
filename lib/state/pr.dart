@@ -63,6 +63,13 @@ class PrState extends ChangeNotifier {
   DiffFile? get selectedFile => diff?.files.where((f) => f.path == selected).firstOrNull;
   List<String> get branchNames => branches?.list.map((x) => x.name).toList() ?? [];
 
+  /// What the base picker lists: the branches but the one picked as head (the same on both sides
+  /// is an empty diff).
+  List<String> get baseNames => branchNames.where((n) => n != head).toList();
+
+  /// What the head picker lists: the branches but the one picked as base.
+  List<String> get headNames => branchNames.where((n) => n != base).toList();
+
   /// Reload branches, then commits and diff for the picked pair (keeps the selection).
   /// [base] and [head] may be any revision git accepts; only unknown branch names are replaced.
   Future<void> refresh() => UiTiming.instance.time('pr.refresh', _refresh);

@@ -289,13 +289,13 @@ class PrPickers extends StatelessWidget {
         RevPicker(
           label: 'base',
           value: pr.base,
-          names: pr.branchNames,
+          names: pr.baseNames,
           focus: pr.baseFocus,
           next: pr.headFocus,
           onPick: pr.pickBase,
         ),
         ActionsLine(pr: pr),
-        RevPicker(label: 'head', value: pr.head, names: pr.branchNames, focus: pr.headFocus, onPick: pr.pickHead),
+        RevPicker(label: 'head', value: pr.head, names: pr.headNames, focus: pr.headFocus, onPick: pr.pickHead),
       ],
     ),
   );

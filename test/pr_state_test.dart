@@ -82,6 +82,27 @@ void main() {
     await nvim.stop();
   });
 
+  test('each picker leaves out the branch the other one has', () async {
+    final repo = await makeRepo();
+    await git(repo, ['branch', 'feature']);
+    await git(repo, ['branch', 'other']);
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final pr = PrState(s);
+    await until(() => !pr.loading && pr.branches != null);
+    pr.pick(base: 'main', head: 'feature');
+    expect(pr.baseNames, unorderedEquals(['main', 'other']));
+    expect(pr.headNames, unorderedEquals(['feature', 'other']));
+    pr.pick(base: 'other', head: 'main');
+    expect(pr.baseNames, unorderedEquals(['other', 'feature']));
+    expect(pr.headNames, unorderedEquals(['main', 'feature']));
+    pr.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
   test('picks main and the newest other branch, loads commits and diff, refreshes on git hints', () async {
     final repo = await makeRepo();
     await git(repo, ['checkout', '-q', '-b', 'agent/x']);
