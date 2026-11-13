@@ -35,7 +35,23 @@ An interactive session leaving its worktree asks you: keep it (folder and branch
 
 Claude Code's design is the ordinary branch-and-review flow; Claude does not merge back on its own.
 
-### With GitHub pull requests (the default design)
+### My stance: local first, no corporate forge
+
+I'm a free software person; my local work should not have to go through a corporate service like GitHub.
+- the local flow below (`/prish`, `/prish-merge`, plain `git merge`) is the one I use; it needs no network
+- the session rule "push the branch if the repo has a remote" is what pulls GitHub in; my own instructions
+  override it, so a line in `~/.claude/CLAUDE.md` turns it off:
+  `Git stays local: never push, never open pull requests.`
+- if I want review or sharing later, free software ways:
+  - `git format-patch` / `git am`, patches by mail (the kernel and sourcehut way)
+  - a self-hosted Forgejo for pull requests on my own box
+  - a bare repo (`git init --bare`) on a disk or an SSH host as the remote
+- `/code-review` is built into Claude Code (not one of my skills, not a plugin); with no argument it reviews
+  the local diff, no GitHub needed; `/code-review ultra` runs in Anthropic's cloud, and `--comment` posts to a
+  GitHub PR, so leave those out for local-only work
+  - the separate `code-review` plugin in the official catalog (not installed) works only on GitHub PRs
+
+### With GitHub pull requests (the default design, not mine)
 
 1. the session commits on `worktree-<name>` and pushes the branch
 2. it opens a draft PR, or you open one from the pushed branch (`gh pr create --draft`)
@@ -45,7 +61,7 @@ Claude Code's design is the ordinary branch-and-review flow; Claude does not mer
 
 Fits a team, CI, or work you want to read as a diff before it lands.
 
-### Locally, without GitHub (this setup)
+### Locally, without GitHub (what I use)
 
 Your skills `/prish` and `/prish-merge` do the merge on your machine:
 1. in the worktree session, `/prish`: commits leftovers, rebases onto your local branch if it moved, renames the branch to `PR-<name>`, leaves and unlocks the worktree; no push, no merge
