@@ -118,8 +118,23 @@ void main() {
     expect(st.tabLeaves(fromMessage: false, delta: 1), isTrue); // after the diff: the rail
     expect(st.tabLeaves(fromMessage: false, delta: -1), isFalse);
     st.goTo(ChangesPane.staged);
-    expect(st.tabLeaves(fromMessage: false, delta: -1), isTrue); // before STAGED: the rail
+    expect(st.tabLeaves(fromMessage: false, delta: -1), isFalse); // before STAGED: the branch switcher
+    st.goTo(ChangesPane.branch);
+    expect(st.tabLeaves(fromMessage: false, delta: -1), isTrue); // before the switcher: the rail
     expect(st.tabLeaves(fromMessage: false, delta: 1), isFalse);
+    expect(st.vertical(dir: -1, fromMessage: false), isFalse); // nothing above the switcher: stays
+    expect(st.pane, ChangesPane.branch);
+    expect(st.vertical(dir: 1, fromMessage: false), isFalse); // switcher -> STAGED
+    expect(st.pane, ChangesPane.staged);
+    expect(st.vertical(dir: -1, fromMessage: false), isFalse); // STAGED -> switcher
+    expect(st.pane, ChangesPane.branch);
+    expect(st.moveCursor(1), isFalse); // Down: the first list
+    expect(st.pane, ChangesPane.staged);
+    expect(st.moveCursor(-1), isFalse); // Up past the first file: the switcher
+    expect(st.pane, ChangesPane.branch);
+    st.leaveBranch();
+    expect(st.pane, ChangesPane.staged);
+    st.goTo(ChangesPane.staged);
 
     expect(st.vertical(dir: 1, fromMessage: false), isFalse); // STAGED -> CHANGES
     expect(st.pane, ChangesPane.unstaged);

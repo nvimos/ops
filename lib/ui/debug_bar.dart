@@ -34,7 +34,7 @@ const paneNodes = {'shell', 'changes', 'tasks'};
 /// Panes by what they are in the interface: Pull request and Changes, by the state's pane name.
 const prPaneRoles = {'files': 'Files changed list', 'commits': 'Commits list', 'diff': 'Diff'};
 const tasksPaneRoles = {'nav': 'Facets', 'list': 'Task list', 'detail': 'Task detail'};
-const changesPaneRoles = {'staged': 'Staged files list', 'unstaged': 'Changed files list', 'diff': 'Diff'};
+const changesPaneRoles = {'branch': 'Branch switcher field', 'staged': 'Staged files list', 'unstaged': 'Changed files list', 'diff': 'Diff'};
 
 /// Widget classes that are an interface element on their own, for focus without a labelled node
 /// around it (dialogs, the command palette). Matched by class name.
