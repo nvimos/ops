@@ -5,6 +5,18 @@
 #include "flutter_window.h"
 #include "utils.h"
 
+// The title says which build runs: "Ops" for a release build; a debug build adds the kind of run,
+// from OPS_BUILD (`make live` sets "live"), else "dev".
+static std::wstring WindowTitle() {
+#ifdef NDEBUG
+  return L"Ops";
+#else
+  wchar_t kind[32];
+  DWORD n = ::GetEnvironmentVariableW(L"OPS_BUILD", kind, 32);
+  return L"Ops (" + std::wstring(n > 0 && n < 32 ? kind : L"dev") + L")";
+#endif
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   // Attach to console when present (e.g., 'flutter run') or create a
@@ -27,7 +39,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"Ops", origin, size)) {
+  if (!window.Create(WindowTitle(), origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
