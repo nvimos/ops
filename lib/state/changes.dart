@@ -8,7 +8,7 @@ import 'session.dart';
 
 /// The panes of the Changes view, in visual order: STAGED, CHANGES, the diff (the commit message
 /// is a text field between CHANGES and the diff; Tab visits it too).
-enum ChangesPane { staged, unstaged, diff }
+enum ChangesPane { branch, staged, unstaged, diff }
 
 /// State of the Changes view: working tree vs HEAD, the selected file's diff, and actions.
 class ChangesState extends ChangeNotifier {
@@ -162,10 +162,11 @@ class ChangesState extends ChangeNotifier {
   ChangesPane _pane = ChangesPane.staged;
 
   /// The active pane; one that has no files (or is folded) hands over to the first reachable one.
-  ChangesPane get pane => panes.contains(_pane) ? _pane : panes.first;
+  ChangesPane get pane => panes.contains(_pane) ? _pane : panes.firstWhere((p) => p != ChangesPane.branch);
 
   /// The panes the keys can reach, in visual order: empty and folded lists are left out.
   List<ChangesPane> get panes => [
+    ChangesPane.branch,
     if (staged.isNotEmpty && !lists.collapsed[0]) ChangesPane.staged,
     if (unstaged.isNotEmpty && !lists.collapsed[1]) ChangesPane.unstaged,
     ChangesPane.diff,
@@ -184,43 +185,57 @@ class ChangesState extends ChangeNotifier {
   /// Right: from a list to the diff. Left: from the diff back to the list it came from.
   void movePane(int delta) {
     final ps = panes;
-    if (pane != ChangesPane.diff) _lastList = pane;
+    if (pane != ChangesPane.diff && pane != ChangesPane.branch) _lastList = pane;
     if (delta > 0) return goTo(ChangesPane.diff);
-    if (pane == ChangesPane.diff) goTo(ps.contains(_lastList) ? _lastList : ps.first);
+    if (pane == ChangesPane.diff) goTo(ps.contains(_lastList) ? _lastList : ps.firstWhere((p) => p != ChangesPane.branch));
   }
 
-  /// Tab / Shift+Tab leave the cycle (STAGED, CHANGES, commit message, diff) in [delta]'s
-  /// direction: the mode rail is the stop before the first and after the last.
+  /// The stops of the Tab cycle, in visual order; null is the commit message.
+  List<ChangesPane?> get _tabSlots => [...panes.where((p) => p != ChangesPane.diff), null, ChangesPane.diff];
+
+  /// The left column above the commit message: the branch switcher and the reachable lists.
+  List<ChangesPane> get _column => panes.where((p) => p != ChangesPane.diff).toList();
+
+  /// Tab / Shift+Tab leave the cycle (branch switcher, STAGED, CHANGES, commit message, diff) in
+  /// [delta]'s direction: the mode rail is the stop before the first and after the last.
   bool tabLeaves({required bool fromMessage, required int delta}) {
-    final slots = [...panes.where((p) => p != ChangesPane.diff), null, ChangesPane.diff];
+    final slots = _tabSlots;
     final at = fromMessage ? slots.indexOf(null) : slots.indexOf(pane);
     final to = at + delta;
     return to < 0 || to >= slots.length;
   }
 
-  /// Ctrl+Up / Ctrl+Down: the pane visually above or below (STAGED, CHANGES, commit message).
-  /// Returns true when the commit message should get the keyboard. The diff is alone in its column.
+  /// Ctrl+Up / Ctrl+Down: the pane visually above or below (branch switcher, STAGED, CHANGES,
+  /// commit message). Returns true when the commit message should get the keyboard. The diff is
+  /// alone in its column.
   bool vertical({required int dir, required bool fromMessage}) {
-    final lists = panes.where((p) => p != ChangesPane.diff).toList();
+    final lists = _column;
     if (!fromMessage && !lists.contains(pane)) return false;
     final at = fromMessage ? lists.length : lists.indexOf(pane);
     final to = at + dir;
     if (to < 0 || to > lists.length) return fromMessage;
     if (to == lists.length) return true;
     goTo(lists[to]);
-    if (dir < 0) selectBottom[lists[to] == ChangesPane.staged ? 0 : 1].value++;
+    if (dir < 0 && lists[to] != ChangesPane.branch) selectBottom[lists[to] == ChangesPane.staged ? 0 : 1].value++;
     return false;
+  }
+
+  /// The keyboard left the branch switcher (a pick, Esc, a click elsewhere): the first list is
+  /// the active pane again, or the diff when there is none.
+  void leaveBranch() {
+    if (pane != ChangesPane.branch) return;
+    final lists = _column.where((p) => p != ChangesPane.branch);
+    goTo(lists.isEmpty ? ChangesPane.diff : lists.first);
   }
 
   /// Tab / Shift+Tab: the pane after (before) [pane] in the cycle of [panes] plus the commit
   /// message; null when the message is next. [fromMessage]: the message has the keyboard.
   ChangesPane? tabFrom({required bool fromMessage, required int delta}) {
-    final ps = panes;
-    final slots = [...ps.where((p) => p != ChangesPane.diff), null, ChangesPane.diff]; // null: message
+    final slots = _tabSlots;
     final at = fromMessage ? slots.indexOf(null) : slots.indexOf(pane);
     final to = slots[(at + delta) % slots.length];
     if (to != null) goTo(to);
-    if (to != null && to != ChangesPane.diff && fromMessage && delta < 0) {
+    if (to != null && to != ChangesPane.diff && to != ChangesPane.branch && fromMessage && delta < 0) {
       selectBottom[to == ChangesPane.staged ? 0 : 1].value++; // up from the message: the lowest visible
     }
     return to;
@@ -233,7 +248,7 @@ class ChangesState extends ChangeNotifier {
     final side = switch (p) {
       ChangesPane.staged => true,
       ChangesPane.unstaged => false,
-      ChangesPane.diff => null,
+      ChangesPane.diff || ChangesPane.branch => null,
     };
     final files = side == null ? const <StatusFile>[] : (side ? staged : unstaged);
     final inside = selectedStaged == side && files.any((f) => f.path == selected);
@@ -253,9 +268,17 @@ class ChangesState extends ChangeNotifier {
   /// j / k, arrows: the next or previous file within the active list; in the diff, scroll lines
   /// ([big] (Shift): [DiffScroll.bigStep] of them instead of [DiffScroll.step]). One step past the
   /// end of a list goes to the pane visually next to it: past the last staged file to CHANGES, past
-  /// the first changed file to STAGED, past the last file of the last list to the commit message
-  /// (then true is returned: the caller gives it the keyboard).
+  /// the first changed file to STAGED, past the first file of the top list to the branch switcher,
+  /// past the last file of the last list to the commit message (then true is returned: the caller
+  /// gives it the keyboard). From the branch switcher Down goes to the first list (or the message).
   bool moveCursor(int delta, {bool big = false}) {
+    if (pane == ChangesPane.branch) {
+      final lists = _column.where((p) => p != ChangesPane.branch);
+      if (delta <= 0) return false;
+      if (lists.isEmpty) return true;
+      goTo(lists.first);
+      return false;
+    }
     if (pane == ChangesPane.diff) {
       diffScroll.byLines(delta * (big ? DiffScroll.bigStep : DiffScroll.step));
       return false;
@@ -273,6 +296,8 @@ class ChangesState extends ChangeNotifier {
       if (!side && ps.contains(ChangesPane.staged)) {
         goTo(ChangesPane.staged, last: true, force: true); // without a tree on screen: the last file
         selectBottom[0].value++;
+      } else {
+        goTo(ChangesPane.branch);
       }
       return false;
     }
