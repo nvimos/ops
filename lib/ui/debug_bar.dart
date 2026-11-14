@@ -17,6 +17,7 @@ const focusRoles = {
   'base picker': 'Base revision field',
   'head picker': 'Head revision field',
   'commit message': 'Commit message field',
+  'branch switcher': 'Branch switcher field',
   'dirs filter': 'Directory filter field',
   'tasks filter': 'Task filter field',
   'dirs': 'Directory list',

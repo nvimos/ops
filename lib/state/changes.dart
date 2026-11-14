@@ -52,6 +52,17 @@ class ChangesState extends ChangeNotifier {
     if (!_disposed) super.notifyListeners();
   }
 
+  /// The local branches, for the branch switcher.
+  Branches? branches;
+  List<String> get branchNames => branches?.list.map((x) => x.name).toList() ?? [];
+
+  /// The files a checkout would overwrite: those with uncommitted changes to tracked files
+  /// (untracked files stay).
+  List<StatusFile> get wipedByCheckout => [
+    for (final f in status?.files ?? const <StatusFile>[])
+      if (!f.untracked) f,
+  ]..sort((a, b) => compareTreeOrder(a.path, b.path));
+
   /// Both lists are in the order the tree shows them, so the keys walk the rows top to bottom.
   List<StatusFile> get staged => _inTreeOrder(status?.files.where((f) => f.staged));
   List<StatusFile> get unstaged => _inTreeOrder(status?.files.where((f) => f.unstaged || f.untracked || f.conflicted));
@@ -104,9 +115,10 @@ class ChangesState extends ChangeNotifier {
     if (b == null || _pending > 0) return;
     final gen = ++_gen;
     try {
-      final st = await b.status();
+      final (st, br) = await (b.status(), b.branches()).wait;
       if (gen != _gen || _pending > 0) return;
       status = st;
+      branches = br;
       // Keep the selection if the file still has changes on that side; else pick another.
       final side = selectedStaged ? staged : unstaged;
       if (selected == null || !side.any((f) => f.path == selected)) {
@@ -376,6 +388,13 @@ class ChangesState extends ChangeNotifier {
     status = st.withFiles([for (final f in st.files) paths.contains(f.path) ? f.moved(toStaged: toStaged) : f]);
     if (selected != null && paths.contains(selected)) selectedStaged = toStaged;
   }
+
+  /// Switch to [branch]; [how] says what to do with uncommitted changes (null: git refuses when
+  /// they are in the way). Returns the error text, or null.
+  Future<String?> switchBranch(String branch, {CheckoutHow? how}) => act(
+    'checkout',
+    (b) => b.checkout(branch, how: how),
+  );
 
   Future<String?> discardFile(String path) => act('discard', (b) => b.discard(path));
 

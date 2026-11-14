@@ -67,7 +67,15 @@ class Pill extends StatelessWidget {
 
 /// A compact flat button.
 class SmallButton extends StatelessWidget {
-  const SmallButton(this.label, {super.key, this.onPressed, this.icon, this.primary = false, this.danger = false});
+  const SmallButton(
+    this.label, {
+    super.key,
+    this.onPressed,
+    this.icon,
+    this.primary = false,
+    this.danger = false,
+    this.autofocus = false,
+  });
 
   final String label;
   final VoidCallback? onPressed;
@@ -75,12 +83,16 @@ class SmallButton extends StatelessWidget {
   final bool primary;
   final bool danger;
 
+  /// Has the keyboard when its dialog opens, so Enter and Space press it.
+  final bool autofocus;
+
   @override
   Widget build(BuildContext context) {
     final fg = danger ? C.red : (primary ? C.bg : C.text);
     final bg = primary ? C.accent : C.surface2;
     return TextButton(
       onPressed: onPressed,
+      autofocus: autofocus,
       style: TextButton.styleFrom(
         backgroundColor: onPressed == null ? C.surface : bg,
         foregroundColor: fg,

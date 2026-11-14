@@ -480,23 +480,29 @@ String ago(DateTime t) {
 class RevPicker extends StatefulWidget {
   const RevPicker({
     super.key,
-    required this.label,
+    this.label,
     required this.value,
     required this.names,
     required this.focus,
     required this.onPick,
     this.next,
+    this.strict = false,
   });
 
   /// The width of the label column; the swap button and the merge actions line up with it.
   static const double labelWidth = 38;
 
-  final String label;
+  /// The label in front of the field; null: no label column (the branch switcher of Changes).
+  final String? label;
   final String? value;
   final List<String> names;
   final FocusNode focus;
   final FocusNode? next;
   final ValueChanged<String> onPick;
+
+  /// Only the listed branches can be picked, and only by Enter or a click: any other revision is
+  /// refused, and typing alone never picks (a pick there switches branches).
+  final bool strict;
 
   @override
   State<RevPicker> createState() => _RevPickerState();
@@ -556,7 +562,7 @@ class _RevPickerState extends State<RevPicker> {
   void _pick(String v) {
     _auto?.cancel();
     final rev = v.trim();
-    if (rev.isEmpty) return;
+    if (rev.isEmpty || (widget.strict && !widget.names.contains(rev))) return;
     _open = false;
     _text.text = rev;
     if (rev != widget.value) widget.onPick(rev);
@@ -570,7 +576,7 @@ class _RevPickerState extends State<RevPicker> {
     _open = false;
     _auto?.cancel();
     final hits = _filter(q);
-    if (hits.length != 1 || q.trim().isEmpty) return;
+    if (widget.strict || hits.length != 1 || q.trim().isEmpty) return;
     _auto = Timer(const Duration(milliseconds: 150), () {
       if (mounted && widget.focus.hasFocus && _filter(_text.text).length == 1) _pick(hits.single);
     });
@@ -579,8 +585,11 @@ class _RevPickerState extends State<RevPicker> {
   /// Enter: a revision that matches no branch (sha, tag, HEAD~3) is taken as typed; otherwise
   /// the highlighted branch.
   void _submit(String v, VoidCallback pickHighlighted) {
-    if (_untouched(v) || _filter(v).isEmpty || widget.names.contains(v.trim())) {
+    final asTyped = widget.strict ? widget.names.contains(v.trim()) : _untouched(v) || _filter(v).isEmpty || widget.names.contains(v.trim());
+    if (asTyped) {
       _pick(v);
+    } else if (widget.strict && _filter(v).isEmpty) {
+      return;
     } else {
       pickHighlighted();
     }
@@ -601,7 +610,7 @@ class _RevPickerState extends State<RevPicker> {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      SizedBox(width: RevPicker.labelWidth, child: Text(widget.label, style: T.tiny)),
+      if (widget.label != null) SizedBox(width: RevPicker.labelWidth, child: Text(widget.label!, style: T.tiny)),
       Expanded(
         child: RawAutocomplete<String>(
           textEditingController: _text,

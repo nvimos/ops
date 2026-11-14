@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nvimos_poc/backend/backend.dart' show CheckoutHow;
 import 'package:nvimos_poc/state/changes.dart';
 import 'package:nvimos_poc/state/session.dart';
 
@@ -72,6 +73,40 @@ void main() {
 
     expect(await st.moveDir('src', staged: true), isNull);
     await until(() => st.staged.isEmpty && st.unstaged.length == 4);
+
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
+  test('switching branches: lists the branches, names the files a checkout would wipe, stashes or forces', () async {
+    final repo = await makeRepo();
+    await git(repo, ['checkout', '-q', '-b', 'other']);
+    await git(repo, ['checkout', '-q', '-']);
+    await File('${repo.path}/a.txt').writeAsString('dirty\n');
+    await File('${repo.path}/new.txt').writeAsString('untracked\n');
+
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.unstaged.length == 2 && st.branchNames.contains('other'));
+    expect([for (final f in st.wipedByCheckout) f.path], ['a.txt']); // untracked files stay
+
+    expect(await st.switchBranch('other'), isNotNull); // git refuses without a decision
+    expect(st.status!.branch, isNot('other'));
+
+    expect(await st.switchBranch('other', how: CheckoutHow.stash), isNull);
+    await until(() => st.status?.branch == 'other');
+    expect(st.wipedByCheckout, isEmpty);
+    expect(await git(repo, ['stash', 'list']), contains('before switching to other'));
+
+    await git(repo, ['checkout', '-q', '-']);
+    await File('${repo.path}/a.txt').writeAsString('dirty again\n');
+    await until(() => st.wipedByCheckout.isNotEmpty);
+    expect(await st.switchBranch('other', how: CheckoutHow.force), isNull);
+    await until(() => st.status?.branch == 'other' && st.wipedByCheckout.isEmpty);
 
     st.dispose();
     s.dispose();

@@ -1,16 +1,19 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../backend/backend.dart' show CheckoutHow;
 import '../backend/models.dart';
 import '../state/changes.dart';
 import '../state/list_pair.dart';
 import '../state/session.dart';
+import 'checkout_dialog.dart';
 import 'confirm_dialog.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
 import 'key_sequence.dart';
 import 'nav_keys.dart';
+import 'pr_view.dart' show RevPicker;
 import 'list_pair_view.dart';
 import 'resizable_pane.dart';
 import 'theme.dart';
@@ -38,6 +41,7 @@ class ChangesViewState extends State<ChangesView> {
   /// The shell gives the keyboard here when the mode is shown.
   final focus = FocusNode(debugLabel: 'changes');
   final _messageFocus = FocusNode(debugLabel: 'commit message');
+  final _branchFocus = FocusNode(debugLabel: 'branch switcher');
   static const _far = 1 << 20;
   late final _keys = KeySequence({
     'gg': () => st.moveSelection(-_far),
@@ -82,6 +86,7 @@ class ChangesViewState extends State<ChangesView> {
     _keys.dispose();
     focus.dispose();
     _messageFocus.dispose();
+    _branchFocus.dispose();
     _state?.dispose();
     _message.dispose();
     super.dispose();
@@ -96,6 +101,19 @@ class ChangesViewState extends State<ChangesView> {
   Future<void> _moveAll(bool staged) async => _report(await st.moveAll(staged: staged));
 
   Future<void> _moveFile(String path, bool staged) async => _report(await st.moveFile(path, staged: staged));
+
+  /// A branch picked in the switcher. Changes to tracked files would be overwritten: the modal
+  /// lists them first, and Cancel (the default) leaves everything as it is.
+  Future<void> _switchBranch(String branch) async {
+    if (branch == st.status?.branch) return;
+    final files = st.wipedByCheckout;
+    CheckoutHow? how;
+    if (files.isNotEmpty) {
+      how = await askCheckout(context, branch: branch, files: files);
+      if (how == null) return;
+    }
+    _report(await st.switchBranch(branch, how: how));
+  }
 
   Future<void> _moveDir(String dir, bool staged) async => _report(await st.moveDir(dir, staged: staged));
 
@@ -269,7 +287,7 @@ class ChangesViewState extends State<ChangesView> {
           trailing: 16,
         ),
     ];
-    final branch = 12 + 20 + textWidth(st.status?.branch ?? 'Changes', T.body);
+    final branch = 12 + 80 + textWidth(st.status?.branch ?? 'Changes', T.body);
     final headers = [
       for (final (title, n, all) in [('STAGED', st.staged.length, 'Unstage all'), ('CHANGES', st.unstaged.length, 'Stage all')])
         headerWidth(title, '$n', actions: 2, textActions: n == 0 ? 0 : 8 + textWidth(all, const TextStyle(fontSize: 12))),
@@ -283,7 +301,13 @@ class ChangesViewState extends State<ChangesView> {
     final branch = st.status?.branch ?? '';
     final n = st.staged.length;
     return ChangesSidebar(
-      branch: branch,
+      branchPicker: BranchSwitcher(
+        branch: branch,
+        names: st.branchNames,
+        focus: _branchFocus,
+        next: focus,
+        onPick: _switchBranch,
+      ),
       sections: [
         FileSectionData('STAGED', st.staged, staged: true, collapsedDirs: st.collapsedDirs[0], active: st.pane == ChangesPane.staged, selectBottom: st.selectBottom[0]),
         FileSectionData('CHANGES', st.unstaged, staged: false, collapsedDirs: st.collapsedDirs[1], active: st.pane == ChangesPane.unstaged, selectBottom: st.selectBottom[1]),
@@ -376,7 +400,7 @@ class FileSectionData {
 class ChangesSidebar extends StatelessWidget {
   const ChangesSidebar({
     super.key,
-    required this.branch,
+    required this.branchPicker,
     required this.sections,
     required this.pair,
     required this.clean,
@@ -393,7 +417,7 @@ class ChangesSidebar extends StatelessWidget {
     required this.commitBox,
   });
 
-  final String branch;
+  final Widget branchPicker;
   final List<FileSectionData> sections;
   final ListPair pair;
   final bool clean;
@@ -411,7 +435,7 @@ class ChangesSidebar extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      PaneHeader(title: _BranchTitle(branch)),
+      branchPicker,
       Expanded(
         child: ListPairColumn(
           pair: pair,
@@ -677,18 +701,29 @@ class CommitBox extends StatelessWidget {
 
 // Molecules and atoms ------------------------------------------------------------------------------
 
-class _BranchTitle extends StatelessWidget {
-  const _BranchTitle(this.branch);
+/// The branch switcher at the top of Changes: the current branch in a picker that lists the local
+/// branches (the same field as the base and head of Pull request, but it only takes listed
+/// branches, and a pick checks the branch out).
+class BranchSwitcher extends StatelessWidget {
+  const BranchSwitcher({
+    super.key,
+    required this.branch,
+    required this.names,
+    required this.focus,
+    required this.next,
+    required this.onPick,
+  });
 
   final String branch;
+  final List<String> names;
+  final FocusNode focus, next;
+  final ValueChanged<String> onPick;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      const Icon(Icons.call_split, size: 14, color: C.muted),
-      const SizedBox(width: 6),
-      Text(branch.isEmpty ? 'Changes' : branch),
-    ],
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.border))),
+    child: RevPicker(value: branch, names: names, focus: focus, next: next, onPick: onPick, strict: true),
   );
 }
 

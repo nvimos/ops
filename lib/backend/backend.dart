@@ -6,6 +6,15 @@ import 'models.dart';
 
 /// An event from the backend plugin, in seq order per domain. A resync shows up as reason
 /// 'snapshot' with the domain's full snapshot in [data].
+/// What to do with uncommitted changes to tracked files when switching branches.
+enum CheckoutHow {
+  /// Stash them first.
+  stash,
+
+  /// Throw them away.
+  force,
+}
+
 class NvimEvent {
   NvimEvent(this.domain, this.reason, this.seq, this.data);
   final String domain, reason;
@@ -147,7 +156,8 @@ class Backend {
   Future<void> stageHunk(String path, Hunk h) => _git('stage_hunk', [path, h.ref]);
   Future<void> unstageHunk(String path, Hunk h) => _git('unstage_hunk', [path, h.ref]);
   Future<void> discardHunk(String path, Hunk h) => _git('discard_hunk', [path, h.ref]);
-  Future<void> checkout(String branch) => _git('checkout', [branch]);
+  /// Switch branches. With changes in the way, [how] says what to do with them (see [CheckoutHow]).
+  Future<void> checkout(String branch, {CheckoutHow? how}) => _git('checkout', [branch, if (how != null) how.name]);
   /// Merge [head] into the local branch [base] with a merge commit; returns the new HEAD's sha.
   Future<String> merge(String base, String head) async => str(await _git('merge', [base, head]));
   Future<String> commit(String message) async => str(await _git('commit', [message]));
