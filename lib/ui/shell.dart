@@ -119,6 +119,12 @@ class _ShellState extends State<Shell> {
     _ => _focus.requestFocus(),
   };
 
+  /// Shift+C: the Changes mode, with the branch switcher focused and its list open.
+  void _openBranchSwitcher() {
+    _setMode(Mode.changes);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _changesKey.currentState?.openBranchSwitcher());
+  }
+
   void _stepMode(int delta) => _setMode(Mode.values[(_mode.index + delta) % Mode.values.length]);
 
   // Keys -----------------------------------------------------------------------------------------
@@ -158,6 +164,7 @@ class _ShellState extends State<Shell> {
       _ when e.character == '?' => _run(() => _setMode(Mode.help)),
       _ when e.character == '/' && _mode == Mode.help => _run(() => _helpKey.currentState?.startSearch()),
       _ when _mode == Mode.help && _printable(e.character) => _run(() => _helpKey.currentState?.type(e.character!)),
+      _ when e.character == 'C' => _run(_openBranchSwitcher),
       // `b` (bug): the debug bar, as the bug button in the status bar; in Help it is search text.
       LogicalKeyboardKey.keyB when !hw.isShiftPressed => _run(() => debugBarVisible.value = !debugBarVisible.value),
       _ when _railFocus.hasFocus => false,
