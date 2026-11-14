@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'reveal.dart';
 import 'theme.dart';
+import 'wheel_mode.dart';
 import 'widgets.dart';
 
 /// One file in a changed-files tree.
@@ -42,9 +43,14 @@ class FileTree extends StatefulWidget {
     this.onToggleDir,
     this.folderTrailing,
     this.selectBottom,
+    this.onStep,
   });
 
   final List<TreeFile> files;
+
+  /// The wheel steps through the files (-1 / 1) after a middle click, or with Shift (see [WheelMode]);
+  /// null: the wheel only scrolls.
+  final ValueChanged<int>? onStep;
 
   /// A widget at the end of a folder row (lined up with the files' trailing widgets), by folder.
   final Widget? Function(String dir)? folderTrailing;
@@ -117,9 +123,16 @@ class _FileTreeState extends State<FileTree> {
 
   @override
   Widget build(BuildContext context) {
+    final step = widget.onStep;
+    if (step == null) return _list(scrolls: true);
+    return WheelMode(onStep: step, builder: (context, steps) => _list(scrolls: !steps));
+  }
+
+  Widget _list({required bool scrolls}) {
     final rows = treeRows(widget.files, widget.collapsed);
     return ListView.builder(
       controller: _scroll,
+      physics: scrolls ? null : const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(vertical: _treePad),
       itemCount: rows.length,
       itemBuilder: (context, i) => switch (rows[i]) {
@@ -216,16 +229,49 @@ class FileRow extends StatelessWidget {
     return HoverRow(
       selected: selected,
       onTap: onTap,
+      pointer: false, // that a file can be clicked is obvious: the plain cursor
       padding: EdgeInsets.fromLTRB(nested ? 30 : 12, 5, 10, 5),
       child: Row(
         children: [
-          Icon(statusIcon(f.status), size: 14, color: statusColor(f.status)),
+          StatusMark(f.status),
           const SizedBox(width: 8),
           Expanded(child: Text(f.path.substring(f.path.lastIndexOf('/') + 1), style: T.body, overflow: TextOverflow.ellipsis)),
           if (f.additions > 0) Text('+${f.additions}', style: const TextStyle(fontSize: 11, color: C.green)),
           if (f.deletions > 0) Text(' −${f.deletions}', style: const TextStyle(fontSize: 11, color: C.red)),
           if (f.trailing != null) ...[const SizedBox(width: 6), f.trailing!],
         ],
+      ),
+    );
+  }
+}
+
+/// The mark of a file's status: the symbols and colors oil-git.nvim draws in Oil by default
+/// (`+` added, `~` modified, `->` renamed, `D` deleted, `!` conflict, `?` untracked).
+class StatusMark extends StatelessWidget {
+  const StatusMark(this.status, {super.key, this.size = 14});
+
+  final String status;
+  final double size;
+
+  static (String, Color) _look(String status) => switch (status) {
+    'added' => ('+', const Color(0xFFA6E3A1)),
+    'renamed' => ('->', const Color(0xFFCBA6F7)),
+    'deleted' => ('D', const Color(0xFFF38BA8)),
+    'conflicted' => ('!', const Color(0xFFFAB387)),
+    'untracked' => ('?', const Color(0xFF89B4FA)),
+    _ => ('~', const Color(0xFFF9E2AF)), // modified
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final (sign, color) = _look(status);
+    return SizedBox(
+      width: size + 4, // the two-character `->` fits; the other marks centre in the same width
+      child: Center(
+        child: Text(
+          sign,
+          style: TextStyle(fontFamily: mono, fontSize: size - 1, height: 1, fontWeight: FontWeight.w600, color: color),
+        ),
       ),
     );
   }

@@ -16,6 +16,7 @@ import 'resizable_pane.dart';
 import 'reveal.dart';
 import 'tasks/review_panel.dart';
 import 'theme.dart';
+import 'wheel_mode.dart';
 import 'widgets.dart';
 
 /// Two revisions as a pull request: pickers, changed files and commits on the left, the diff on
@@ -146,10 +147,12 @@ class _PrMain extends StatelessWidget {
       file: f,
       sideBySide: pr.layout == DiffLayout.sideBySide,
       wrap: pr.wrap,
+      hunkHeaders: pr.hunkHeaders,
       hunk: pr.hunk,
       scroll: pr.diffScroll,
       onLine: onLine,
       headerActions: [
+        IconToggle(icon: Icons.tag, tip: 'Hunk headers (zh)', on: pr.hunkHeaders, onTap: pr.toggleHunkHeaders),
         IconToggle(icon: Icons.wrap_text, tip: 'Line wrapping (zw)', on: pr.wrap, onTap: pr.toggleWrap),
       ],
     );
@@ -364,6 +367,7 @@ class _Files extends StatelessWidget {
     },
     collapsed: pr.collapsedDirs,
     onToggleDir: pr.toggleDir,
+    onStep: pr.stepFile,
     selectBottom: pr.selectBottomOfFiles,
   );
 }
@@ -396,20 +400,26 @@ class _CommitListState extends State<_CommitList> {
       revealIndex(_scroll, _cursorKey, _cursor);
     }
     return SelectionArea(
-      child: ListView.builder(
-        controller: _scroll,
-        itemCount: pr.commits.length,
-        itemBuilder: (context, i) {
-          final c = pr.commits[i];
-          final cursor = pr.pane == PrPane.commits && i == pr.commitCursor;
-          return CommitRow(
-            key: i == pr.commitCursor ? _cursorKey : null,
-            commit: c,
-            selected: cursor || c.sha == pr.narrowed?.sha,
-            onTap: () => pr.clickCommit(i),
-          );
-        },
-      ),
+      child: WheelMode(onStep: pr.stepCommit, builder: (context, steps) => _rows(steps)),
+    );
+  }
+
+  Widget _rows(bool steps) {
+    final pr = widget.pr;
+    return ListView.builder(
+      controller: _scroll,
+      physics: steps ? const NeverScrollableScrollPhysics() : null,
+      itemCount: pr.commits.length,
+      itemBuilder: (context, i) {
+        final c = pr.commits[i];
+        final cursor = pr.pane == PrPane.commits && i == pr.commitCursor;
+        return CommitRow(
+          key: i == pr.commitCursor ? _cursorKey : null,
+          commit: c,
+          selected: cursor || c.sha == pr.narrowed?.sha,
+          onTap: () => pr.clickCommit(i),
+        );
+      },
     );
   }
 }

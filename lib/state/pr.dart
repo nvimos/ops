@@ -366,6 +366,20 @@ class PrState extends ChangeNotifier {
     refresh();
   }
 
+  /// The mouse wheel stepping over FILES CHANGED: the next or previous file; the pane becomes active.
+  void stepFile(int delta) {
+    pane = PrPane.files;
+    selectNext(delta);
+  }
+
+  /// The mouse wheel stepping over COMMITS: the cursor moves one commit (the diff narrows on click or Enter).
+  void stepCommit(int delta) {
+    if (commits.isEmpty) return;
+    pane = PrPane.commits;
+    commitCursor = (commitCursor + delta).clamp(0, commits.length - 1);
+    notifyListeners();
+  }
+
   /// Next / previous file in tree order (folders sorted, files sorted inside them).
   void selectNext(int delta) {
     final files = treeOrder(diff?.files.map((f) => f.path) ?? const []);
@@ -379,6 +393,8 @@ class PrState extends ChangeNotifier {
   void setLayout(DiffLayout l) => session.diffPrefs.setLayout(l);
 
   void toggleWrap() => session.diffPrefs.toggleWrap();
+  bool get hunkHeaders => session.diffPrefs.hunkHeaders;
+  void toggleHunkHeaders() => session.diffPrefs.toggleHunkHeaders();
 
   void toggleDir(String dir) {
     collapsedDirs.contains(dir) ? collapsedDirs.remove(dir) : collapsedDirs.add(dir);

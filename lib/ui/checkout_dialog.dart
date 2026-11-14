@@ -84,7 +84,7 @@ class _FileLine extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Icon(statusIcon(kind), size: 14, color: statusColor(kind)),
+          StatusMark(kind),
           const SizedBox(width: 8),
           Expanded(child: Text(file.path, style: T.body, overflow: TextOverflow.ellipsis)),
         ],

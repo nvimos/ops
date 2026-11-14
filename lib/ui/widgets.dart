@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -11,15 +12,38 @@ class HoverRow extends StatefulWidget {
     this.onTap,
     this.selected = false,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    this.pointer = true,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Show the pointing hand over a clickable row; off for rows whose clickability is obvious (files).
+  final bool pointer;
   final bool selected;
   final EdgeInsets padding;
 
   @override
   State<HoverRow> createState() => _HoverRowState();
+}
+
+/// Tells what is inside a [HoverRow] whether the mouse is over the row, so a button in it can show
+/// only then. Without a row around, or without a mouse (touch), [of] says true: nothing is hidden.
+class RowHover extends InheritedWidget {
+  const RowHover({super.key, required this.hovered, required super.child});
+
+  final bool hovered;
+
+  static bool _touchOnly() =>
+      defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS;
+
+  static bool of(BuildContext context) {
+    final row = context.dependOnInheritedWidgetOfExactType<RowHover>();
+    return row == null || row.hovered || _touchOnly();
+  }
+
+  @override
+  bool updateShouldNotify(RowHover old) => hovered != old.hovered;
 }
 
 class _HoverRowState extends State<HoverRow> {
@@ -29,13 +53,16 @@ class _HoverRowState extends State<HoverRow> {
   Widget build(BuildContext context) {
     final bg = widget.selected ? C.surface2 : (_hover ? C.hover : Colors.transparent);
     return MouseRegion(
-      cursor: widget.onTap != null ? SystemMouseCursors.click : MouseCursor.defer,
+      cursor: widget.onTap != null && widget.pointer ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        child: Container(color: bg, padding: widget.padding, child: widget.child),
+        child: RowHover(
+          hovered: _hover,
+          child: Container(color: bg, padding: widget.padding, child: widget.child),
+        ),
       ),
     );
   }

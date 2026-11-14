@@ -130,6 +130,15 @@ void main() {
     await until(() => st.staged.length == 2 && st.unstaged.isEmpty);
     expect(fileKind(st.staged.firstWhere((f) => f.path == 'c.txt'), staged: true), 'added');
 
+    // Unstaging everything leaves STAGED empty: the room it had goes to CHANGES at once.
+    st.makeDominant(0);
+    expect(st.lists.dominant, 0);
+    final unstagingAll = st.moveAll(staged: true);
+    expect(st.lists.dominant, 1);
+    expect(await unstagingAll, isNull);
+    expect(await st.moveAll(staged: false), isNull); // and back, for the rest of the test
+    await until(() => st.staged.length == 2 && st.unstaged.isEmpty);
+
     // Optimistic: the file is on the other side before git answers, and stays there.
     final unstaging = st.moveFile('c.txt', staged: true);
     expect(st.staged.length, 1);
