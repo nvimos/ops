@@ -218,8 +218,9 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
     - requests with ids, responses, notifications as a stream
     - `NvimError` for errors Neovim returns (full message and a `short` form)
   - `msgpack.dart`: its own msgpack encoder and streaming decoder, no package
-  - `stats.dart`: counts of the requests sent, how many wait for an answer, the answer times
-    (the debug bar's network monitor reads them)
+  - `stats.dart`: counts of the requests sent, how many wait for an answer, the answer times and
+    the slowest requests (the debug bar's network monitor reads them)
+  - `call_origin.dart`: what a request is and which app functions asked, from the call stack
 
 - `backend/`
   - `backend.dart`: typed wrapper around the plugin, one RPC connection
@@ -277,6 +278,7 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `resizable_pane.dart`: a left pane the user drags wider or narrower
   - `wheel_mode.dart`: the mouse wheel over a list: scroll, or step through items (middle click)
   - `debug_bar.dart`: the debug bar and the role names of focused elements
+  - `network_dialog.dart`: the modal with the slowest requests, opened from the debug bar
   - `mode_rail.dart`, `help_view.dart`, `status_bar.dart`: the rail, the Help mode, the status bar
 
 - `test/`: unit tests per state and parser; `test/support/nvim.dart` runs a headless Neovim
@@ -461,6 +463,16 @@ mode area, which shrinks upward.
     (the queue; red when more than 5 wait or one has waited over 500 ms)
   - Answers: median (p50), p95 and the slowest answer time (the percentiles over the last 200 answers)
   - the numbers come from `RpcStats` (`lib/rpc/stats.dart`), which `NvimRpc` feeds on every request
+  - a click on the monitor opens a modal, "Requests to Neovim": the requests waiting now and the 30
+    slowest of the run, slowest first, each with
+    - how long it took (or has waited), red from 500 ms
+    - what it is: the Lua function (`nvimos.git.diff_file`) or the RPC method, and its first argument
+      when that is text (a path, a branch)
+    - which functions of the app asked, nearest first (`ChangesState._loadDiff ← _ChangesViewState._pick`),
+      read from the call stack when the request is made
+    - when it was sent (time since the app started) and "(failed)" for an error
+  - Refresh in the modal reads the numbers again; all of it is kept in memory for this run only,
+    never written anywhere
 <!-- }}} -->
 
 ### Status bar

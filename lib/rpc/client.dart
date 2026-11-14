@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'call_origin.dart';
 import 'msgpack.dart';
 import 'stats.dart';
 
@@ -64,7 +65,7 @@ class NvimRpc {
     final id = _nextId++;
     final c = Completer<Object?>();
     _pending[id] = c;
-    _statKeys[id] = RpcStats.instance.sent();
+    _statKeys[id] = RpcStats.instance.sent(describeRequest(method, args, StackTrace.current));
     _socket.add(msgEncode([0, id, method, args]));
     return c.future;
   }
