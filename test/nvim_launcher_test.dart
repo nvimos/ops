@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/state/nvim_launcher.dart';
+import 'support/temp_dirs.dart';
 
 void main() {
   test('findBackendDir takes NVIMOS_BACKEND first', () {
@@ -9,7 +10,7 @@ void main() {
   });
 
   test('findBackendDir finds the checkout next to a parent folder', () async {
-    final root = await Directory.systemTemp.createTemp('nvimos_launch_');
+    final root = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_launch_'));
     addTearDown(() => root.delete(recursive: true));
     await File('${root.path}/nvimos-poc-backend/plugin/nvimos.lua').create(recursive: true);
     final deep = await Directory('${root.path}/front/build/Release').create(recursive: true);
@@ -19,7 +20,7 @@ void main() {
   });
 
   test('findBackendDir finds a relay clone and skips a relay folder without the plugin', () async {
-    final root = await Directory.systemTemp.createTemp('nvimos_launch_');
+    final root = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_launch_'));
     addTearDown(() => root.delete(recursive: true));
     final deep = await Directory('${root.path}/ops/build/Release').create(recursive: true);
     await Directory('${root.path}/ops/relay').create();

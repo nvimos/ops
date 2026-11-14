@@ -22,6 +22,20 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   timers). Use `pump(duration)`. For real Neovim in a widget test, do the I/O inside
   `tester.runAsync` (see `test/tasks_view_test.dart`).
 - Tests that need Neovim are plain `test()`s with `TestNvim` (`test/support/nvim.dart`).
+- A test cleans up after itself: no fixture, scratch folder or other artifact may be left behind.
+  Polluting the temp folder is not acceptable (1,000+ `nvimos_repo_*` folders and 80+ git
+  fsmonitor daemons piled up once and slowed the machine).
+  - a temp dir a test creates goes through `keepForCleanup(...)` (`test/support/temp_dirs.dart`);
+    `test/flutter_test_config.dart` deletes them when the test file is done. `makeRepo()` and
+    `TestNvim.start()` already do it.
+  - so does everything else a test starts or writes: processes (`TestNvim.start()` registers
+    `addTearDown(stop)` itself, so a failing test leaves no nvim), files outside the repo,
+    background daemons. Test repos set `core.fsmonitor=false` (the `git()` helper passes it),
+    because git's fsmonitor starts a daemon per repo that outlives the test.
+  - a new kind of fixture gets its cleanup in the same change, and the test run is checked: the
+    count of `nvimos_*` folders in `%TEMP%` is the same before and after.
+  - a run that was killed or crashed leaves things behind: remove them (the folders, the headless
+    `nvim --clean` processes, the daemons) and don't leave them for the user.
 - The whole suite takes about 25 s. `workspace_test.dart` "archive merges deltas" is flaky
   (fails about half the runs, also before 2026-11-11); don't chase it as a regression.
 - Flutter: `C:/tools/flutter` (Makefile `FLUTTER_ROOT`), `PUB_CACHE=C:/tools/pub-cache`.
