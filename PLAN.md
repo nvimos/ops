@@ -587,6 +587,9 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
     and the project scope Shift+A in Tasks
   - the file and commit lists scroll to keep the selected row in view
   - Tab / Shift+Tab: STAGED, CHANGES, commit message, diff, wrapping round
+  - an arrow key in the commit message steps out of it when it could not move the caret: Up on the
+    first line (to the list above), Left at the start of the text (to the rail), and in an empty
+    message also Right (to the diff); otherwise arrows move the cursor, letters type
   - entering a list selects its first file unless one of its files is selected
   - the active list has its title lit
 
