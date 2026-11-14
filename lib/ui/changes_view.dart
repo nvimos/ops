@@ -136,6 +136,24 @@ class ChangesViewState extends State<ChangesView> {
 
   void _leaveMessage() => focus.requestFocus();
 
+  /// An arrow key that cannot move the caret (empty field, first line for Up, start of text for Left) steps out: up to the list
+  /// above, left to the rail, right to the diff. Down has nowhere to go. True when it left.
+  bool _leaveMessageAtEdge(NavDir dir) {
+    switch (dir) {
+      case NavDir.up:
+        st.vertical(dir: -1, fromMessage: true);
+        focus.requestFocus();
+      case NavDir.left:
+        widget.onRail?.call();
+      case NavDir.right:
+        st.movePane(1);
+        focus.requestFocus();
+      case NavDir.down:
+        return false;
+    }
+    return true;
+  }
+
   /// Up / Down; past the last file of CHANGES the commit message gets the keyboard.
   void _move(int delta, {bool big = false}) {
     if (st.moveCursor(delta, big: big)) _messageFocus.requestFocus();
@@ -288,6 +306,7 @@ class ChangesViewState extends State<ChangesView> {
         onLeave: _leaveMessage,
         onTab: _tabFromMessage,
         onShiftTab: _shiftTabFromMessage,
+        onArrowAtEdge: _leaveMessageAtEdge,
       ),
     );
   }
@@ -565,6 +584,7 @@ class CommitBox extends StatelessWidget {
     required this.onLeave,
     required this.onTab,
     required this.onShiftTab,
+    required this.onArrowAtEdge,
   });
 
   final TextEditingController controller;
@@ -572,6 +592,42 @@ class CommitBox extends StatelessWidget {
   final String label;
   final bool enabled;
   final VoidCallback onCommit, onLeave, onTab, onShiftTab;
+
+  /// An arrow key that has nowhere to go inside the field; returns true when it took the key.
+  final bool Function(NavDir dir) onArrowAtEdge;
+
+  /// Whether the caret is on the first visual line of the text.
+  bool _onFirstLine() {
+    final box = focus.context?.findAncestorStateOfType<EditableTextState>()?.renderEditable;
+    final caret = controller.selection.extentOffset;
+    return box == null || box.getLineAtOffset(TextPosition(offset: caret)).start == 0;
+  }
+
+  /// Whether an arrow in direction [dir] would not move the caret: the key steps out instead.
+  bool _atEdge(NavDir dir) {
+    final sel = controller.selection;
+    if (controller.text.isEmpty) return true;
+    if (!sel.isCollapsed) return false;
+    return switch (dir) {
+      NavDir.up => _onFirstLine(),
+      NavDir.left => sel.baseOffset <= 0,
+      _ => false,
+    };
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    if (HardwareKeyboard.instance.isShiftPressed) return KeyEventResult.ignored;
+    final k = e.logicalKey;
+    final arrow =
+        k == LogicalKeyboardKey.arrowUp ||
+        k == LogicalKeyboardKey.arrowDown ||
+        k == LogicalKeyboardKey.arrowLeft ||
+        k == LogicalKeyboardKey.arrowRight;
+    final nav = arrow ? navKey(e) : null; // letters type into the field
+    if (nav == null || !_atEdge(nav.dir)) return KeyEventResult.ignored;
+    return onArrowAtEdge(nav.dir) ? KeyEventResult.handled : KeyEventResult.ignored;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -587,13 +643,18 @@ class CommitBox extends StatelessWidget {
               const SingleActivator(LogicalKeyboardKey.tab): onTab,
               const SingleActivator(LogicalKeyboardKey.tab, shift: true): onShiftTab,
             },
-            child: TextField(
-              controller: controller,
-              focusNode: focus,
-              minLines: 2,
-              maxLines: 6,
-              style: T.body,
-              decoration: const InputDecoration(hintText: 'Commit message  (cc, Ctrl+Enter commits)'),
+            child: Focus(
+              canRequestFocus: false,
+              skipTraversal: true,
+              onKeyEvent: _onKey,
+              child: TextField(
+                controller: controller,
+                focusNode: focus,
+                minLines: 2,
+                maxLines: 6,
+                style: T.body,
+                decoration: const InputDecoration(hintText: 'Commit message  (cc, Ctrl+Enter commits)'),
+              ),
             ),
           ),
           const SizedBox(height: 8),
