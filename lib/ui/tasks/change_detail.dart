@@ -231,7 +231,7 @@ class _RawView extends StatelessWidget {
     if (doc == null) return const Empty('No file');
     return ListView(
       padding: const EdgeInsets.all(20),
-      children: [SelectableText(doc!.lines.join('\n'), style: T.code)],
+      children: [Text(doc!.lines.join('\n'), style: T.code)],
     );
   }
 }
