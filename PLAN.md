@@ -388,7 +388,9 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   expanded: hovering shows the brief explanation (see above)
 - the selected mode has an accent bar on its left edge and a brighter icon
   - Pull request and Changes show their two views under the mode; the mode and both views carry the
-    accent bar, 2 px wide, and the current view's bar is twice as wide (4 px)
+    same accent bar, 2 px wide
+  - the views are indented under their mode (to the right), and the current view is indented further
+    than the other one
 - the mouse wheel over the rail steps to the previous or next mode, like Alt+[ and Alt+], round the ends
 - the rail is one stop in the Tab cycle, in front of the first pane (not each mode in it)
   - while it has the keyboard, a cursor starts on the current mode; Up / Down move it over the

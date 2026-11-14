@@ -50,7 +50,7 @@ class RailEntry {
   final bool selected, sub;
 
   /// Part of the current mode's group (the mode and its two views): lit with the mode's line. A
-  /// sub entry that is also [selected] is the current view and gets a line twice as wide.
+  /// sub entry that is also [selected] is the current view and is indented further than the other.
   final bool marked;
 
   /// The rail has the keyboard and its cursor is on this entry.
@@ -92,6 +92,8 @@ class ModeRail extends StatelessWidget {
   final ValueChanged<int>? onStep;
   final VoidCallback onToggle;
   final ValueChanged<DiffLayout> onLayout;
+
+  static const double expandedWidth = 180, collapsedWidth = 48;
 
   List<RailEntry> _entries() => [
     RailEntry(
@@ -143,7 +145,7 @@ class ModeRail extends StatelessWidget {
   Widget _body(List<RailEntry> entries) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 120),
-      width: expanded ? 180 : 48,
+      width: expanded ? ModeRail.expandedWidth : ModeRail.collapsedWidth,
       color: C.surface,
       child: ListView.builder(
         padding: const EdgeInsets.only(top: 4),
@@ -160,13 +162,31 @@ class RailItem extends StatelessWidget {
   final RailEntry entry;
   final bool expanded;
 
+  /// The views' indent is 10% less than the plain steps below (moved to the left).
+  static const _pullLeft = 0.9;
+
+  /// Where the icon starts. A mode sits at 13; its views are indented under it, and the current
+  /// view is indented further.
+  double _indent(RailEntry e) {
+    if (!e.sub) return 13;
+    final (view, current) = expanded ? (28.0, 38.0) : (20.0, 28.0);
+    return (e.selected ? current : view) * _pullLeft;
+  }
+
+  /// While the rail animates from narrow to wide, the row is laid out at its final width and the
+  /// rail clips it, so nothing overflows and the labels don't squash on the way.
+  Widget _fixedWidth(double left, Widget row) {
+    if (!expanded) return row;
+    final w = ModeRail.expandedWidth - left - 2; // the entry's padding and its 2 px line
+    return OverflowBox(alignment: Alignment.centerLeft, minWidth: w, maxWidth: w, child: row);
+  }
+
   @override
   Widget build(BuildContext context) {
     final e = entry;
     final color = e.selected || e.cursor ? C.text : C.muted;
     final lit = e.selected || e.marked;
-    final line = e.sub && e.selected ? 4.0 : 2.0; // the current view: twice as wide as the mode's line
-    final left = (e.sub ? (expanded ? 26.0 : 14.0) : 13.0) - (line - 2); // the icons stay in line
+    final left = _indent(e);
     return Tooltip(
       message: e.tip,
       child: InkWell(
@@ -176,14 +196,17 @@ class RailItem extends StatelessWidget {
           padding: EdgeInsets.only(left: left),
           decoration: BoxDecoration(
             color: e.cursor ? C.surface2 : null,
-            border: Border(left: BorderSide(color: lit ? C.accent : Colors.transparent, width: line)),
+            border: Border(left: BorderSide(color: lit ? C.accent : Colors.transparent, width: 2)),
           ),
-          child: Row(
-            children: [
-              Icon(e.icon, size: e.sub ? 16 : 20, color: color),
-              if (expanded) const SizedBox(width: 10),
-              if (expanded) Expanded(child: _Label(e.label, sub: e.sub, color: color)),
-            ],
+          child: _fixedWidth(
+            left,
+            Row(
+              children: [
+                Icon(e.icon, size: e.sub ? 16 : 20, color: color),
+                if (expanded) const SizedBox(width: 10),
+                if (expanded) Expanded(child: _Label(e.label, sub: e.sub, color: color)),
+              ],
+            ),
           ),
         ),
       ),
