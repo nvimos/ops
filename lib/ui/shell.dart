@@ -60,6 +60,7 @@ class _ShellState extends State<Shell> {
     ']f': () => _pr?.selectNext(1),
     '[f': () => _pr?.selectNext(-1),
     'zw': () => _pr?.toggleWrap(),
+    'zh': () => _pr?.toggleHunkHeaders(),
     'zR': () => _pr?.expandAllDirs(),
     'zM': () => _pr?.collapseAllDirs(),
     '{': () => _pr?.jump(-1),
@@ -375,9 +376,11 @@ class _ShellState extends State<Shell> {
       autofocus: true,
       onKeyEvent: _onKey,
       child: Scaffold(
-        body: Column(
+        body: _railAndModes(s.conn == Conn.connected),
+        // The bars are the Scaffold's bottom bar, so a message slides in above them, not over them.
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(child: _railAndModes(s.conn == Conn.connected)),
             ValueListenableBuilder<bool>(
               valueListenable: debugBarVisible,
               builder: (context, on, _) => on ? DebugBar(pane: _paneRole, info: _debugInfo) : const SizedBox.shrink(),

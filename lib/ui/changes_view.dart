@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import '../backend/backend.dart' show CheckoutHow;
 import '../backend/models.dart';
 import '../state/changes.dart';
+import '../state/commit_template.dart';
 import '../state/list_pair.dart';
 import '../state/session.dart';
 import 'checkout_dialog.dart';
+import 'commit_message_dialog.dart';
 import 'confirm_dialog.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
@@ -56,6 +58,7 @@ class ChangesViewState extends State<ChangesView> {
     'o': _openCurrent,
     'v': () => st.toggleLayout(),
     'zw': () => st.toggleWrap(),
+    'zh': () => st.toggleHunkHeaders(),
     'zR': () => st.expandAllDirs(),
     'zM': () => st.collapseAllDirs(),
     '{': () => st.jump(-1),
@@ -137,6 +140,17 @@ class ChangesViewState extends State<ChangesView> {
     final err = await st.commit(_message.text);
     if (err == null) _message.clear();
     _report(err);
+  }
+
+  /// The message in a large modal with git's commented instructions; its result replaces the field's text.
+  Future<void> _expandMessage() async {
+    final text = await showCommitMessageDialog(
+      context,
+      message: _message.text,
+      template: gitCommitTemplate(st.status),
+    );
+    if (text != null) _message.text = text;
+    _messageFocus.requestFocus();
   }
 
   Future<void> _toggleCurrent() async => _report(await st.toggleCurrent());
@@ -317,6 +331,7 @@ class ChangesViewState extends State<ChangesView> {
       selected: st.selected,
       selectedStaged: st.selectedStaged,
       onSelect: (path, staged) => st.pick(path, staged: staged),
+      onStep: (delta, staged) => st.stepFile(delta, staged: staged),
       onMoveFile: _moveFile,
       onMoveDir: _moveDir,
       onMoveAll: _moveAll,
@@ -327,6 +342,7 @@ class ChangesViewState extends State<ChangesView> {
       commitBox: CommitBox(
         controller: _message,
         focus: _messageFocus,
+        onExpand: _expandMessage,
         label: 'Commit $n file${n == 1 ? '' : 's'} to $branch',
         enabled: n > 0 && !st.busy,
         onCommit: _commit,
@@ -349,6 +365,8 @@ class ChangesViewState extends State<ChangesView> {
       wrap: st.wrap,
       scroll: st.diffScroll,
       onToggleWrap: st.toggleWrap,
+      hunkHeaders: st.hunkHeaders,
+      onToggleHunkHeaders: st.toggleHunkHeaders,
       staged: st.selectedStaged,
       hunk: st.hunk,
       onLine: _openLine,
@@ -407,6 +425,7 @@ class ChangesSidebar extends StatelessWidget {
     required this.selected,
     required this.selectedStaged,
     required this.onSelect,
+    required this.onStep,
     required this.onMoveFile,
     required this.onMoveDir,
     required this.onMoveAll,
@@ -424,6 +443,9 @@ class ChangesSidebar extends StatelessWidget {
   final String? selected;
   final bool selectedStaged;
   final void Function(String path, bool staged) onSelect;
+
+  /// The wheel steps through the files of a list: [delta] is -1 or 1.
+  final void Function(int delta, bool staged) onStep;
   final void Function(String path, bool staged) onMoveFile;
   final void Function(String dir, bool staged) onMoveDir;
   final void Function(bool staged) onMoveAll;
@@ -465,6 +487,7 @@ class ChangesSidebar extends StatelessWidget {
       data: s,
       selected: selectedStaged == s.staged ? selected : null,
       onSelect: (p) => onSelect(p, s.staged),
+      onStep: (d) => onStep(d, s.staged),
       onMoveFile: (p) => onMoveFile(p, s.staged),
       onToggleDir: (d) => onToggleDir(i, d),
       onMoveDir: (d) => onMoveDir(d, s.staged),
@@ -511,6 +534,7 @@ class FileSection extends StatelessWidget {
     required this.data,
     required this.selected,
     required this.onSelect,
+    required this.onStep,
     required this.onMoveFile,
     this.onToggleDir,
     this.onMoveDir,
@@ -519,6 +543,7 @@ class FileSection extends StatelessWidget {
   final FileSectionData data;
   final String? selected;
   final ValueChanged<String> onSelect;
+  final ValueChanged<int> onStep;
   final ValueChanged<String> onMoveFile;
   final ValueChanged<String>? onToggleDir, onMoveDir;
 
@@ -534,11 +559,12 @@ class FileSection extends StatelessWidget {
     ],
     selected: selected,
     onSelect: onSelect,
+    onStep: onStep,
     collapsed: data.collapsedDirs,
     onToggleDir: onToggleDir,
     folderTrailing: onMoveDir == null
         ? null
-        : (dir) => StageCheckbox(staged: data.staged, onTap: () => onMoveDir!(dir)),
+        : (dir) => StageCheckbox(staged: data.staged, what: 'folder', onTap: () => onMoveDir!(dir)),
     selectBottom: data.selectBottom,
   );
 }
@@ -558,13 +584,15 @@ class ChangesDiff extends StatelessWidget {
     this.sideBySide = false,
     this.wrap = true,
     this.onToggleWrap,
+    this.hunkHeaders = true,
+    this.onToggleHunkHeaders,
     this.scroll,
   });
 
   final DiffFile file;
   final ScrollController? scroll;
-  final bool sideBySide, wrap;
-  final VoidCallback? onToggleWrap;
+  final bool sideBySide, wrap, hunkHeaders;
+  final VoidCallback? onToggleWrap, onToggleHunkHeaders;
   final bool staged;
   final int hunk;
   final void Function(int line, bool isOld) onLine;
@@ -585,8 +613,13 @@ class ChangesDiff extends StatelessWidget {
       scroll: scroll,
       sideBySide: sideBySide,
       wrap: wrap,
+      hunkHeaders: hunkHeaders,
+      onSign: onMoveHunk,
+      signTip: staged ? 'Unstage hunk' : 'Stage hunk',
       onLine: onLine,
       headerActions: [
+        if (onToggleHunkHeaders != null)
+          IconToggle(icon: Icons.tag, tip: 'Hunk headers (zh)', on: hunkHeaders, onTap: onToggleHunkHeaders!),
         if (onToggleWrap != null)
           IconToggle(icon: Icons.wrap_text, tip: 'Line wrapping (zw)', on: wrap, onTap: onToggleWrap!),
         for (final a in fileActions)
@@ -604,6 +637,54 @@ class ChangesDiff extends StatelessWidget {
   }
 }
 
+/// At the end of the commit message field: open it in a large modal, and clear it (only while
+/// there is text).
+class _FieldButtons extends StatelessWidget {
+  const _FieldButtons({required this.controller, required this.focus, required this.onExpand});
+
+  final TextEditingController controller;
+  final FocusNode focus;
+  final VoidCallback onExpand;
+
+  void _clear() {
+    controller.clear();
+    focus.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _FieldButton(icon: Icons.open_in_full, tip: 'Edit the message in a larger window', onTap: onExpand),
+        if (controller.text.isNotEmpty) _FieldButton(icon: Icons.close, tip: 'Clear the message', onTap: _clear),
+      ],
+    ),
+  );
+}
+
+class _FieldButton extends StatelessWidget {
+  const _FieldButton({required this.icon, required this.tip, required this.onTap});
+
+  final IconData icon;
+  final String tip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tip,
+    child: InkWell(
+      mouseCursor: SystemMouseCursors.click,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Icon(icon, size: 15, color: C.muted),
+      ),
+    ),
+  );
+}
+
 /// Message field and the Commit button.
 /// Ctrl+Enter in the message commits; Esc goes back to the file list; Tab goes on to the diff,
 /// Shift+Tab back to CHANGES.
@@ -612,6 +693,7 @@ class CommitBox extends StatelessWidget {
     super.key,
     required this.controller,
     required this.focus,
+    required this.onExpand,
     required this.label,
     required this.enabled,
     required this.onCommit,
@@ -625,7 +707,7 @@ class CommitBox extends StatelessWidget {
   final FocusNode focus;
   final String label;
   final bool enabled;
-  final VoidCallback onCommit, onLeave, onTab, onShiftTab;
+  final VoidCallback onExpand, onCommit, onLeave, onTab, onShiftTab;
 
   /// An arrow key that has nowhere to go inside the field; returns true when it took the key.
   final bool Function(NavDir dir) onArrowAtEdge;
@@ -687,7 +769,10 @@ class CommitBox extends StatelessWidget {
                 minLines: 2,
                 maxLines: 6,
                 style: T.body,
-                decoration: const InputDecoration(hintText: 'Commit message  (cc, Ctrl+Enter commits)'),
+                decoration: InputDecoration(
+                  hintText: 'Commit message  (cc, Ctrl+Enter commits)',
+                  suffixIcon: _FieldButtons(controller: controller, focus: focus, onExpand: onExpand),
+                ),
               ),
             ),
           ),
@@ -727,22 +812,39 @@ class BranchSwitcher extends StatelessWidget {
   );
 }
 
-/// The checkbox at the end of a file row: checked when staged.
+/// The button at the end of a file or folder row: the word "add", which stages it; for a staged one
+/// the checked box, which unstages it.
 class StageCheckbox extends StatelessWidget {
-  const StageCheckbox({super.key, required this.staged, required this.onTap});
+  const StageCheckbox({super.key, required this.staged, required this.onTap, this.what = 'current file'});
 
   final bool staged;
   final VoidCallback onTap;
 
+  /// What the click acts on, for the tooltip ("current file", "folder").
+  final String what;
+
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: staged ? 'Unstage' : 'Stage',
+  Widget build(BuildContext context) {
+    // The add button shows only while the mouse is over its row (always where there is no mouse);
+    // the checked box of a staged item always shows, it is state. The space stays, so rows line up.
+    if (!staged && !RowHover.of(context)) return const SizedBox(width: _width);
+    return _button();
+  }
+
+  static const _width = 30.0;
+
+  Widget _button() => Tooltip(
+    message: staged ? 'Unstage $what' : 'Stage $what',
     child: InkWell(
+      mouseCursor: SystemMouseCursors.click,
       onTap: onTap,
-      child: Icon(
-        staged ? Icons.check_box : Icons.check_box_outline_blank,
-        size: 16,
-        color: staged ? C.accent : C.muted,
+      child: SizedBox(
+        width: 30,
+        child: Center(
+          child: staged
+              ? const Icon(Icons.check_box, size: 16, color: C.accent)
+              : const Text('add', style: TextStyle(fontSize: 12, color: C.muted)),
+        ),
       ),
     ),
   );

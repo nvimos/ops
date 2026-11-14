@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../backend/backend.dart';
@@ -40,6 +42,8 @@ class ChangesState extends ChangeNotifier {
 
   void toggleLayout() => session.diffPrefs.toggleLayout();
   void toggleWrap() => session.diffPrefs.toggleWrap();
+  bool get hunkHeaders => session.diffPrefs.hunkHeaders;
+  void toggleHunkHeaders() => session.diffPrefs.toggleHunkHeaders();
 
   /// STAGED (0) over CHANGES (1), as in the Pull request view; CHANGES have the room at start.
   final lists = ListPair(dominant: 1);
@@ -119,6 +123,7 @@ class ChangesState extends ChangeNotifier {
       if (gen != _gen || _pending > 0) return;
       status = st;
       branches = br;
+      _handOverRoom();
       // Keep the selection if the file still has changes on that side; else pick another.
       final side = selectedStaged ? staged : unstaged;
       if (selected == null || !side.any((f) => f.path == selected)) {
@@ -152,7 +157,37 @@ class ChangesState extends ChangeNotifier {
     collapsedDirs[staged ? 0 : 1].remove(dirOf(path));
     diff = null;
     notifyListeners();
-    refresh();
+    _loadDiffSoon();
+  }
+
+  /// How long the selection must rest before its diff is fetched: holding an arrow key walks
+  /// through many files, and only the one it stops on needs a request.
+  static const diffDelay = Duration(milliseconds: 120);
+
+  Timer? _diffTimer;
+  int _diffGen = 0;
+
+  void _loadDiffSoon() {
+    _diffTimer?.cancel();
+    _diffTimer = Timer(diffDelay, () => UiTiming.instance.time('changes.diff', _loadDiff));
+  }
+
+  /// Fetches the diff of the selected file only (not the status again); a result for a file that is
+  /// no longer selected is dropped.
+  Future<void> _loadDiff() async {
+    final b = session.backend, path = selected;
+    if (b == null || path == null || _disposed) return;
+    final staged = selectedStaged, gen = ++_diffGen;
+    try {
+      final d = await b.diffFile(path, staged: staged);
+      if (gen != _diffGen || _disposed) return;
+      diff = d;
+      error = null;
+    } catch (e) {
+      if (gen != _diffGen || _disposed) return;
+      error = '$e';
+    }
+    notifyListeners();
   }
 
   /// Files in list order: staged first, then the rest, each with its side.
@@ -281,6 +316,21 @@ class ChangesState extends ChangeNotifier {
     return false;
   }
 
+  /// The mouse wheel stepping over a list: the next or previous file of the list on side [staged],
+  /// which becomes the active pane. Stays inside the list (no hop to the neighbouring one).
+  void stepFile(int delta, {required bool staged}) {
+    final files = staged ? this.staged : unstaged;
+    if (files.isEmpty) return;
+    final i = selectedStaged == staged ? files.indexWhere((f) => f.path == selected) : -1;
+    final next = files[(i < 0 ? 0 : i + delta).clamp(0, files.length - 1)];
+    _pane = staged ? ChangesPane.staged : ChangesPane.unstaged;
+    if (next.path != selected || staged != selectedStaged) {
+      select(next.path, staged: staged);
+    } else {
+      notifyListeners();
+    }
+  }
+
   /// Shift+[ and Shift+]: three files up or down in the active list; in the diff, a normal scroll.
   void jump(int dir) {
     if (pane == ChangesPane.diff) {
@@ -387,6 +437,14 @@ class ChangesState extends ChangeNotifier {
     if (st == null) return;
     status = st.withFiles([for (final f in st.files) paths.contains(f.path) ? f.moved(toStaged: toStaged) : f]);
     if (selected != null && paths.contains(selected)) selectedStaged = toStaged;
+    _handOverRoom();
+  }
+
+  /// STAGED has nothing to show: the room it had ("most room") goes to CHANGES, which unfolds.
+  void _handOverRoom() {
+    if (staged.isNotEmpty || lists.dominant != 0) return;
+    lists.dominant = 1;
+    lists.collapsed[1] = false;
   }
 
   /// Switch to [branch]; [how] says what to do with uncommitted changes (null: git refuses when
@@ -424,6 +482,8 @@ class ChangesState extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _gen++;
+    _diffGen++;
+    _diffTimer?.cancel();
     session.gitChanged.removeListener(refresh);
     session.diffPrefs.removeListener(notifyListeners);
     diffScroll.dispose();
