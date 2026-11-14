@@ -4,6 +4,7 @@ import 'dart:ui' show AppExitResponse;
 
 import 'package:material_ui/material_ui.dart';
 
+import 'state/prefs.dart';
 import 'state/session.dart';
 import 'timing/ui_timing.dart';
 import 'ui/shell.dart';
@@ -27,7 +28,7 @@ class NvimosApp extends StatefulWidget {
 }
 
 class _NvimosAppState extends State<NvimosApp> {
-  final _session = Session();
+  final _session = Session(prefs: Prefs.load());
   late final AppLifecycleListener _lifecycle;
 
   @override

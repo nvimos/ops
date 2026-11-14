@@ -47,6 +47,7 @@ const keyTable = [
       ('zR  zM', 'expand or collapse all folders (PR, Changes)'),
       ('v', 'unified or side-by-side (PR, Changes)'),
       ('zw', 'toggle text wrapping'),
+      ('zh', 'toggle hunk headers'),
       ('Enter', 'on a commit: show only that commit'),
       ('Esc', 'back from one commit to all commits'),
     ],

@@ -8,6 +8,7 @@ import '../backend/models.dart';
 import '../rpc/client.dart';
 import 'diff_prefs.dart';
 import 'nvim_launcher.dart';
+import 'prefs.dart';
 
 export 'diff_prefs.dart';
 
@@ -16,7 +17,11 @@ enum Conn { disconnected, connecting, connected }
 /// The connection to Neovim and the live editor state every view shares.
 class Session extends ChangeNotifier {
   // ignore: prefer_initializing_formals
-  Session({String host = '127.0.0.1', int port = 6666}) : _host = host, _port = port;
+  /// [prefs]: where view choices are kept; the app passes the state file's (`Prefs.load()`), tests
+  /// keep them in memory.
+  Session({this._host = '127.0.0.1', this._port = 6666, Prefs? prefs}) : _prefs = prefs ?? Prefs.memory();
+
+  final Prefs _prefs;
 
   String _host;
   int _port;
@@ -32,8 +37,8 @@ class Session extends ChangeNotifier {
   Cursor? cursor;
   RepoInfo? repo;
 
-  /// Unified / side-by-side and wrapping, shared by the diff modes.
-  final diffPrefs = DiffPrefs();
+  /// Unified / side-by-side, wrapping and hunk headers, shared by the diff modes.
+  late final diffPrefs = DiffPrefs(_prefs);
 
   /// Bumps when git state may have changed (hint from the backend); views re-query.
   final gitChanged = ValueNotifier<int>(0);
