@@ -85,12 +85,13 @@ Global
 | `?`                | the Help mode: this key table                           |
 | `b`                | show / hide the debug bar                               |
 | `Ctrl+Arrow`       | jump to the pane in that direction (PR: head picker,    |
-|                    | FILES, COMMITS, diff, the rail; Changes: STAGED,        |
-|                    | CHANGES, message, diff, the rail)                       |
+|                    | FILES, COMMITS, diff, the rail; Changes: branch         |
+|                    | switcher, STAGED, CHANGES, message, diff, the rail)     |
 | `Tab` / `S-Tab`    | next / previous stop, in visual order (left column top  |
 |                    | to bottom, then the right), wrapping round, as in a     |
 |                    | Windows or HTML page. PR: base, head, files, commits,   |
-|                    | diff. Changes: STAGED, CHANGES, commit message, diff.   |
+|                    | diff. Changes: branch switcher, STAGED, CHANGES, commit |
+|                    | message, diff.                                          |
 |                    | Tasks and Directories: filter, list. The mode rail is one|
 |                    | stop in front of the first (not each mode in it)        |
 | `/`                | filter the list (Tasks, Directories)                    |
@@ -110,7 +111,8 @@ Any list (files, commits, branches, dirs, tasks)
 | `h` / `l`, `Left` / `Right` | from a list to the diff / back (PR, Changes)    |
 | `Down` past the last item | the pane visually below the list; `Up` past the    |
 |                    | first item: the pane above (PR: head picker, FILES,     |
-|                    | COMMITS; Changes: STAGED, CHANGES, commit message)      |
+|                    | COMMITS; Changes: branch switcher, STAGED, CHANGES,    |
+|                    | commit message)                                         |
 | `gg` / `G`         | first / last item                                       |
 | `Ctrl+D` / `Ctrl+U`| half a page down / up                                   |
 | `Enter`            | open or pick the item                                   |
@@ -134,7 +136,9 @@ Changes
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `C` (Shift+C)      | the branch switcher: Changes mode, field focused, list open (any mode but Help) |
+| `C` (Shift+C)      | the branch switcher: Changes mode, field focused, list  |
+|                    | open (any mode, Help too; not while typing in a field)  |
+| `gb`               | the same as Shift+C (go branch), in Changes             |
 | `]c` / `[c`        | next / previous hunk; the keys below then act on it     |
 | `-`                | stage or unstage the current hunk, or the file          |
 | `Space` / `u`      | stage / unstage the current hunk, or the file           |
@@ -559,8 +563,10 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
   - the same field as the base and head pickers of Pull request (`RevPicker`: a click on it opens the
     list of all branches, a click again closes it, typing filters), but it is a separate widget with its
     own state: picking here never changes the pickers there
-  - `C` (Shift+C) from anywhere (not in Help, not while typing) switches to Changes, focuses the field
-    and opens the list, as a click would
+  - `C` (Shift+C) from anywhere, Help included (so a capital C cannot start a search there; typing in
+    a text field, Help's search too, still types it), switches to Changes, focuses the field and opens
+    the list, as a click would; `gb` in Changes does the same
+  - after a pick, a Cancel in the checkout modal or a failed checkout, the keyboard is on the Changes list
   - it only takes a listed local branch (no sha or tag); Enter or a click on a branch checks it out,
     typing alone never does (no pick after a pause, unlike the pickers)
   - uncommitted changes to tracked files would be overwritten: a modal lists those files first, before
@@ -586,7 +592,10 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
     button, between 160 and 384 px; dragging is limited to 70 % of the window
 - the files are listed, and walked by the keys, in the order the tree shows them: files of the top
   folder first, then the folders, each sorted by path (not git's status order)
-- panes: STAGED, CHANGES, the diff (and the commit message for Tab)
+- panes: the branch switcher, STAGED, CHANGES, the diff (and the commit message for Tab)
+  - the branch switcher is the first stop of the left column: Tab, Ctrl+Up / Ctrl+Down and Up past the
+    first file reach it (the field is focused, its list stays closed), Down or Tab leave it for the
+    first list, Left at the start of its text goes to the rail; Up never goes past it
   - Right (l): from a list to the diff; Left (h): from the diff back to the list it came from
   - Up / Down (j / k): the previous / next file of the active list, in the order shown (top-level
     files, then folders); in the diff they scroll it 3 lines at a time, with Shift 10 (]c / [c still jump hunks)
@@ -618,7 +627,7 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
     w / s there); the commands that had `s` and `a` moved: stage is Space in Changes, status is `t`
     and the project scope Shift+A in Tasks
   - the file and commit lists scroll to keep the selected row in view
-  - Tab / Shift+Tab: STAGED, CHANGES, commit message, diff, wrapping round
+  - Tab / Shift+Tab: branch switcher, STAGED, CHANGES, commit message, diff, wrapping round
   - an arrow key in the commit message steps out of it when it could not move the caret: Up on the
     first line (to the list above), Left at the start of the text (to the rail), and in an empty
     message also Right (to the diff); otherwise arrows move the cursor, letters type
