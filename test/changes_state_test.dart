@@ -50,6 +50,34 @@ void main() {
     await nvim.stop();
   });
 
+  test('a folder row stages and unstages the files directly in it', () async {
+    final repo = await makeRepo();
+    await Directory('${repo.path}/src/deep').create(recursive: true);
+    await File('${repo.path}/src/a.txt').writeAsString('a\n');
+    await File('${repo.path}/src/b.txt').writeAsString('b\n');
+    await File('${repo.path}/src/deep/c.txt').writeAsString('c\n');
+    await File('${repo.path}/top.txt').writeAsString('t\n');
+
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final st = ChangesState(s);
+    await until(() => st.unstaged.length == 4);
+
+    expect(await st.moveDir('src', staged: false), isNull);
+    await until(() => st.staged.length == 2);
+    expect({for (final f in st.staged) f.path}, {'src/a.txt', 'src/b.txt'});
+    expect({for (final f in st.unstaged) f.path}, {'src/deep/c.txt', 'top.txt'});
+
+    expect(await st.moveDir('src', staged: true), isNull);
+    await until(() => st.staged.isEmpty && st.unstaged.length == 4);
+
+    st.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
   test('stage all, unstage a file, stage and unstage the selected hunk; file kinds', () async {
     final repo = await makeRepo();
     await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');

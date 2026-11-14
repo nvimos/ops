@@ -336,10 +336,22 @@ class ChangesState extends ChangeNotifier {
   Future<String?> commit(String message) => act('commit', (b) => b.commit(message));
 
   /// Stage every file of the unstaged side, or unstage every staged one.
-  Future<String?> moveAll({required bool staged}) {
-    final paths = {for (final f in staged ? this.staged : unstaged) f.path};
+  Future<String?> moveAll({required bool staged}) => _moveSet(staged ? this.staged : unstaged, staged: staged, name: 'All');
+
+  /// Stage (or unstage) the files that sit directly in [dir] of the unstaged (staged) side: the
+  /// files the tree shows under that folder row.
+  Future<String?> moveDir(String dir, {required bool staged}) {
+    final files = [
+      for (final f in staged ? this.staged : unstaged)
+        if (f.path.substring(0, f.path.lastIndexOf('/') + 1) == '$dir/') f,
+    ];
+    return _moveSet(files, staged: staged, name: 'Dir');
+  }
+
+  Future<String?> _moveSet(Iterable<StatusFile> files, {required bool staged, required String name}) {
+    final paths = {for (final f in files) f.path};
     return act(
-      staged ? 'unstageAll' : 'stageAll',
+      staged ? 'unstage$name' : 'stage$name',
       (b) async {
         for (final p in paths) {
           staged ? await b.unstage(p) : await b.stage(p);

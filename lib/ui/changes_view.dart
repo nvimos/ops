@@ -97,6 +97,8 @@ class ChangesViewState extends State<ChangesView> {
 
   Future<void> _moveFile(String path, bool staged) async => _report(await st.moveFile(path, staged: staged));
 
+  Future<void> _moveDir(String dir, bool staged) async => _report(await st.moveDir(dir, staged: staged));
+
   Future<void> _moveSelected() => _moveFile(st.selected!, st.selectedStaged);
 
   Future<void> _discardSelected() async {
@@ -292,6 +294,7 @@ class ChangesViewState extends State<ChangesView> {
       selectedStaged: st.selectedStaged,
       onSelect: (path, staged) => st.pick(path, staged: staged),
       onMoveFile: _moveFile,
+      onMoveDir: _moveDir,
       onMoveAll: _moveAll,
       onToggleList: st.toggleList,
       onDominant: st.makeDominant,
@@ -381,6 +384,7 @@ class ChangesSidebar extends StatelessWidget {
     required this.selectedStaged,
     required this.onSelect,
     required this.onMoveFile,
+    required this.onMoveDir,
     required this.onMoveAll,
     required this.onToggleList,
     required this.onDominant,
@@ -397,6 +401,7 @@ class ChangesSidebar extends StatelessWidget {
   final bool selectedStaged;
   final void Function(String path, bool staged) onSelect;
   final void Function(String path, bool staged) onMoveFile;
+  final void Function(String dir, bool staged) onMoveDir;
   final void Function(bool staged) onMoveAll;
   final ValueChanged<int> onToggleList, onDominant, onFoldAll;
   final void Function(int list, String dir) onToggleDir;
@@ -438,6 +443,7 @@ class ChangesSidebar extends StatelessWidget {
       onSelect: (p) => onSelect(p, s.staged),
       onMoveFile: (p) => onMoveFile(p, s.staged),
       onToggleDir: (d) => onToggleDir(i, d),
+      onMoveDir: (d) => onMoveDir(d, s.staged),
     );
   }
 }
@@ -483,13 +489,14 @@ class FileSection extends StatelessWidget {
     required this.onSelect,
     required this.onMoveFile,
     this.onToggleDir,
+    this.onMoveDir,
   });
 
   final FileSectionData data;
   final String? selected;
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onMoveFile;
-  final ValueChanged<String>? onToggleDir;
+  final ValueChanged<String>? onToggleDir, onMoveDir;
 
   @override
   Widget build(BuildContext context) => FileTree(
@@ -505,6 +512,9 @@ class FileSection extends StatelessWidget {
     onSelect: onSelect,
     collapsed: data.collapsedDirs,
     onToggleDir: onToggleDir,
+    folderTrailing: onMoveDir == null
+        ? null
+        : (dir) => StageCheckbox(staged: data.staged, onTap: () => onMoveDir!(dir)),
     selectBottom: data.selectBottom,
   );
 }
