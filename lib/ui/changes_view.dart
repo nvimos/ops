@@ -5,6 +5,7 @@ import '../backend/models.dart';
 import '../state/changes.dart';
 import '../state/list_pair.dart';
 import '../state/session.dart';
+import 'confirm_dialog.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
@@ -314,21 +315,8 @@ class ChangesViewState extends State<ChangesView> {
 }
 
 /// Ask before throwing work away.
-Future<bool> confirmDiscard(BuildContext context, String what) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (c) => AlertDialog(
-      backgroundColor: C.surface,
-      title: const Text('Discard changes?', style: T.title),
-      content: Text('$what\nThis can\'t be undone.', style: T.body),
-      actions: [
-        SmallButton('Cancel', onPressed: () => Navigator.pop(c, false)),
-        SmallButton('Discard', danger: true, onPressed: () => Navigator.pop(c, true)),
-      ],
-    ),
-  );
-  return ok == true;
-}
+Future<bool> confirmDiscard(BuildContext context, String what) =>
+    confirm(context, title: 'Discard changes?', text: '$what\nThis can\'t be undone.', okLabel: 'Discard', danger: true);
 
 // Organisms ---------------------------------------------------------------------------------------
 

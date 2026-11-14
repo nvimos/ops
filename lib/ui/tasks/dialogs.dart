@@ -1,25 +1,33 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../confirm_dialog.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'icons.dart';
 
 /// The frame every Tasks dialog uses: dark surface, thin border, placed above the middle.
 class DialogFrame extends StatelessWidget {
-  const DialogFrame({super.key, required this.width, required this.child, this.height, this.top = -.5});
+  const DialogFrame({super.key, required this.width, required this.child, this.height, this.top = -.5, this.selectable = true});
 
   final double width;
   final double? height;
   final double top;
   final Widget child;
 
+  /// The dialog's text can be selected (a form's fields still type normally); off for the palette.
+  final bool selectable;
+
   @override
   Widget build(BuildContext context) => Dialog(
     backgroundColor: C.surface,
     alignment: Alignment(0, top),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: C.border)),
-    child: SizedBox(width: width, height: height, child: child),
+    child: SizedBox(
+      width: width,
+      height: height,
+      child: selectable ? SelectionArea(child: child) : child,
+    ),
   );
 }
 
@@ -269,6 +277,7 @@ class _PaletteState extends State<Palette> {
   Widget build(BuildContext context) {
     final hits = _hits;
     return DialogFrame(
+      selectable: false,
       width: 620,
       height: 420,
       top: -.6,
@@ -421,18 +430,8 @@ class ArchiveDialog extends StatelessWidget {
   final List<String> lines;
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    backgroundColor: C.surface,
-    title: const Text('Archive this change?', style: T.title),
-    content: Text(lines.join('\n'), style: T.body),
-    actions: [
-      DialogButtons(
-        cancel: () => Navigator.pop(context, false),
-        okLabel: 'Archive',
-        ok: () => Navigator.pop(context, true),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) =>
+      ConfirmDialog(title: 'Archive this change?', text: lines.join('\n'), okLabel: 'Archive');
 }
 
 /// Cancel and a primary button, right-aligned.
