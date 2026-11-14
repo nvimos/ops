@@ -388,6 +388,233 @@ mode area, which shrinks upward.
     and the selected mode replaces this view.
   <!-- }}} -->
 
+### Style and theme
+
+The look is Linear's calm and density with GitHub Desktop's left pane and diff, in one dark theme.
+No other part of this plan says anything about it: the first part writes down what the code does,
+the second what there is to decide.
+
+#### What is
+
+_not strictly normative_
+
+<!-- {{{ style now -->
+- One theme, dark only
+  - `buildTheme()` in `ui/theme.dart` is `ThemeData.dark(useMaterial3: true)` with the colours below
+    laid over it; there is no light theme, no switch and no following of the OS
+  - `MaterialApp` sets no `themeMode`
+  - the window is flat: surfaces are told apart by colour and a 1 px border, there are no
+    shadows (the one exception is the branch picker's popup, elevation 6)
+
+- Colours (`C` in `ui/theme.dart`)
+  - `bg` `#0F1117`: the window behind everything (Scaffold), the text on a filled pill and on a
+    primary button
+  - `surface` `#16181F`: the rail, status bar, detail panel, dialogs, requirement cards, code boxes
+  - `surface2` `#1C1F28`: the selected row and the keyboard cursor, the debug bar, hunk headers,
+    input fields, popups and tooltips, inline code and code blocks
+  - `hover` `#232733`: the row under the mouse
+  - `border` `#262A36`: every divider and outline, the scrollbar thumb, the empty part of a progress bar
+  - `text` `#E6E8EC`; `muted` `#8B90A0` (secondary text, icons at rest); `faint` `#5C6170`
+    (line numbers, disabled, ids, "not connected")
+  - `accent` `#6C8CFF`, the one strong colour: the selected mode's bar, the focus border of a field,
+    the primary button, checked boxes, links, key labels in Help, the active list's title, Done
+  - status colours: `green` `#4CC38A` (added, connected, additions), `red` `#E5484D` (deleted,
+    errors, danger), `yellow` `#E6B450` (modified, in progress, connecting, the debug bar's text),
+    `purple` `#A78BFA` (renamed, needs test)
+  - `found` `#66FFB84D` (ARGB), a translucent amber: the background of search matches
+  - the diff has four colours of its own, see "The diff"
+  - translucent accent shows "on" and "current": 7 % on a hovered diff line, 15 % behind a toggled
+    icon, 18 % behind the current hunk header; a pill's tint is its colour at 14 %
+
+- Type
+  - UI font Segoe UI, set through the text theme; code and ids Consolas (`mono`); no font is
+    bundled
+  - styles `T`: `title` 14 semibold, `body` 13, `small` 12 muted, `tiny` 11 muted, `section` 11
+    muted semibold with 0.6 letter spacing, `code` 12.5 Consolas with line height 1.35
+  - `body` is the text of rows, menus and dialogs; `tiny` that of the status bar, counts and hints
+  - sizes outside the scale: the task title in the detail panel 19 semibold, "Connect to Neovim"
+    18, the dialogs' text fields 15 and 16, buttons 12.5, link buttons and file counts 12, the
+    debug bar 11 Consolas with line height 1.3, ids in rows 11 or 12 Consolas
+
+- Sizes and spacing that recur
+  - density: dense, as in Linear: 11 to 13 px text, 13 to 16 px icons, rows 29 to 44 px
+  - pane header 40 px (`PaneHeader`: 12 px sides, 1 px bottom border, title in `T.title`);
+    the Tasks toolbar is 44 px
+  - status bar 24 px, 10 px sides, 1 px top border; debug bar three lines of 11 px text plus 14 px
+  - mode rail 48 px collapsed and 180 expanded (120 ms to change); entries 44 px high, the diff
+    views under a mode 32 px; icons 20 px, the views' icons 16
+  - list rows: `HoverRow` pads 12 on the sides and 6 above and below; file rows 5 above and below,
+    folder rows 6 and 3; Tasks rows are exactly 36 px (`TaskRows.rowHeight`, 14 px sides); the
+    palette's rows 34 px; menu items 32 px
+  - Tasks: the facets column is 220 px wide; the detail panel slides in from the right in 180 ms
+    (ease-out cubic) and has a 1 px left border that turns accent while the keys act on it
+  - dividers are 1 px in `border`; the resizable left pane's drag edge is 7 px wide with that line
+    in the middle and the resize cursor
+  - radii: 1 and 2 (priority bars, progress bars), 3 (inline code), 4 (tooltips, icon toggles, code
+    blocks, hovered check rows), 5 (buttons, link chips, the project square, the branch popup), 6
+    (cards, code boxes), 8 (task dialogs, the clear x), 10 (pills)
+  - icons are Material icons (`Icons.*`), outlined where there is a choice, mostly 14 or 15 px in
+    rows; the status ring and the priority bars of Tasks are drawn (a ring filled 0, 50 or 75 %, a
+    check or a cross for Done and Dropped)
+  - gaps between inline items are 4, 5, 6, 8 or 10 px; there is no named scale
+
+- Components
+  - buttons (`SmallButton`): 28 px high, 10 px sides, radius 5, a 1 px border, text 12.5, an
+    optional 14 px icon
+    - plain: `surface2` with a `border` outline and `text`
+    - primary: an `accent` fill with `bg` text
+    - danger: the plain button with red text, never filled
+    - disabled: `surface` with `faint` text
+    - `autofocus` gives a dialog's safe button the keyboard
+  - link buttons (`LinkButton`): 12 px accent text, 4 / 2 px padding, no underline; a few plain
+    `TextButton`s (All commits, Undo) and `IconButton`s keep Material's default look
+  - icon toggles: a 14 px icon in a box of radius 4; on is accent on 15 % accent, off is muted
+  - pills (`Pill`): 11 px, 6 / 1 px padding, radius 10; tinted (the colour on its colour at 14 %)
+    or filled (`bg` text on the colour); labels use the muted tint, the requirement count the purple one
+  - checkboxes are icons, not `Checkbox` widgets: the stage box is Material's check box, 16 px,
+    accent when checked and muted when not; the task check marks are 17 px: open muted, `x` accent
+    filled, `.` accent outline with a dot, `~` yellow, `n` faint
+  - section headers: `T.section` titles in the Tasks facets (14 px sides, 16 above, 6 below) and
+    above lists; the active list's title is accent; group headers in a list are `body` semibold
+    on `surface` with the status icon and a `tiny` count
+  - list rows: transparent at rest, `hover` under the mouse, `surface2` when selected; in the Tasks
+    facets the selected row's text turns accent while that list has the keys, the other rows'
+    text is a literal `#C8CBD3`
+  - tooltips: `surface2`, radius 4, 12 px text, after 500 ms
+  - snackbars: no `SnackBarTheme`, so they have Material's default look and not the app's colours;
+    errors stay 6 s, the auto-status note 3 s (longer while the mouse is on it)
+  - dialogs: `AlertDialog` for questions and `Dialog` (`DialogFrame`) for forms, both on `surface`;
+    the forms have a 1 px border and radius 8, the questions keep Material's default shape;
+    buttons right-aligned, 8 px apart, the action last; red only for what discards
+  - fields: filled `surface2`, 1 px `border`, accent border while focused, 10 / 8 px padding, dense;
+    the clear x is a 14 px muted icon
+  - scrollbars: a 6 px thumb in `border`
+  - error pane: a 16 px red icon, the short text in `title`, the trace in `code` muted
+  - the rail: `surface`; the selected entry has a 2 px accent bar on its left edge and `text`
+    colour, the others `muted`; the keyboard cursor paints `surface2`
+  - the debug bar: `surface2` with a top border, all text 11 px yellow Consolas, three items to a column
+  - cursor: the pointing hand on rows, buttons, boxes and their labels, the resize cursor on the pane
+    edge; disabled items keep the default (a rule in `CLAUDE.md`)
+  - focus: there is no focus ring on buttons, rows or panes; a text field gets an accent border;
+    the active list's title is accent; the detail panel's left edge and the rail's cursor are the
+    other signs; the debug bar names the focus when it is on
+  - motion: only the rail (120 ms) and the detail panel (180 ms), plus Material's own ripples and
+    snackbar slides; hover changes are instant
+
+- The diff (`ui/diff_view.dart`)
+  - code in `T.code` (Consolas 12.5), no syntax colours; tabs are shown as four spaces
+  - added line `#13261C` with a `#1B3A29` gutter and a green `+`; removed line `#2A1517` with a
+    `#3E1D20` gutter and a red `−`; context lines have no fill and a faint blank sign
+  - the number gutters are 44 px (old and new; one in each half of side by side), numbers right-aligned
+    in `faint`, then an 18 px sign column, then the text
+  - the hunk header: `surface2`, `@@ −a,b +c,d @@ section` in 12 px accent Consolas; the current hunk
+    gets accent at 18 %; a clickable line shows the hand and a 7 % accent veil
+  - side by side: two halves split by a 1 px line; a missing half is `surface` at 50 %; a 320 px
+    side panel can sit beside the diff
+  - long lines scroll sideways unless wrapping is on; the scroll width is the longest line times the
+    width of one character
+  - the file title in the header: the status icon (15 px, status colour), the path, `+n` green and
+    `−n` red at 12 px
+
+- What is echoed from Linear and GitHub Desktop
+  - from Linear (Tasks): dark, quiet, one accent; dense 36 px rows with a status ring, a priority
+    glyph, a mono id, label pills and small progress bars; the facets on the left and the detail
+    panel that slides in on the right; small muted section titles; a command palette
+  - from GitHub Desktop (Pull request, Changes): a resizable left pane with the file list (folders,
+    status icons, `+n −n`) and the commits under it, the diff on the right with gutters and hunk
+    headers, a stage check box at the end of a file row, the branch name as a switcher, the unified
+    and side by side choice
+  - departures from both: dark only; a vertical rail of modes; a key for everything, with Help and
+    a debug bar; the palette is its own (not copied from either app)
+
+- Inconsistencies and loose ends found in the code
+  - literals outside `ui/theme.dart`: the facet text `#C8CBD3` (`tasks_nav.dart`); 41 inline
+    `fontSize:` values (11 to 19) next to the six `T` styles; 15 inline `fontFamily: mono` styles that
+    repeat `T.code` with another size (11, 12); the diff's gutter, sign and hunk sizes; dialog widths
+    (420, 560, 600, 620, 680)
+  - mixed spacing: row side paddings of 10, 12 and 14; icon-to-text gaps of 4, 5, 6, 8, 9 and 10 px;
+    eight radii (the same kind of box is 4, 5 or 6)
+  - icon sizes of 12, 13, 14, 15, 16, 17 and 20 px (14 and 15 are used about equally for the same job)
+  - two code boxes: `CodeBox` (Connect: `surface`, radius 6, border) and the Tasks code block
+    (`surface2`, radius 4, no border)
+  - dialogs have two shapes (Material's for questions, radius 8 with a border for forms); popups
+    are two as well (Material's `PopupMenuButton`, and the hand-built branch picker with elevation 6)
+  - snackbars and the plain `TextButton` / `IconButton` use Material's default look, so their
+    hover, focus and ripple colours come from the Material scheme, not from `C`
+  - the native window title is "Ops" (`windows/runner/main.cpp`) but `MaterialApp.title` is `nvimos`
+  - `yellow` has four meanings: modified, in progress, connecting, and the debug bar's text
+  - no visible focus on buttons and rows, and `faint` on `bg` is weak contrast for line numbers
+    and disabled text
+<!-- }}} -->
+
+#### Plan
+
+_not yet built, not normative_
+
+<!-- {{{ style plan -->
+Decisions to make and proposals, drawn from the findings above. None of it is decided.
+
+- One source for the look
+  - `ui/theme.dart` the only place with a colour, a font size, a radius or a spacing step; a widget
+    names a token and has no literal (the measures of one widget, such as a column width, may stay)
+  - the sizes that have no name get one (the 19 of the task title, the code and id sizes), so the
+    inline sizes go away
+  - one dialog shape, one popup, one code box, one snackbar theme, and a button theme that also
+    covers `TextButton` and `IconButton`
+  - the native window title and `MaterialApp.title` agree
+
+- A spacing scale
+  - proposal: 2, 4, 6, 8, 12, 16, 24, with 10 and 14 retired
+  - proposal: radii 4 (controls, chips), 6 (cards, dialogs) and full round for pills
+  - proposal: icon sizes 14, 16, 20
+  - the fixed heights stay: 40 header, 36 row, 24 status bar, 48 rail
+
+- A light theme and a switch
+  - decide whether to have a light theme at all
+  - if so, a setting with Dark, Light and System; System follows the OS; kept with the other small
+    settings in `prefs.dart`
+  - every colour becomes a pair, which the previous point makes possible; the diff's four colours
+    need a light pair too
+  - open: whether the app's theme and Neovim's colour scheme are linked
+
+- Font size
+  - PLAN.md already says the font size is meant to become a setting (see "Layout of the window")
+  - proposal: one scale factor over the type scale and what follows from it; the diff's code size
+    could be a second one
+  - lists already read their row heights from the render tree, so they cope
+
+- Contrast and focus for keyboard use
+  - the app is keyboard first, so the focus must be visible: every stop in the Tab order shows
+    where it is, with the accent (an outline, or the accent bar the rail and the detail panel
+    already use), and the active list's selected row reads stronger than an inactive list's
+  - contrast: aim at 4.5:1 for text and 3:1 for icons and boundaries, in both themes; check `faint`
+    and `border` against it
+  - a colour never carries a meaning alone: the diff keeps its `+` and `−`, the statuses keep their
+    icon shapes
+
+- Syntax highlighting (a separate topic, not decided; the candidate package is `re_highlight`)
+  - whatever is chosen, its theme has to read on the diff's green and red fills as well as on `bg`
+  - proposal: colour the code, leave the line fill alone, and keep red and green out of the token
+    palette, since they mean removed and added
+  - the choice follows the theme setting
+
+- Icons
+  - proposal: stay with Material icons (they are in the framework), outlined for rest and filled for
+    on, and keep the drawn status ring and priority bars, for which there is no icon
+  - open: whether to move to one other set later
+
+- Density
+  - proposal: today's look is the compact density and stays the default
+  - open: a comfortable density, as a larger scale factor on the spacing scale, together with the
+    font size setting
+
+- What to keep
+  - from Linear: calm (one accent, flat surfaces, no shadows), dense lists, status icons, pills, the
+    detail panel that slides in
+  - from GitHub Desktop: the resizable left pane, the diff's gutters and line fills, the stage check
+    boxes, the branch switcher
+<!-- }}} -->
+
 ### Left sidebar (mode rail)
 
 <!-- {{{ sidebar -->
