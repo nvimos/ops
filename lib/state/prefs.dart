@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Small per-user settings in %APPDATA%/nvimos/state.json (last seen times per repo).
+/// Small per-user settings in %APPDATA%/nvimos/state.json (last seen times per repo, branch links,
+/// view choices such as line wrapping).
 class Prefs {
   Prefs._(this._file, this._data);
 
@@ -21,6 +22,19 @@ class Prefs {
 
   /// In memory only (tests).
   static Prefs memory() => Prefs._(null, {});
+
+  /// A true / false setting, [fallback] until it was set.
+  bool flag(String key, {required bool fallback}) {
+    final v = (_data['flags'] as Map?)?[key];
+    return v is bool ? v : fallback;
+  }
+
+  void setFlag(String key, bool value) {
+    final m = ((_data['flags'] as Map?) ?? {}).cast<String, Object?>();
+    m[key] = value;
+    _data['flags'] = m;
+    _save();
+  }
 
   DateTime? lastSeen(String repo) {
     final v = (_data['lastSeen'] as Map?)?[repo];

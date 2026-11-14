@@ -1,14 +1,32 @@
 import 'package:flutter/widgets.dart';
 
+import 'prefs.dart';
+
 /// Unified or side-by-side diff.
 enum DiffLayout { unified, sideBySide }
 
-/// How diffs are shown, the same in Pull request and Changes; for this session only.
+/// How diffs are shown, the same in Pull request and Changes. The layout is for this session only;
+/// wrapping and the hunk headers are kept in [Prefs] (the app's state file) between runs.
 class DiffPrefs extends ChangeNotifier {
+  DiffPrefs(this._prefs)
+    : wrap = _prefs.flag('diffWrap', fallback: true),
+      hunkHeaders = _prefs.flag('hunkHeaders', fallback: true);
+
+  final Prefs _prefs;
+
   DiffLayout layout = DiffLayout.unified;
 
   /// Long lines wrap; off: they stay on one line.
-  bool wrap = true;
+  bool wrap;
+
+  /// The header above each hunk (lines, counts, section); off: the code runs on without a gap.
+  bool hunkHeaders;
+
+  void toggleHunkHeaders() {
+    hunkHeaders = !hunkHeaders;
+    _prefs.setFlag('hunkHeaders', hunkHeaders);
+    notifyListeners();
+  }
 
   void toggleLayout() => setLayout(layout == DiffLayout.unified ? DiffLayout.sideBySide : DiffLayout.unified);
 
@@ -19,6 +37,7 @@ class DiffPrefs extends ChangeNotifier {
 
   void toggleWrap() {
     wrap = !wrap;
+    _prefs.setFlag('diffWrap', wrap);
     notifyListeners();
   }
 }

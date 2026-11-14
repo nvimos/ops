@@ -15,14 +15,28 @@ class C {
   /// Background of search matches.
   static const found = Color(0x66FFB84D);
   static const green = Color(0xFF4CC38A);
+  /// The paler green of the + sign and the line numbers of an added line in diffs.
+  static const addSign = Color(0xFF8FD3A8);
   static const red = Color(0xFFE5484D);
   static const yellow = Color(0xFFE6B450);
   static const purple = Color(0xFFA78BFA);
 
-  static const addBg = Color(0xFF13261C);
-  static const delBg = Color(0xFF2A1517);
-  static const addGutter = Color(0xFF1B3A29);
-  static const delGutter = Color(0xFF3E1D20);
+  static const addBg = Color(0xFF173626);
+  static const delBg = Color(0xFF3A171D);
+}
+
+/// Syntax colors for code in diffs: readable on the plain background and on the diff's green and
+/// red line backgrounds, so none of them is a pure green or red.
+class Syn {
+  static const keyword = Color(0xFFC792EA);
+  static const string = Color(0xFFE6B450);
+  static const number = Color(0xFFF2996B);
+  static const comment = Color(0xFF7A8094);
+  static const title = Color(0xFF82AAFF);
+  static const type = Color(0xFF5CCFE6);
+  static const attr = Color(0xFF9CC4FF);
+  static const meta = Color(0xFFB39DDB);
+  static const regexp = Color(0xFFD6A27A);
 }
 
 const mono = 'Consolas';
@@ -54,6 +68,20 @@ ThemeData buildTheme() {
       enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: C.border)),
       focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: C.accent)),
       contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: C.surface2,
+      contentTextStyle: T.body,
+      actionTextColor: C.accent,
+      showCloseIcon: true,
+      closeIconColor: C.muted,
+      elevation: 6,
+      insetPadding: const EdgeInsets.all(12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: const BorderSide(color: C.border),
+      ),
     ),
     scrollbarTheme: ScrollbarThemeData(
       thumbColor: WidgetStateProperty.all(C.border),
