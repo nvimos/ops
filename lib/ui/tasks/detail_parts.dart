@@ -183,10 +183,13 @@ class LinkChip extends StatelessWidget {
 
 /// Progress bar with done/total.
 class Progress extends StatelessWidget {
-  const Progress(this.done, this.total, {super.key, this.width = 60});
+  const Progress(this.done, this.total, {super.key, this.width = 60, this.countWidth});
 
   final int done, total;
   final double width;
+
+  /// A fixed width for the "done/total" text, so a column of them lines up.
+  final double? countWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -207,7 +210,10 @@ class Progress extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Text('$done/$total', style: T.tiny),
+        SizedBox(
+          width: countWidth,
+          child: Text('$done/$total', style: T.tiny, maxLines: 1),
+        ),
       ],
     );
   }
