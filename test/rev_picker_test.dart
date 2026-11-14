@@ -98,4 +98,41 @@ void main() {
     expect(selected, ['f04.txt']); // 4 rows fit in 130 - 8 px of padding
     request.dispose();
   });
+
+  testWidgets('the openList notifier focuses the field and opens the list of all branches', (t) async {
+    final focus = FocusNode();
+    final open = ValueNotifier<int>(0);
+    addTearDown(focus.dispose);
+    addTearDown(open.dispose);
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: RevPicker(
+                value: 'main',
+                names: const ['main', 'dev', 'feature/x'],
+                focus: focus,
+                onPick: (_) {},
+                strict: true,
+                openList: open,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(focus.hasFocus, isFalse);
+    expect(find.text('dev'), findsNothing);
+
+    open.value++;
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 50));
+    expect(focus.hasFocus, isTrue);
+    expect(find.text('dev'), findsOneWidget);
+    expect(find.text('feature/x'), findsOneWidget);
+  });
 }

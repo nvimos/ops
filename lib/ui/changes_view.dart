@@ -44,12 +44,14 @@ class ChangesViewState extends State<ChangesView> {
   final focus = FocusNode(debugLabel: 'changes');
   final _messageFocus = FocusNode(debugLabel: 'commit message');
   final _branchFocus = FocusNode(debugLabel: 'branch switcher');
+  final _openBranches = ValueNotifier<int>(0);
   static const _far = 1 << 20;
   late final _keys = KeySequence({
     'gg': () => st.moveSelection(-_far),
     'G': () => st.moveSelection(_far),
     ']c': () => st.moveHunk(1),
     '[c': () => st.moveHunk(-1),
+    'gb': openBranchSwitcher,
     '-': _toggleCurrent,
     ' ': _stageCurrent,
     'u': _unstageCurrent,
@@ -79,6 +81,12 @@ class ChangesViewState extends State<ChangesView> {
         ];
 
   @override
+  void initState() {
+    super.initState();
+    _branchFocus.addListener(_onBranchFocus);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _state ??= ChangesState(SessionScope.read(context));
@@ -87,12 +95,31 @@ class ChangesViewState extends State<ChangesView> {
   @override
   void dispose() {
     _keys.dispose();
+    _branchFocus.removeListener(_onBranchFocus);
     focus.dispose();
     _messageFocus.dispose();
     _branchFocus.dispose();
+    _openBranches.dispose();
     _state?.dispose();
     _message.dispose();
     super.dispose();
+  }
+
+  /// The branch field got or lost the keyboard (a click, a key, a pick): the active pane follows.
+  void _onBranchFocus() {
+    final s = _state;
+    if (s == null) return;
+    _branchFocus.hasFocus ? s.goTo(ChangesPane.branch) : s.leaveBranch();
+  }
+
+  /// The node that holds the keyboard for the active pane: the switcher field or the list node.
+  void _focusPane() => (st.pane == ChangesPane.branch ? _branchFocus : focus).requestFocus();
+
+  /// Shift+C: the keyboard goes to the branch switcher and its list of branches opens.
+  void openBranchSwitcher() {
+    st.goTo(ChangesPane.branch);
+    _branchFocus.requestFocus();
+    _openBranches.value++;
   }
 
   // Event handlers -------------------------------------------------------------------------------
@@ -108,14 +135,15 @@ class ChangesViewState extends State<ChangesView> {
   /// A branch picked in the switcher. Changes to tracked files would be overwritten: the modal
   /// lists them first, and Cancel (the default) leaves everything as it is.
   Future<void> _switchBranch(String branch) async {
-    if (branch == st.status?.branch) return;
+    if (branch == st.status?.branch) return focus.requestFocus();
     final files = st.wipedByCheckout;
     CheckoutHow? how;
     if (files.isNotEmpty) {
       how = await askCheckout(context, branch: branch, files: files);
-      if (how == null) return;
+      if (how == null) return focus.requestFocus();
     }
     _report(await st.switchBranch(branch, how: how));
+    if (mounted) focus.requestFocus();
   }
 
   Future<void> _moveDir(String dir, bool staged) async => _report(await st.moveDir(dir, staged: staged));
@@ -190,7 +218,7 @@ class ChangesViewState extends State<ChangesView> {
 
   /// Up / Down; past the last file of CHANGES the commit message gets the keyboard.
   void _move(int delta, {bool big = false}) {
-    if (st.moveCursor(delta, big: big)) _messageFocus.requestFocus();
+    st.moveCursor(delta, big: big) ? _messageFocus.requestFocus() : _focusPane();
   }
 
   /// Tab / Shift+Tab: STAGED, CHANGES, the commit message, the diff, and round again.
@@ -211,22 +239,18 @@ class ChangesViewState extends State<ChangesView> {
   /// Tab from the rail: the first stop of the cycle (the first list, else the message), or with
   /// Shift+Tab the last (the diff).
   void enterFromRail({required bool forward}) {
-    final lists = st.panes.where((p) => p != ChangesPane.diff).toList();
-    if (!forward) {
-      st.goTo(ChangesPane.diff);
-      focus.requestFocus();
-    } else if (lists.isEmpty) {
-      _messageFocus.requestFocus();
+    if (forward) {
+      st.goTo(ChangesPane.branch);
     } else {
-      st.goTo(lists.first);
-      focus.requestFocus();
+      st.goTo(ChangesPane.diff);
     }
+    _focusPane();
   }
 
   /// Ctrl+arrow, sent by the shell: the pane in that direction.
   void ctrlArrow({required bool vertical, required int dir}) {
     if (vertical) {
-      st.vertical(dir: dir, fromMessage: _messageFocus.hasFocus) ? _messageFocus.requestFocus() : focus.requestFocus();
+      st.vertical(dir: dir, fromMessage: _messageFocus.hasFocus) ? _messageFocus.requestFocus() : _focusPane();
     } else if (dir < 0) {
       _left();
     } else {
@@ -238,12 +262,34 @@ class ChangesViewState extends State<ChangesView> {
   void _tab({required int delta}) {
     if (st.tabLeaves(fromMessage: _messageFocus.hasFocus, delta: delta)) return widget.onRail?.call();
     final to = st.tabFrom(fromMessage: _messageFocus.hasFocus, delta: delta);
-    to == null ? _messageFocus.requestFocus() : focus.requestFocus();
+    to == null ? _messageFocus.requestFocus() : _focusPane();
   }
 
   void _tabFromMessage() => _tab(delta: 1);
 
   void _shiftTabFromMessage() => _tab(delta: -1);
+
+  /// The branch field is a text field: plain keys are typing. Tab goes round, Down steps to the
+  /// first list (when the drop-down has not taken it), Left at the start of the text to the rail.
+  KeyEventResult _branchKey(KeyEvent e, HardwareKeyboard hw) {
+    final key = e.logicalKey;
+    if (key == LogicalKeyboardKey.tab) {
+      _tab(delta: hw.isShiftPressed ? -1 : 1);
+    } else if (key == LogicalKeyboardKey.arrowDown) {
+      _move(1);
+    } else if (key == LogicalKeyboardKey.arrowLeft && _caretAtStart()) {
+      _left();
+    } else {
+      return KeyEventResult.ignored;
+    }
+    return KeyEventResult.handled;
+  }
+
+  bool _caretAtStart() {
+    final ctx = FocusManager.instance.primaryFocus?.context;
+    final sel = ctx?.findAncestorStateOfType<EditableTextState>()?.textEditingValue.selection;
+    return sel != null && sel.isCollapsed && sel.baseOffset <= 0;
+  }
 
   // Keys: Space (stage), j/k, arrows, Left/Right, gg/G, ]c/[c, -, s, u, X, cc, o, zR/zM; Tab and Shift+Tab cycle
   // the panes and the commit message.
@@ -253,6 +299,7 @@ class ChangesViewState extends State<ChangesView> {
     if (_messageFocus.hasFocus || hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed) {
       return KeyEventResult.ignored;
     }
+    if (_branchFocus.hasFocus) return _branchKey(e, hw);
     final action = switch (e.logicalKey) {
       LogicalKeyboardKey.tab => () => _tab(delta: hw.isShiftPressed ? -1 : 1),
       _ => null,
@@ -321,6 +368,7 @@ class ChangesViewState extends State<ChangesView> {
         focus: _branchFocus,
         next: focus,
         onPick: _switchBranch,
+        openList: _openBranches,
       ),
       sections: [
         FileSectionData('STAGED', st.staged, staged: true, collapsedDirs: st.collapsedDirs[0], active: st.pane == ChangesPane.staged, selectBottom: st.selectBottom[0]),
@@ -797,18 +845,20 @@ class BranchSwitcher extends StatelessWidget {
     required this.focus,
     required this.next,
     required this.onPick,
+    this.openList,
   });
 
   final String branch;
   final List<String> names;
   final FocusNode focus, next;
   final ValueChanged<String> onPick;
+  final Listenable? openList;
 
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
     decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.border))),
-    child: RevPicker(value: branch, names: names, focus: focus, next: next, onPick: onPick, strict: true),
+    child: RevPicker(value: branch, names: names, focus: focus, next: next, onPick: onPick, strict: true, openList: openList),
   );
 }
 
