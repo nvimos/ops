@@ -64,4 +64,23 @@ void main() {
     await second?.stop();
     await first.stop();
   });
+  test('opening target of the Active Directory: a branch, else changes, else tasks', () async {
+    final repo = await makeRepo();
+    final nvim = await TestNvim.start(cwd: repo);
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final d = DirsState(s);
+
+    expect(await d.openingTarget(), OpenTarget.tasks); // main only, clean
+
+    await File('${repo.path}/a.txt').writeAsString('changed\n');
+    expect(await d.openingTarget(), OpenTarget.changes);
+
+    await git(repo, ['branch', 'feature']);
+    expect(await d.openingTarget(), OpenTarget.pullRequest);
+
+    d.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
 }

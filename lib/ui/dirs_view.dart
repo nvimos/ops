@@ -16,7 +16,7 @@ import 'widgets.dart';
 ///
 /// Page: owns keys and event handlers; [DirsState] does the work.
 class DirsView extends StatefulWidget {
-  const DirsView({super.key, required this.state, this.onRail, this.onOpenTasks});
+  const DirsView({super.key, required this.state, this.onRail, this.onOpen});
 
   final DirsState state;
 
@@ -24,7 +24,7 @@ class DirsView extends StatefulWidget {
   final VoidCallback? onRail;
 
   /// A click on the Active Directory again: on to the Tasks mode.
-  final VoidCallback? onOpenTasks;
+  final VoidCallback? onOpen;
 
   @override
   State<DirsView> createState() => DirsViewState();
@@ -85,9 +85,9 @@ class DirsViewState extends State<DirsView> {
     _pickCursor();
   }
 
-  /// A click picks the directory; a click on the one that already is the Active Directory opens Tasks.
+  /// A click picks the directory; a click on the one that already is the Active Directory opens the project (the first mode with something to do).
   void _tap(String dir) {
-    if (dir == st.active && widget.onOpenTasks != null) return widget.onOpenTasks!();
+    if (dir == st.active && widget.onOpen != null) return widget.onOpen!();
     focus.requestFocus();
     _pick(dir);
   }
