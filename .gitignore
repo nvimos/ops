@@ -50,3 +50,4 @@ app.*.map.json
 
 # Logs of make live
 /out/
+.claude/worktrees/
