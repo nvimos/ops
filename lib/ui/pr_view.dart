@@ -7,6 +7,7 @@ import '../state/pr.dart';
 import '../state/session.dart';
 import '../tasks/model.dart';
 import '../tasks/workspace.dart';
+import 'confirm_dialog.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
@@ -233,23 +234,15 @@ class ActionsLine extends StatelessWidget {
 /// Ask, then merge head into base; say what happened.
 Future<void> mergeBranches(BuildContext context, PrState pr) async {
   final (base, head) = (pr.base!, pr.head!);
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (c) => AlertDialog(
-      backgroundColor: C.surface,
-      title: Text('Merge $head into $base?', style: T.title),
-      content: Text(
+  final ok = await confirm(
+    context,
+    title: 'Merge $head into $base?',
+    text:
         'A merge commit on $base; $base is checked out first if it is not the current branch.\n'
         'Local only: nothing is pushed. A conflict undoes the merge.',
-        style: T.body,
-      ),
-      actions: [
-        SmallButton('Cancel', onPressed: () => Navigator.pop(c, false)),
-        SmallButton('Merge', primary: true, onPressed: () => Navigator.pop(c, true)),
-      ],
-    ),
+    okLabel: 'Merge',
   );
-  if (ok != true || !context.mounted) return;
+  if (!ok || !context.mounted) return;
   final err = await pr.merge();
   if (!context.mounted) return;
   if (err != null) return showActionError(context, err);

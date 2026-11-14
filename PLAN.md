@@ -47,6 +47,14 @@ An agent may follow it or implement something better.
   - errors from actions (stage, commit, archive, ...) show as a short snackbar
     with a Details link that opens the selectable trace
 
+- Modals (the discard, merge and archive questions, the forms)
+  - the title and the text of every modal are selectable, so a warning can be copied or quoted
+  - a question modal is the shared `ConfirmDialog` / `confirm()` (`lib/ui/confirm_dialog.dart`):
+    one drag selects across the title and the text; the buttons stay buttons
+  - the form modals (`DialogFrame`) are selectable too, their fields typing and selecting as usual;
+    the command palette is the exception (a list of actions, no prose)
+  - a new modal uses these, so the rule holds without thinking of it
+
 - The Mouse is the main input device. All actions are mousable.
 
 - Keyboard inputs for navigation, switching modes, toggling or selecting items
