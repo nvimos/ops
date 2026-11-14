@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../rpc/stats.dart';
+import 'network_dialog.dart';
 import 'theme.dart';
 
 /// Whether the debug bar is shown; the status bar's bug button toggles it.
@@ -248,8 +249,17 @@ class _NetworkMonitorState extends State<NetworkMonitor> {
     super.dispose();
   }
 
+  /// A click opens the list of the slowest requests and where they came from.
   @override
-  Widget build(BuildContext context) => debugTable(networkLines(_stats));
+  Widget build(BuildContext context) => Tooltip(
+    message: 'Slowest requests and where they came from',
+    child: InkWell(
+      mouseCursor: SystemMouseCursors.click,
+      canRequestFocus: false, // the bar only watches the focus, it must not take it
+      onTap: () => showNetworkDialog(context),
+      child: SelectionContainer.disabled(child: debugTable(networkLines(_stats))),
+    ),
+  );
 }
 
 /// The monitor's three lines.

@@ -30,7 +30,7 @@ void main() {
     expect(shown().split('|').length, greaterThan(2)); // one item per line, not one long line
 
     // The mouse is reported too: each button down and up, and the wheel.
-    final at = t.getCenter(find.byType(DebugBar));
+    final at = t.getTopLeft(find.byType(DebugBar)) + const Offset(30, 30); // on the focus box, not the network monitor
     for (final (button, name) in [(kPrimaryButton, 'Left'), (kMiddleMouseButton, 'Middle'), (kSecondaryButton, 'Right')]) {
       final g = await t.createGesture(kind: PointerDeviceKind.mouse, buttons: button);
       await g.down(at);
