@@ -162,9 +162,10 @@ class _ShellState extends State<Shell> {
         _run(_focusRail),
       _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed || _typing() => false,
       _ when e.character == '?' => _run(() => _setMode(Mode.help)),
+      // Shift+C: also in Help (a capital C is not search text there); Help's own search field is typing.
+      _ when e.character == 'C' => _run(_openBranchSwitcher),
       _ when e.character == '/' && _mode == Mode.help => _run(() => _helpKey.currentState?.startSearch()),
       _ when _mode == Mode.help && _printable(e.character) => _run(() => _helpKey.currentState?.type(e.character!)),
-      _ when e.character == 'C' => _run(_openBranchSwitcher),
       // `b` (bug): the debug bar, as the bug button in the status bar; in Help it is search text.
       LogicalKeyboardKey.keyB when !hw.isShiftPressed => _run(() => debugBarVisible.value = !debugBarVisible.value),
       _ when _railFocus.hasFocus => false,
