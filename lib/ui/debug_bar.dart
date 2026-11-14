@@ -21,6 +21,7 @@ const focusRoles = {
   'tasks filter': 'Task filter field',
   'dirs': 'Directory list',
   'tasks': 'Task list',
+  'task detail text': 'Task detail text',
   'changes': 'Changes',
   'shell': 'App',
   'rail': 'Mode rail',
