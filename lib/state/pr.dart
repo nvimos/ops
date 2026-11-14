@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
 import 'list_pair.dart';
@@ -151,6 +152,20 @@ class PrState extends ChangeNotifier {
     final err = await session.run((x) async => await x.merge(b, h));
     await refresh();
     return err;
+  }
+
+  /// Whether head can be put on top of base: both sides are picked and they differ.
+  bool get canRebase => base != null && head != null && base != head;
+
+  /// Rebase head onto base (the backend checks head out when it is not the current branch).
+  /// [error] is the error text or null; [upToDate] says head already had all of base.
+  Future<({String? error, bool upToDate})> rebase() async {
+    final (b, h) = (base, head);
+    if (b == null || h == null) return (error: 'pick a base and a head first', upToDate: false);
+    var result = '';
+    final err = await session.run((x) async => result = await x.rebase(b, h));
+    await refresh();
+    return (error: err, upToDate: result == Backend.upToDate);
   }
 
   void pickBase(String rev) => pick(base: rev);

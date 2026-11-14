@@ -230,8 +230,29 @@ class ActionsLine extends StatelessWidget {
         message: 'Merge head into base: a merge commit on base, local only',
         child: SmallButton('merge', icon: Icons.merge, onPressed: pr.canMerge ? () => mergeBranches(context, pr) : null),
       ),
+      const SizedBox(width: 8),
+      Tooltip(
+        message: 'Rebase head onto base: head\'s commits replayed on top of base, local only',
+        child: SmallButton('rebase', icon: Icons.low_priority, onPressed: pr.canRebase ? () => rebaseBranch(context, pr) : null),
+      ),
     ],
   );
+}
+
+/// Rebase head onto base, no question (a conflict is undone); always say what happened.
+Future<void> rebaseBranch(BuildContext context, PrState pr) async {
+  final (base, head) = (pr.base!, pr.head!);
+  final r = await pr.rebase();
+  if (!context.mounted) return;
+  if (r.error != null) return showActionError(context, r.error!);
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(r.upToDate ? '$head is already on top of $base' : 'Rebased $head onto $base'),
+        duration: const Duration(seconds: 3),
+      ),
+    );
 }
 
 /// Ask, then merge head into base; say what happened.

@@ -160,6 +160,10 @@ class Backend {
   Future<void> checkout(String branch, {CheckoutHow? how}) => _git('checkout', [branch, if (how != null) how.name]);
   /// Merge [head] into the local branch [base] with a merge commit; returns the new HEAD's sha.
   Future<String> merge(String base, String head) async => str(await _git('merge', [base, head]));
+  /// Rebase the local branch [head] onto [base]; returns the new HEAD's sha, or [upToDate] when
+  /// there was nothing to do.
+  Future<String> rebase(String base, String head) async => str(await _git('rebase', [base, head]));
+  static const upToDate = 'up-to-date';
   Future<String> commit(String message) async => str(await _git('commit', [message]));
 
   // Files (Tasks mode) ------------------------------------------------------------------------

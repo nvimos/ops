@@ -51,6 +51,37 @@ void main() {
     await nvim.stop();
   });
 
+  test('rebase puts head on top of base and says when there was nothing to do', () async {
+    final repo = await makeRepo();
+    await git(repo, ['checkout', '-q', '-b', 'feature']);
+    await File('${repo.path}/b.txt').writeAsString('feature\n');
+    await git(repo, ['add', 'b.txt']);
+    await git(repo, ['commit', '-q', '-m', 'feature work']);
+    await git(repo, ['checkout', '-q', 'main']);
+    await File('${repo.path}/c.txt').writeAsString('main\n');
+    await git(repo, ['add', 'c.txt']);
+    await git(repo, ['commit', '-q', '-m', 'main work']);
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    await s.connect();
+    final pr = PrState(s);
+    await until(() => !pr.loading && pr.diff != null);
+    pr.pick(base: 'main', head: 'feature');
+    await until(() => !pr.loading && pr.diff != null && pr.canRebase);
+
+    final first = await pr.rebase();
+    expect((first.error, first.upToDate), (null, false));
+    expect((await git(repo, ['log', '-1', '--format=%s', 'HEAD~1'])).trim(), 'main work');
+    expect((await git(repo, ['branch', '--show-current'])).trim(), 'feature');
+    final again = await pr.rebase();
+    expect((again.error, again.upToDate), (null, true)); // still feedback: "already on top"
+
+    pr.dispose();
+    s.dispose();
+    await nvim.stop();
+  });
+
   test('picks main and the newest other branch, loads commits and diff, refreshes on git hints', () async {
     final repo = await makeRepo();
     await git(repo, ['checkout', '-q', '-b', 'agent/x']);

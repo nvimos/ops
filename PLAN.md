@@ -513,6 +513,13 @@ mode area, which shrinks upward.
             a local branch, and a head with nothing new
           - a conflict is undone (`merge --abort`) and the error names the files
           - done: a short note "Merged head into base"; the lists refresh
+        - "rebase" button, 8 px right of "merge": head's commits replayed on top of base, local only
+          - enabled when both sides are picked and differ; no question first
+          - head is checked out first when it is not the current branch; the same refusals as merge
+            (unsaved buffers, uncommitted changes to tracked files), and head must be a local branch
+          - a conflict is undone (`rebase --abort`) and the error names the files
+          - always answers with a short note: "Rebased head onto base", or "head is already on top
+            of base" when there was nothing to replay; the lists refresh
       - Head Picker
       - Files Changed
       - Commits list
