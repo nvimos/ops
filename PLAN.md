@@ -53,6 +53,8 @@ An agent may follow it or implement something better.
     one drag selects across the title and the text; the buttons stay buttons
   - the form modals (`DialogFrame`) are selectable too, their fields typing and selecting as usual;
     the command palette is the exception (a list of actions, no prose)
+  - the checkout modal (`lib/ui/checkout_dialog.dart`) has three buttons, not two: see the branch switcher
+    in Changes
   - a new modal uses these, so the rule holds without thinking of it
 
 - The Mouse is the main input device. All actions are mousable.
@@ -194,7 +196,7 @@ Initial one shot vibe code decisions (this section will disappear, it serves as 
 
 | Topic       | Choice                                                                             |
 |-------------|------------------------------------------------------------------------------------|
-| Platform    | native Windows app; Flutter in `H:\flutter`, Visual Studio 2022 C++ tools          |
+| Platform    | native Windows app; Flutter in `C:/tools/flutter`, Visual Studio 2022 C++ tools          |
 | Connection  | TCP 127.0.0.1:6666 (`nvim --listen` or `:NvimosServe`); Dart can't open named pipes |
 | Git         | the app runs no git itself; everything goes through the backend's `git.*`          |
 | Editing     | Primarily in Neovim if it's open as a non-headless instance |
@@ -229,6 +231,8 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `nvim_launcher.dart`: finds the backend checkout and starts Neovim in its own console
   - `diff_prefs.dart`: the diff layout, wrapping and scroll steps, shared by Pull request and Changes
   - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json`
+  - `dirs.dart`: Directories state: the start dirs, the filter, the Active Directory
+  - `list_pair.dart`: the sizes, folding and dominant list of two lists in one column
   - a git hint from the backend makes each state re-query what it shows
 
 - `tasks/`: the Tasks mode's data, pure Dart
@@ -240,6 +244,9 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `edits.dart`: line-level edits that refuse to apply if the file changed meanwhile; the checkbox
     mark cycle (open, x, ., ~, n) of the Neovim tilde plugin
   - `archive.dart`, `inbox.dart`: archiving a change into its spec, the inbox
+  - `browser.dart`: what the list shows: the view, the filter, the grouping and the sort
+  - `milestones.dart`: which milestone holds a change
+  - `auto_status.dart`: the status a task moves to when its last box is ticked
 
 - `timing/ui_timing.dart`: UI timing instrumentation (see Performance)
 
@@ -247,6 +254,10 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `shell.dart`: the window, mode rail, status bar
   - `connect.dart`, `pr_view.dart`, `changes_view.dart`, `tasks/`: the views below (aka Modes)
   - `diff_view.dart`, `file_tree.dart`, `widgets.dart`, `theme.dart`: shared pieces
+  - `confirm_dialog.dart`, `checkout_dialog.dart`, `error_view.dart`: the question modals, and the
+    error pane, snackbars and the Done note
+  - `list_pair_view.dart`: two lists in one column (STAGED over CHANGES, FILES over COMMITS)
+  - `dirs_view.dart`: the Directories mode
   - `nav_keys.dart`: the one mapping of arrows, hjkl and WASD to directions
   - `key_sequence.dart`: two-key commands with counts (`gg`, `]f`, `2gi`)
   - `reveal.dart`: keeps a list's selected row in view from the real render positions
@@ -332,9 +343,7 @@ mode area, which shrinks upward.
   - buttons that start Neovim, then connect
     - Start Neovim: `nvim` in its own console window
     - Start nvim-qt: the GUI, with `-platform windows:darkmode=1` and the config's
-      `%LOCALAPPDATA%
-vim
-vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
+      `%LOCALAPPDATA%\nvim\nvim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
     - Start headless: `nvim --headless`, detached from the app: no window, no terminal,
       keeps running after the app quits
     - each listens on the address, with the backend plugin loaded after the config, like `make nvim`
@@ -372,6 +381,8 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
   - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
     so every key fits on one screen; the groups keep their order and the columns even out in height
   - a narrow pane gets fewer columns and scrolls
+  - a Mouse group lists what the clicks, the wheel and the middle button do (Shift+wheel, middle
+    click, click, right click and Ctrl+click on a checkbox, Ctrl+click on a task)
   - the text is selectable
   - each key row: the keys, then the description right after them; the key column is as wide as the
     group's widest key, so descriptions line up inside a group and sit close to their keys
@@ -543,6 +554,24 @@ vim-qt.qss` as `-stylesheet` when it exists; nvim gets the rest after `--`
 staged and unstaged files with checkboxes, the selected file's hunks with stage,
 unstage and discard buttons, commit message and Commit button. Click a line: Neovim opens it.
 
+- the branch switcher heads the left pane, in place of the branch's name
+  - the same field as the base and head pickers of Pull request (`RevPicker`: a click on it opens the
+    list of all branches, a click again closes it, typing filters), but it is a separate widget with its
+    own state: picking here never changes the pickers there
+  - it only takes a listed local branch (no sha or tag); Enter or a click on a branch checks it out,
+    typing alone never does (no pick after a pause, unlike the pickers)
+  - uncommitted changes to tracked files would be overwritten: a modal lists those files first, before
+    anything happens (untracked files stay and are not listed)
+    - Cancel is the default button: Enter and Space (and Esc) leave everything as it is
+    - Stash and checkout: stashes the changes (`nvimos: before switching to <branch>`), then switches;
+      when the switch fails the stash is put back
+    - Checkout and discard (red): throws the changes away; reached only by navigating to it or clicking it
+    - unsaved buffers in Neovim always refuse the checkout
+    - no changes in the way: the branch is checked out at once, without the modal
+  - the backend does the work (`git.checkout(branch, how)`, `how` = `stash` or `force`)
+- each folder row of STAGED and CHANGES has a check box at its right end, in line with the files'
+  boxes: a click stages (unstages) the files directly in that folder, at once like a file's box;
+  files of subfolders have their own folder rows
 - STAGED over CHANGES behave like the Pull request files and commits: foldable headers,
   the most-room button (CHANGES have it at start), expand / collapse all folders (zR / zM)
 - unified and side-by-side diffs, like the Pull request mode
@@ -609,6 +638,9 @@ keyboard J/K/Enter/Esc/C and /.
   backend's `files.*` (unsaved Neovim edits show too), links tasks and changes, reloads on git hints.
 - `tasks/edits.dart`: line-level edits (status in YAML header, checkbox toggle, Status line in
   proposal) sent as `files.set_lines`; each refuses if the line changed meanwhile.
+- The text of the detail panel is one selectable area: a drag selects across its sections, not inside one
+  text at a time (the debug bar names it "Task detail text"; it is not a Tab stop, a click in the text
+  takes the keyboard)
 - Checkboxes in the detail panel
   - the box and the text next to it are one target: the pointer cursor and a hover background show it
   - a left click ticks an open box and clears any other mark
