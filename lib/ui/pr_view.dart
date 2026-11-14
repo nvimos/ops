@@ -193,42 +193,38 @@ class _Sidebar extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      _Pickers(pr: pr),
+      PrPickers(pr: pr),
       const Divider(height: 1),
       Expanded(child: _Lists(pr: pr)),
     ],
   );
 }
 
-/// The line between the pickers: the swap button in the middle of it, the merge actions to its
-/// right (more can follow).
-class MergeActions extends StatelessWidget {
-  const MergeActions({super.key, required this.pr});
+/// The line between the pickers: Swap in the label column, between the "base" and "head" labels,
+/// and the merge actions in line with the fields (more can follow).
+class ActionsLine extends StatelessWidget {
+  const ActionsLine({super.key, required this.pr});
 
   final PrState pr;
 
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Spacer(),
-      IconButton(
-        tooltip: 'Swap (gs)',
-        iconSize: 16,
-        visualDensity: VisualDensity.compact,
-        onPressed: pr.swap,
-        icon: const Icon(Icons.swap_vert, color: C.muted),
-      ),
-      Expanded(
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Tooltip(
-              message: 'Merge head into base: a merge commit on base, local only',
-              child: SmallButton('Merge', icon: Icons.merge, onPressed: pr.canMerge ? () => mergeBranches(context, pr) : null),
-            ),
+      SizedBox(
+        width: RevPicker.labelWidth,
+        child: Center(
+          child: IconButton(
+            tooltip: 'Swap (gs)',
+            iconSize: 16,
+            visualDensity: VisualDensity.compact,
+            onPressed: pr.swap,
+            icon: const Icon(Icons.swap_vert, color: C.muted),
           ),
         ),
+      ),
+      Tooltip(
+        message: 'Merge head into base: a merge commit on base, local only',
+        child: SmallButton('merge', icon: Icons.merge, onPressed: pr.canMerge ? () => mergeBranches(context, pr) : null),
       ),
     ],
   );
@@ -262,8 +258,8 @@ Future<void> mergeBranches(BuildContext context, PrState pr) async {
     ..showSnackBar(SnackBar(content: Text('Merged $head into $base'), duration: const Duration(seconds: 3)));
 }
 
-class _Pickers extends StatelessWidget {
-  const _Pickers({required this.pr});
+class PrPickers extends StatelessWidget {
+  const PrPickers({super.key, required this.pr});
 
   final PrState pr;
 
@@ -281,7 +277,7 @@ class _Pickers extends StatelessWidget {
           next: pr.headFocus,
           onPick: pr.pickBase,
         ),
-        MergeActions(pr: pr),
+        ActionsLine(pr: pr),
         RevPicker(label: 'head', value: pr.head, names: pr.branchNames, focus: pr.headFocus, onPick: pr.pickHead),
       ],
     ),
@@ -499,6 +495,9 @@ class RevPicker extends StatefulWidget {
     this.next,
   });
 
+  /// The width of the label column; the swap button and the merge actions line up with it.
+  static const double labelWidth = 38;
+
   final String label;
   final String? value;
   final List<String> names;
@@ -609,7 +608,7 @@ class _RevPickerState extends State<RevPicker> {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      SizedBox(width: 38, child: Text(widget.label, style: T.tiny)),
+      SizedBox(width: RevPicker.labelWidth, child: Text(widget.label, style: T.tiny)),
       Expanded(
         child: RawAutocomplete<String>(
           textEditingController: _text,
