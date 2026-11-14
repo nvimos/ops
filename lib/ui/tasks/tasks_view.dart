@@ -93,6 +93,9 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   /// The elements of the detail that take the keyboard (buttons, fields, rows), in tree order.
   final _detailScope = FocusScopeNode(debugLabel: 'task detail');
 
+  /// The detail panel's text selection; not a Tab stop, a click in the text takes it.
+  final _detailText = FocusNode(debugLabel: 'task detail text', skipTraversal: true);
+
   List<FocusNode> _detailElements() => _detailScope.traversalDescendants.where((n) => n.canRequestFocus).toList();
 
   /// Right from the list: the keyboard goes to the first (with [last]: last) element of the current
@@ -209,6 +212,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     _keys.dispose();
     browser.dispose();
     _detailScope.dispose();
+    _detailText.dispose();
     focus.dispose();
     filterFocus.dispose();
     filter.dispose();
@@ -530,7 +534,12 @@ class TasksViewState extends State<TasksView> implements TaskActions {
           child: DetailPanel(
             width: panel,
             active: pane == TasksPane.detail,
-            child: detail == null ? null : FocusScope(node: _detailScope, child: detail),
+            child: detail == null
+                ? null
+                : FocusScope(
+                    node: _detailScope,
+                    child: SelectionArea(focusNode: _detailText, child: detail),
+                  ),
           ),
         ),
       ],

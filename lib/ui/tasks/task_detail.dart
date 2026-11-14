@@ -237,6 +237,6 @@ class _NotesBox extends StatelessWidget {
     width: double.infinity,
     padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(color: C.surface2, borderRadius: BorderRadius.circular(5)),
-    child: SelectableText(lines.join('\n'), style: T.code.copyWith(fontSize: 12, color: C.muted)),
+    child: Text(lines.join('\n'), style: T.code.copyWith(fontSize: 12, color: C.muted)),
   );
 }
