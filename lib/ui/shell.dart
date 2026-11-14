@@ -101,6 +101,18 @@ class _ShellState extends State<Shell> {
     _pr!.pick(base: _ws!.defaultBranch, head: branch);
   }
 
+  /// Open the Active Directory in the first mode with something to do: Pull request when there is
+  /// a branch to review, else Changes when the checkout is dirty, else Tasks.
+  Future<void> _openProject() async {
+    final target = await _dirs!.openingTarget();
+    if (!mounted) return;
+    _setMode(switch (target) {
+      OpenTarget.pullRequest => Mode.pullRequest,
+      OpenTarget.changes => Mode.changes,
+      OpenTarget.tasks => Mode.tasks,
+    });
+  }
+
   void _stopReview() => setState(() => _reviewing = null);
 
   void _toggleRail() => setState(() => _expanded = !_expanded);
@@ -439,7 +451,7 @@ class _ShellState extends State<Shell> {
       PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
       ChangesView(key: _changesKey, onRail: _focusRail),
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
-      DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpenTasks: () => _setMode(Mode.tasks)),
+      DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
       _help(),
     ],
   );
