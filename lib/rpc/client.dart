@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'msgpack.dart';
+import 'stats.dart';
 
 /// An error Neovim returned for a request.
 class NvimError implements Exception {
@@ -39,6 +40,7 @@ class NvimRpc {
   final Socket _socket;
   final _decoder = MsgDecoder();
   final _pending = <int, Completer<Object?>>{};
+  final _statKeys = <int, int>{}; // request id -> key in RpcStats
   final _notes = StreamController<RpcNotification>.broadcast();
   final _done = Completer<void>();
   int _nextId = 1;
@@ -62,6 +64,7 @@ class NvimRpc {
     final id = _nextId++;
     final c = Completer<Object?>();
     _pending[id] = c;
+    _statKeys[id] = RpcStats.instance.sent();
     _socket.add(msgEncode([0, id, method, args]));
     return c.future;
   }
@@ -82,6 +85,8 @@ class NvimRpc {
           final c = _pending.remove(msg[1]);
           if (c == null) break;
           final err = msg[2];
+          final key = _statKeys.remove(msg[1]);
+          if (key != null) RpcStats.instance.answered(key, ok: err == null);
           if (err != null) {
             final text = err is List && err.length > 1 ? '${err[1]}' : '$err';
             c.completeError(NvimError('${msg[1]}', text));
@@ -102,6 +107,10 @@ class NvimRpc {
   void _onDone() {
     if (_closed) return;
     _closed = true;
+    for (final key in _statKeys.values) {
+      RpcStats.instance.answered(key, ok: false);
+    }
+    _statKeys.clear();
     for (final c in _pending.values) {
       c.completeError(StateError('connection closed'));
     }
