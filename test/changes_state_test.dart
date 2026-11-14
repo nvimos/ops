@@ -216,7 +216,7 @@ void main() {
     await nvim.stop();
   });
 
-  test('Tab cycles STAGED, CHANGES, the commit message, the diff, and round; Shift+Tab goes back', () async {
+  test('Tab cycles the branch switcher, STAGED, CHANGES, the commit message, the diff, and round; Shift+Tab goes back', () async {
     final repo = await makeRepo();
     await File('${repo.path}/a.txt').writeAsString('one\nTWO\nthree\nfour\nfive\n');
     await File('${repo.path}/c.txt').writeAsString('new\n');
@@ -235,7 +235,9 @@ void main() {
     expect(st.selected, 'a.txt'); // entering a list selects its first file
     expect(st.tabFrom(fromMessage: false, delta: 1), isNull); // the commit message
     expect(st.tabFrom(fromMessage: true, delta: 1), ChangesPane.diff);
-    expect(st.tabFrom(fromMessage: false, delta: 1), ChangesPane.staged); // round again
+    expect(st.tabFrom(fromMessage: false, delta: 1), ChangesPane.branch); // round again: the switcher first
+    expect(st.tabFrom(fromMessage: false, delta: 1), ChangesPane.staged);
+    expect(st.tabFrom(fromMessage: false, delta: -1), ChangesPane.branch);
     expect(st.tabFrom(fromMessage: false, delta: -1), ChangesPane.diff);
     expect(st.tabFrom(fromMessage: false, delta: -1), isNull);
     expect(st.tabFrom(fromMessage: true, delta: -1), ChangesPane.unstaged);

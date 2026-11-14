@@ -55,6 +55,7 @@ const keyTable = [
   (
     'Changes',
     [
+      ('C  gb', 'go to the branch switcher and open its list (C: any mode)'),
       ('[c  ]c', 'previous or next hunk'),
       ('-', 'stage or unstage the hunk, or the file'),
       ('Space  u', 'stage or unstage the hunk, or the file'),
