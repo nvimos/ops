@@ -58,6 +58,9 @@ An agent may follow it or implement something better.
   - a new modal uses these, so the rule holds without thinking of it
 
 - The Mouse is the main input device. All actions are mousable.
+  - an interactive item shows the pointer cursor (the pointing hand) and has a tooltip saying what it
+    does, including a hidden button like the sign of a diff block
+  - one exception: the file rows of the file lists keep the plain cursor
 
 - Keyboard inputs for navigation, switching modes, toggling or selecting items
   - use imagination if needed or follow vim/neovim conventions
@@ -128,6 +131,7 @@ Pull request
 | `]c` / `[c`        | next / previous hunk                                    |
 | `v`                | unified / side-by-side (also in Changes)                |
 | `zw`               | toggle line wrapping                                    |
+| `zh`               | toggle hunk headers                                     |
 | `Enter` on a commit| narrow to that commit; `Esc` returns to the full range  |
 
 Changes
@@ -180,7 +184,9 @@ _not strictly normative_ <!-- {{{ -->
 - Action errors show as a snackbar at the bottom, without the trace
   - stage, unstage, discard, commit, open/show in Neovim, task edits, archive, new task/change
   - they run through `Session.run`, which returns `NvimError.short`
-  - the snackbar disappears after a few seconds, and its text is not selectable.
+  - the snackbar disappears after a few seconds, and its text is not selectable
+  - it is dark like the rest of the app (the theme's surface color, a border, rounded corners) and has
+    an X that closes it; it floats above the status bar and the debug bar, not over them
 - Connection errors show under the address field on the connect screen, without the trace
   - `Session` keeps `NvimError.short`, or "no Neovim listening on <address>" for a refused socket
   - plain `Text`, not selectable.
@@ -212,6 +218,8 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
     - requests with ids, responses, notifications as a stream
     - `NvimError` for errors Neovim returns (full message and a `short` form)
   - `msgpack.dart`: its own msgpack encoder and streaming decoder, no package
+  - `stats.dart`: counts of the requests sent, how many wait for an answer, the answer times
+    (the debug bar's network monitor reads them)
 
 - `backend/`
   - `backend.dart`: typed wrapper around the plugin, one RPC connection
@@ -229,8 +237,11 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `pr.dart`: Pull request state: branches, base and head, commits, the diff
   - `changes.dart`: Changes state: working tree status, the selected file's diff, actions
   - `nvim_launcher.dart`: finds the backend checkout and starts Neovim in its own console
-  - `diff_prefs.dart`: the diff layout, wrapping and scroll steps, shared by Pull request and Changes
-  - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json`
+  - `diff_prefs.dart`: the diff layout, wrapping, hunk headers and scroll steps, shared by Pull request
+    and Changes; wrapping and hunk headers are kept between runs, the layout is not
+  - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json` (last-seen times, branch
+    links, true / false view choices)
+  - `commit_template.dart`: git's commented instructions and file list for the commit message modal
   - `dirs.dart`: Directories state: the start dirs, the filter, the Active Directory
   - `list_pair.dart`: the sizes, folding and dominant list of two lists in one column
   - a git hint from the backend makes each state re-query what it shows
@@ -254,8 +265,10 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `shell.dart`: the window, mode rail, status bar
   - `connect.dart`, `pr_view.dart`, `changes_view.dart`, `tasks/`: the views below (aka Modes)
   - `diff_view.dart`, `file_tree.dart`, `widgets.dart`, `theme.dart`: shared pieces
-  - `confirm_dialog.dart`, `checkout_dialog.dart`, `error_view.dart`: the question modals, and the
-    error pane, snackbars and the Done note
+  - `syntax.dart`: syntax colors of the diff's code (highlight.js through the `re_highlight` package)
+  - `confirm_dialog.dart`, `checkout_dialog.dart`, `commit_message_dialog.dart`, `error_view.dart`:
+    the question modals, the large commit message modal, and the error pane, snackbars and the Done
+    note
   - `list_pair_view.dart`: two lists in one column (STAGED over CHANGES, FILES over COMMITS)
   - `dirs_view.dart`: the Directories mode
   - `nav_keys.dart`: the one mapping of arrows, hjkl and WASD to directions
@@ -423,8 +436,10 @@ mode area, which shrinks upward.
 - for finding out where the focus goes; off at start, toggled with the bug button in the status bar
   or the `b` key (not while typing in a field, and not in Help, where `b` is search text)
 - a pane above the status bar that takes its height from the mode area (not an overlay)
-- three lines high; items stack three to a column and continue in the next column, so it never
-  becomes one long line
+- three lines high, made of boxes (a border, rounded corners, a margin around each) so neighbours read
+  as separate widgets: the focus box and the network monitor
+- in the focus box, items stack three to a column and continue in the next column, so it never
+  becomes one long line; what does not fit next to the network monitor is cut off
 - each item is "Label: value" with the colons of a column on one line:
   - Focus: the focused element by its role in the interface (not its class), e.g. "Commits list",
     "Base revision field", "Mode rail", "Task detail"
@@ -439,6 +454,13 @@ mode area, which shrinks upward.
 - roles come from a table (`focusRoles` and the pane tables in `ui/debug_bar.dart`): a focus node
   has a label, the label has a role; a node that serves several panes (Pull request, Changes,
   Tasks) takes its pane from the mode
+- the network monitor, a box at the right: the health of the conversation with Neovim, three lines,
+  refreshed twice a second
+  - Requests: how many were sent in the run, per second over the last 5 seconds, and how many failed
+  - Waiting: how many requests wait for an answer now, the most at once, and the oldest one's wait
+    (the queue; red when more than 5 wait or one has waited over 500 ms)
+  - Answers: median (p50), p95 and the slowest answer time (the percentiles over the last 200 answers)
+  - the numbers come from `RpcStats` (`lib/rpc/stats.dart`), which `NvimRpc` feeds on every request
 <!-- }}} -->
 
 ### Status bar
@@ -447,6 +469,7 @@ mode area, which shrinks upward.
 - appears at the bottom of the app
 - Active Directory, current branch, Neovim's current file and cursor (live), connection state
 - at the right end, a bug button shows and hides the debug bar (see "Debug bar")
+- the status bar and the debug bar are the window's bottom bar, so snackbars slide in above them
 <!-- }}} -->
 
 ### Views (Modes)
@@ -520,6 +543,11 @@ mode area, which shrinks upward.
 
 - file and directory tree
   - file tree of the changed files with +/- counts
+  - each file has a status mark before its name, the symbols and colors oil-git.nvim draws in Oil:
+    `+` added (green), `~` modified (yellow), `->` renamed (purple), `D` deleted (red), `!` conflict
+    (orange), `?` untracked (blue)
+  - the plain arrow cursor over file rows (a click on a file is obvious); folder rows show the pointer
+  - the wheel steps the selected file after a middle click or with Shift (`FileTree.onStep`)
   - a button in its header expands / collapses all dirs;
     the current file's dir stays expanded up to the relevant level
 
@@ -537,11 +565,36 @@ mode area, which shrinks upward.
   <!-- {{{ -->
   - switching view keeps the active file and shows it after switching
   - both view have a row of actions or toggles at the top
-    - toggle line wrapping
+    - toggle line wrapping (`zw`)
+    - toggle the hunk headers (the `#` button, `zh`)
+    - both choices are kept between runs (`%APPDATA%/nvimos/state.json`) and shared by Pull request and Changes
   - switching side-by-side and unified: when the PR or Changes mode is selected, the sidebar rail gets
     two items under the pull request icon, one per view, unified first, then side-by-side
-  - unified diff of the selected file, like GitHub's "Files changed" tab.
-  - Side-by-side diff and syntax colors come later.
+  - unified diff of the selected file, like GitHub's "Files changed" tab; side-by-side pairs each run
+    of deletions with the run of additions after it
+  - syntax colors (`ui/syntax.dart`)
+    - the language comes from the file name: 21 languages, other files stay plain
+    - each hunk is colored as a whole, once for its old side and once for its new side, so a comment
+      or string over several lines is right; a hunk with a line over 1000 characters stays plain
+    - the colors are highlight.js's ir-black theme, the closest bundled one to the Neovim
+      colorscheme (lunaperche)
+  - how changed lines look
+    - the line numbers on the left stay neutral; only the sign and the code have the add or delete color
+    - a run of changed lines of one kind is one blob: the color is soft (60 %), fades in at the top
+      edge of the first line and out at the bottom edge of the last, fades in at the left edge and
+      tapers off over the right part of the line, so the empty space on the right looks like the
+      background
+    - where a run of deletions meets a run of additions the two blend into each other at the line
+      between them, with no gap showing the background
+    - only the first line of a run has the `+` / `−` sign; its line numbers are in the sign's color
+      (a paler green for added lines), the numbers of the lines below are neutral
+  - the header of a hunk is quiet: where it is ("Lines 120–134", "Line 120", "after line 120"), how
+    much it changes (`+4 −2`, in a dimmed accent color) and what it is in ("in <section>", faint),
+    on a faint strip that fades to the right; the current hunk (`]c` / `[c`) is tinted and has an
+    accent edge
+    - the hunk headers can be hidden (`zh`): their rows then take no room, the code runs on
+  - in Changes, the sign of a changed block is a hidden button: it looks like plain text, shows the
+    pointer and a tooltip ("Stage hunk" / "Unstage hunk") and does what the header's button does
   <!-- }}} -->
 - Click a file or hunk line: Neovim opens that line in the current buffer
   - head checked out: the working tree file
@@ -569,9 +622,25 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
     - unsaved buffers in Neovim always refuse the checkout
     - no changes in the way: the branch is checked out at once, without the modal
   - the backend does the work (`git.checkout(branch, how)`, `how` = `stash` or `force`)
-- each folder row of STAGED and CHANGES has a check box at its right end, in line with the files'
-  boxes: a click stages (unstages) the files directly in that folder, at once like a file's box;
-  files of subfolders have their own folder rows
+- each file row of CHANGES has an "add" button at its right end (tooltip "Stage current file"), each
+  file row of STAGED a checked box ("Unstage current file"): a click moves the file to the other
+  list at once
+  - the "add" button shows only while the mouse is over its row (always where there is no mouse,
+    on Android and iOS); the checked box always shows; the space stays, so rows line up
+  - each folder row has the same button ("Stage folder" / "Unstage folder"): a click stages
+    (unstages) the files directly in that folder; files of subfolders have their own folder rows
+- when STAGED has nothing left (Unstage all, the last file unstaged, a commit) and had the most-room
+  flag, the flag goes to CHANGES, which unfolds
+- selecting a file shows it at once, but its diff is fetched after the selection has rested 120 ms,
+  with one request (not status and branches again): holding an arrow key through many files asks for
+  only the last one's diff
+- the commit message field has two buttons at its right end
+  - an X that clears it, shown while there is text
+  - a button for a large window ("Edit the message in a larger window"): a modal, about 60 % of the
+    window, with the message above git's commented instructions and file lists (what `git commit`
+    shows in Neovim: branch, "Changes to be committed", "Changes not staged for commit",
+    "Untracked files"); "Use message" or Ctrl+Enter puts the message back without the `#` lines,
+    Cancel or Esc leaves the field as it was; it does not commit
 - STAGED over CHANGES behave like the Pull request files and commits: foldable headers,
   the most-room button (CHANGES have it at start), expand / collapse all folders (zR / zM)
 - unified and side-by-side diffs, like the Pull request mode
@@ -605,6 +674,8 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
       `wheel_mode.dart`)
     - Shift + the wheel steps in either mode
     - the task list does the same, stepping the current task (`WheelMode`, `ui/wheel_mode.dart`)
+    - so do the file lists (Changes: STAGED and CHANGES; Pull request: FILES CHANGED) and the
+      commit list: the wheel steps the selected file or commit, staying inside the list (`FileTree.onStep`)
     - Up / Down in the Facets make the next entry the current view
     - Right from the list goes to the current task's detail; there the direction keys move from
       element to element (buttons, fields, rows), not by lines; Left past the leftmost element

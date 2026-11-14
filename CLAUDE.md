@@ -59,7 +59,16 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   same tap target; the exception is a label that has an action of its own.
 - An interactive item shows the pointer cursor (`SystemMouseCursors.click`, the pointing hand) while
   the mouse is over it, so it reads as clickable: buttons, rows that open something, checkboxes,
-  their labels. A `MouseRegion` or the widget's `mouseCursor`; a disabled item keeps the default.
+  their labels, a hidden button like the `+` of a diff block. Always, unless the user says
+  otherwise, and set it explicitly on every new clickable (a `MouseRegion` or the widget's
+  `mouseCursor`), not by trusting a default; a disabled item keeps the default.
+  - exception, by the user: the file rows of the file lists (Changes, Pull request) keep the plain
+    cursor, a click on a file is obvious there (`HoverRow(pointer: false)`); folder rows and the
+    stage buttons at the end of a row still get the pointer
+  - an interactive item also has a tooltip saying what it does
+  - inside a `SelectionArea` (the diff, lists) a `Text` brings its own I-beam cursor, which beats an
+    outer `MouseRegion`: wrap the button's content in `SelectionContainer.disabled`
+  - check the new item for both before saying it is done
 - Errors: `Session.run` returns the full error text (with Neovim's trace). Show a failed load
   with `ErrorPane` in place of the view, a failed action with `showActionError` (short snackbar,
   Details opens the selectable trace).
@@ -114,6 +123,21 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 - Commit per feature, message `area: what changed`, the body says why; end with the
   Co-Authored-By line.
 - The backend repo often has the user's uncommitted work: add only your own paths, never `-a`.
+- A worktree starts from the local `main`, not `origin/main`: local main has commits that are not
+  pushed yet, and a worktree made from the remote would lack them. Create it from local HEAD
+  (`git worktree add -b <branch> <path> main`), or set the worktree tool's base to `head`
+  (`worktree.baseRef`), not the default `fresh`.
+- Edit files with the Edit tool, several calls in one response when a change spans places: no script
+  to write, no interpreter to start. A script (Python with `newline=''`, `sed`) only for a mechanical
+  change over many files or many identical spots, where one command beats many edits. Not a habit,
+  not a way around a failing shell heredoc (use Write or Edit then).
+- Don't show diffs or code in the chat unless asked: this app is the review tool, the changes are read
+  there. Replies are a short summary of what changed and where (file names, behavior), not hunks,
+  `git diff` output or pasted code. Run `git diff` for yourself only when you need it, and don't
+  quote it back.
+  - The diff drawn under an Edit call is Claude Code's own display; CLAUDE.md cannot hide it, and no
+    documented setting collapses it to a one-liner. Closest, unverified: `viewMode` (`focus`) in
+    `~/.claude/settings.json`, `Ctrl+O` toggles the detailed transcript, `/diff` opens a diff panel.
 - Python on Windows writes CRLF in text mode: open files with `newline=''` to keep LF.
 - `PLAN.md` uses fold markers in HTML comments (`<!-- {{{ -->`) and list items as a topic line
   with one point per line underneath. Sections marked _not strictly normative_ describe what is,
