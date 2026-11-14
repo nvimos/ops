@@ -751,6 +751,15 @@ _not strictly normative_
   - everything flutter and the app print is also written to `out/live.log` (a new file per run)
   - `out/` is ignored by git
   - read its last lines when diagnosing what the running app did
+- new backlog tasks (`nvimos-meta/backlog/tasks`)
+  - before taking a number, look at what other worktrees are doing: `git worktree list` in
+    `nvimos-meta` and in the frontend, the tasks folder of each, the other branches
+    (`git ls-tree -r --name-only <branch> -- backlog/tasks`), and uncommitted or untracked task files
+    in the main checkout
+  - take the next number above the highest found anywhere, so a task made here doesn't clobber one
+    a worktree is adding
+  - a worktree that adds tasks reads the main checkout's numbers the same way
+  - the number is in the id, the file name (`task-<n> - <slug>.md`) and the `ordinal` (`<n>000`)
 - tests
   - 11 s per test (`TEST_TIMEOUT` in the Makefile, `dart_test.yaml`); run analyze and the test files of the change after it, not the whole suite
 
