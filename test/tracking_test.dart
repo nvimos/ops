@@ -7,10 +7,11 @@ import 'package:nvimos_poc/tasks/workspace.dart';
 
 import 'session_test.dart' show until;
 import 'support/nvim.dart';
+import 'support/temp_dirs.dart';
 
 /// A planning folder shared by two projects, and a code repo whose `.nvimos` points at it.
 Future<(Directory, Directory)> sharedPlanning() async {
-  final plan = await Directory.systemTemp.createTemp('nvimos_plan_');
+  final plan = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_plan_'));
   Future<void> w(String p, String s) async {
     await File('${plan.path}/$p').create(recursive: true);
     await File('${plan.path}/$p').writeAsString(s);

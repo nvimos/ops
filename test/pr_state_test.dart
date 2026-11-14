@@ -42,7 +42,8 @@ void main() {
     expect(await pr.merge(), isNull);
     expect((await git(repo, ['log', '-1', '--format=%P'])).trim().split(' '), hasLength(2));
     expect((await git(repo, ['branch', '--show-current'])).trim(), 'main');
-    expect(pr.canMerge, isFalse); // nothing left to merge
+    await until(() => !pr.loading && !pr.canMerge); // nothing left to merge, once the refreshes settle
+    expect(pr.canMerge, isFalse);
     expect(await pr.merge(), contains('nothing that main lacks'));
 
     pr.dispose();

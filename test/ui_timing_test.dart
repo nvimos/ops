@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/timing/ui_timing.dart';
+import 'support/temp_dirs.dart';
 
 void main() {
   test('stats: count, p50, p95, max in ms', () {
@@ -21,7 +22,7 @@ void main() {
   });
 
   test('save keeps one entry per session, the last 30, and totals', () async {
-    final dir = await Directory.systemTemp.createTemp('ui_timing_');
+    final dir = keepForCleanup(await Directory.systemTemp.createTemp('ui_timing_'));
     final f = File('${dir.path}/sub/ui-timing.json');
     for (var i = 0; i < 32; i++) {
       final t = UiTiming(enabled: true, file: f, started: DateTime(2026, 1, 1, 0, i));
@@ -39,7 +40,7 @@ void main() {
   });
 
   test('off: records nothing, writes nothing', () async {
-    final dir = await Directory.systemTemp.createTemp('ui_timing_');
+    final dir = keepForCleanup(await Directory.systemTemp.createTemp('ui_timing_'));
     final f = File('${dir.path}/ui-timing.json');
     final t = UiTiming(enabled: false, file: f);
     t.record('click', const Duration(milliseconds: 5));

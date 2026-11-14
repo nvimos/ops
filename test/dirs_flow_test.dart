@@ -10,6 +10,7 @@ import 'package:nvimos_poc/ui/theme.dart';
 
 import 'session_test.dart' show until;
 import 'support/nvim.dart';
+import 'support/temp_dirs.dart';
 
 String slash(String p) => p.replaceAll(r'\', '/');
 String norm(String p) => slash(p).toLowerCase();
@@ -21,7 +22,7 @@ void main() {
   testWidgets('Directories: filter + Enter picks the dir, then Alt+[ / Alt+] still switch modes', (t) async {
     final (nvim, s, target) = (await t.runAsync(() async {
       final other = await makeRepo();
-      final target = Directory('${(await Directory.systemTemp.createTemp('nvimos_cfg_')).path}/nvim')..createSync();
+      final target = Directory('${keepForCleanup(await Directory.systemTemp.createTemp('nvimos_cfg_')).path}/nvim')..createSync();
       File('${target.path}/init.lua').writeAsStringSync('');
       final nvim = await TestNvim.start(cwd: other);
       final rpc = await nvim.connect();

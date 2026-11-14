@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter_test/flutter_test.dart' show addTearDown;
 import 'package:nvimos_poc/rpc/client.dart';
 import 'package:nvimos_poc/state/nvim_launcher.dart';
+
+import 'temp_dirs.dart';
 
 /// A headless Neovim listening on a free TCP port, with the backend plugin loaded.
 class TestNvim {
@@ -29,7 +32,7 @@ class TestNvim {
 
   /// Start Neovim on a given port.
   static Future<TestNvim> startOn(int port, {Directory? cwd}) async {
-    final dir = cwd ?? await Directory.systemTemp.createTemp('nvimos_test_');
+    final dir = cwd ?? keepForCleanup(await Directory.systemTemp.createTemp('nvimos_test_'));
     final p = await Process.start('nvim', [
       '--headless',
       '--clean',
@@ -43,7 +46,11 @@ class TestNvim {
     ], workingDirectory: dir.path);
     p.stdout.drain<void>();
     p.stderr.drain<void>();
-    return TestNvim._(p, port, dir);
+    final nvim = TestNvim._(p, port, dir);
+    // Stopped when the test ends, also when it fails before its own stop(): a live Neovim locks
+    // its folder, so the folder could not be deleted and the process would outlive the run.
+    addTearDown(nvim.stop);
+    return nvim;
   }
 
   /// Connect, retrying while Neovim starts.
@@ -65,9 +72,12 @@ class TestNvim {
   }
 }
 
-/// git in [dir] with a test identity; throws on failure.
+/// git in [dir] with a test identity; throws on failure. The fsmonitor is off: it starts a
+/// background daemon per repo that outlives the test.
 Future<String> git(Directory dir, List<String> args) async {
   final r = await Process.run('git', [
+    '-c',
+    'core.fsmonitor=false',
     '-c',
     'user.name=Test',
     '-c',
@@ -82,9 +92,9 @@ Future<String> git(Directory dir, List<String> args) async {
 
 /// A temp repo on main with a.txt (5 lines) and b.txt, one commit.
 Future<Directory> makeRepo() async {
-  final d = await Directory.systemTemp.createTemp('nvimos_repo_');
+  final d = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_repo_'));
   await git(d, ['init', '-q', '-b', 'main']);
-  for (final kv in {'user.name': 'Test', 'user.email': 'test@example.com', 'core.autocrlf': 'false'}.entries) {
+  for (final kv in {'user.name': 'Test', 'user.email': 'test@example.com', 'core.autocrlf': 'false', 'core.fsmonitor': 'false'}.entries) {
     await git(d, ['config', kv.key, kv.value]);
   }
   await File('${d.path}/a.txt').writeAsString('one\ntwo\nthree\nfour\nfive\n');
