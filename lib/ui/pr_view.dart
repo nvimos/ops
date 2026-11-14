@@ -487,6 +487,7 @@ class RevPicker extends StatefulWidget {
     required this.onPick,
     this.next,
     this.strict = false,
+    this.openList,
   });
 
   /// The width of the label column; the swap button and the merge actions line up with it.
@@ -504,6 +505,9 @@ class RevPicker extends StatefulWidget {
   /// refused, and typing alone never picks (a pick there switches branches).
   final bool strict;
 
+  /// Notifies when the list of branches should open with the keyboard in the field (a shortcut).
+  final Listenable? openList;
+
   @override
   State<RevPicker> createState() => _RevPickerState();
 }
@@ -520,6 +524,7 @@ class _RevPickerState extends State<RevPicker> {
     super.initState();
     _text.text = widget.value ?? '';
     widget.focus.addListener(_onFocus);
+    widget.openList?.addListener(_onOpenList);
   }
 
   @override
@@ -529,6 +534,10 @@ class _RevPickerState extends State<RevPicker> {
       old.focus.removeListener(_onFocus);
       widget.focus.addListener(_onFocus);
     }
+    if (old.openList != widget.openList) {
+      old.openList?.removeListener(_onOpenList);
+      widget.openList?.addListener(_onOpenList);
+    }
     if (!widget.focus.hasFocus && _text.text != (widget.value ?? '')) _text.text = widget.value ?? '';
   }
 
@@ -536,6 +545,7 @@ class _RevPickerState extends State<RevPicker> {
   void dispose() {
     _auto?.cancel();
     widget.focus.removeListener(_onFocus);
+    widget.openList?.removeListener(_onOpenList);
     _text.dispose();
     super.dispose();
   }
@@ -602,6 +612,21 @@ class _RevPickerState extends State<RevPicker> {
   /// changed and put back.
   void _toggleList() {
     _open = !_open;
+    _repokeText();
+  }
+
+  /// The shortcut: focus the field (which selects its text), then show the list once the focus
+  /// has settled, so the focus change does not close it again.
+  void _onOpenList() {
+    widget.focus.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _open = true;
+      _repokeText();
+    });
+  }
+
+  void _repokeText() {
     final v = _text.value;
     _text.value = v.copyWith(text: '${v.text} ');
     _text.value = v;

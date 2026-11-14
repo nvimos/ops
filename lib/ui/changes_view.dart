@@ -42,6 +42,7 @@ class ChangesViewState extends State<ChangesView> {
   final focus = FocusNode(debugLabel: 'changes');
   final _messageFocus = FocusNode(debugLabel: 'commit message');
   final _branchFocus = FocusNode(debugLabel: 'branch switcher');
+  final _openBranches = ValueNotifier<int>(0);
   static const _far = 1 << 20;
   late final _keys = KeySequence({
     'gg': () => st.moveSelection(-_far),
@@ -87,9 +88,16 @@ class ChangesViewState extends State<ChangesView> {
     focus.dispose();
     _messageFocus.dispose();
     _branchFocus.dispose();
+    _openBranches.dispose();
     _state?.dispose();
     _message.dispose();
     super.dispose();
+  }
+
+  /// Shift+C: the keyboard goes to the branch switcher and its list of branches opens.
+  void openBranchSwitcher() {
+    _branchFocus.requestFocus();
+    _openBranches.value++;
   }
 
   // Event handlers -------------------------------------------------------------------------------
@@ -307,6 +315,7 @@ class ChangesViewState extends State<ChangesView> {
         focus: _branchFocus,
         next: focus,
         onPick: _switchBranch,
+        openList: _openBranches,
       ),
       sections: [
         FileSectionData('STAGED', st.staged, staged: true, collapsedDirs: st.collapsedDirs[0], active: st.pane == ChangesPane.staged, selectBottom: st.selectBottom[0]),
@@ -712,18 +721,20 @@ class BranchSwitcher extends StatelessWidget {
     required this.focus,
     required this.next,
     required this.onPick,
+    this.openList,
   });
 
   final String branch;
   final List<String> names;
   final FocusNode focus, next;
   final ValueChanged<String> onPick;
+  final Listenable? openList;
 
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
     decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.border))),
-    child: RevPicker(value: branch, names: names, focus: focus, next: next, onPick: onPick, strict: true),
+    child: RevPicker(value: branch, names: names, focus: focus, next: next, onPick: onPick, strict: true, openList: openList),
   );
 }
 

@@ -134,6 +134,7 @@ Changes
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
+| `C` (Shift+C)      | the branch switcher: Changes mode, field focused, list open (any mode but Help) |
 | `]c` / `[c`        | next / previous hunk; the keys below then act on it     |
 | `-`                | stage or unstage the current hunk, or the file          |
 | `Space` / `u`      | stage / unstage the current hunk, or the file           |
@@ -145,7 +146,7 @@ Tasks
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
-| `c`                | new task                                                |
+| `c`                | new task (lowercase only: Shift+C is the branch switcher) |
 | `t`                | cycle the status                                        |
 | `p`                | cycle the priority                                      |
 | `A`                | this project / all projects (shared planning folder)    |
@@ -558,6 +559,8 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
   - the same field as the base and head pickers of Pull request (`RevPicker`: a click on it opens the
     list of all branches, a click again closes it, typing filters), but it is a separate widget with its
     own state: picking here never changes the pickers there
+  - `C` (Shift+C) from anywhere (not in Help, not while typing) switches to Changes, focuses the field
+    and opens the list, as a click would
   - it only takes a listed local branch (no sha or tag); Enter or a click on a branch checks it out,
     typing alone never does (no pick after a pause, unlike the pickers)
   - uncommitted changes to tracked files would be overwritten: a modal lists those files first, before

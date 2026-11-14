@@ -313,7 +313,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   List<PaletteEntry> _paletteEntries() {
     final t = browser.selectedTask;
     return [
-      PaletteEntry('New task', 'C', Icons.add, createTask),
+      PaletteEntry('New task', 'c', Icons.add, createTask),
       PaletteEntry('New change (an agent drafts it)', 'agent', Icons.auto_awesome, newChange),
       for (final n in browser.navTasks()) PaletteEntry(n.label, 'view', Icons.task_alt, () => browser.go(n)),
       for (final n in browser.navSources()) PaletteEntry(n.label, 'view', Icons.description_outlined, () => browser.go(n)),
@@ -440,7 +440,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       LogicalKeyboardKey.tab => (pane == TasksPane.nav) != hw.isShiftPressed
           ? filterFocus.requestFocus
           : (pane == TasksPane.list && !hw.isShiftPressed && browser.selected != null ? _enterDetail : _toRail),
-      LogicalKeyboardKey.keyC => createTask,
+      LogicalKeyboardKey.keyC when !hw.isShiftPressed => createTask,
       LogicalKeyboardKey.keyT => cycleStatus,
       LogicalKeyboardKey.keyP => cyclePriority,
       LogicalKeyboardKey.keyA when ws.project != null && hw.isShiftPressed => toggleProjectOnly,
