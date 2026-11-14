@@ -40,10 +40,14 @@ class FileTree extends StatefulWidget {
     required this.onSelect,
     this.collapsed = const {},
     this.onToggleDir,
+    this.folderTrailing,
     this.selectBottom,
   });
 
   final List<TreeFile> files;
+
+  /// A widget at the end of a folder row (lined up with the files' trailing widgets), by folder.
+  final Widget? Function(String dir)? folderTrailing;
 
   /// Notifies when the keyboard enters this list from below: the file lowest in the visible part of
   /// the list is selected (not the heading, not the last file when the list is scrolled).
@@ -124,6 +128,7 @@ class _FileTreeState extends State<FileTree> {
           count: count,
           folded: folded,
           onTap: widget.onToggleDir == null ? null : () => widget.onToggleDir!(dir),
+          trailing: widget.folderTrailing?.call(dir),
         ),
         FileEntry(:final file, :final nested) => FileRow(
           key: file.path == widget.selected ? _selectedKey : null,
@@ -171,12 +176,13 @@ List<TreeEntry> treeRows(List<TreeFile> files, Set<String> collapsed) {
 
 /// A folder row; clickable (with a chevron) when folders fold.
 class FolderRow extends StatelessWidget {
-  const FolderRow({super.key, required this.dir, required this.count, required this.folded, this.onTap});
+  const FolderRow({super.key, required this.dir, required this.count, required this.folded, this.onTap, this.trailing});
 
   final String dir;
   final int count;
   final bool folded;
   final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -187,10 +193,12 @@ class FolderRow extends StatelessWidget {
         const SizedBox(width: 6),
         Expanded(child: Text(dir, style: T.tiny, overflow: TextOverflow.ellipsis)),
         if (folded) Text('$count', style: T.tiny),
+        if (trailing != null) ...[const SizedBox(width: 6), trailing!],
       ],
     );
-    if (onTap == null) return Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 2), child: row);
-    return HoverRow(onTap: onTap, padding: const EdgeInsets.fromLTRB(12, 6, 12, 3), child: row);
+    // The right padding is the file rows' (10), so the trailing widgets line up.
+    if (onTap == null) return Padding(padding: const EdgeInsets.fromLTRB(12, 8, 10, 2), child: row);
+    return HoverRow(onTap: onTap, padding: const EdgeInsets.fromLTRB(12, 6, 10, 3), child: row);
   }
 }
 
