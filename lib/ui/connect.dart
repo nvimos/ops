@@ -82,6 +82,8 @@ class _ConnectScreenState extends State<ConnectScreen> {
             if (s.notice != null) ConnectNotice(s.notice!),
             const SizedBox(height: 20),
             const CodeBox(_howTo),
+            const SizedBox(height: 12),
+            LaunchLog(text: s.launchLog),
           ],
         ),
       ),
@@ -188,6 +190,22 @@ class ConnectError extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 10),
     child: SelectableText(text, style: const TextStyle(fontSize: 12, color: C.yellow)),
+  );
+}
+
+/// What the last start ran and printed: the commands, their output, why it failed. Selectable, and
+/// it scrolls when it is long.
+class LaunchLog extends StatelessWidget {
+  const LaunchLog({super.key, required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxHeight: 240),
+    child: SingleChildScrollView(
+      child: CodeBox(text.isEmpty ? 'Start output shows here: the commands that run, and what they print.' : text),
+    ),
   );
 }
 

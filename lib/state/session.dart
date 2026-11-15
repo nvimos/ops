@@ -130,6 +130,7 @@ class Session extends ChangeNotifier {
     starting = kind;
     final token = ++_startToken;
     error = notice = null;
+    launchLog = '';
     _notify();
     try {
       final failed = await _startAndConnect(kind, token);
@@ -146,19 +147,40 @@ class Session extends ChangeNotifier {
 
   /// The failure text, or null when connected (or cancelled).
   Future<String?> _startAndConnect(NvimKind kind, int token) async {
+    _logLine('> ${kind.label} on $address');
     if (await _taken()) {
-      return '$address is taken by a program that does not answer as Neovim with the nvimos plugin; '
+      final text = '$address is taken by a program that does not answer as Neovim with the nvimos plugin; '
           'close it or use another address';
+      _logLine('! $text');
+      return text;
     }
-    final failed = await launchNeovim(address, kind: kind);
-    if (failed != null) return failed;
+    final failed = await launchNeovim(address, kind: kind, log: _logLine);
+    if (failed != null) {
+      _logLine('! $failed');
+      return failed;
+    }
+    _logLine('waiting for Neovim to listen on $address (up to 12 s)');
     final end = DateTime.now().add(const Duration(seconds: 12));
     while (token == _startToken && conn != Conn.connected && !_disposed) {
-      if (DateTime.now().isAfter(end)) return error ?? 'Neovim did not listen on $address within 12 s';
+      if (DateTime.now().isAfter(end)) {
+        final text = error ?? 'Neovim did not listen on $address within 12 s';
+        _logLine('! $text');
+        return text;
+      }
       await Future<void>.delayed(const Duration(milliseconds: 400));
       if (token == _startToken) await connect(timeout: const Duration(seconds: 3));
     }
+    if (conn == Conn.connected) _logLine('connected to $address');
     return null;
+  }
+
+  /// What the last start did, as text (the commands, their output, why it failed): shown on the
+  /// connect screen, selectable.
+  String launchLog = '';
+
+  void _logLine(String line) {
+    launchLog = launchLog.isEmpty ? line : '$launchLog\n$line';
+    _notify();
   }
 
   /// Something already accepts connections on [address] (and, as we are disconnected, did not

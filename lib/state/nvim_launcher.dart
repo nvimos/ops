@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 /// The folder names of a relay checkout (the backend plugin): its repo name, and the POC folder.
@@ -80,19 +81,66 @@ List<String> qtArgs({Map<String, String>? env, bool Function(String path)? exist
 /// Start Neovim as [kind], listening on [address], with the backend plugin when its checkout is found
 /// (NVIMOS_BACKEND, or a folder near the app), else the Neovim on PATH with `:NvimosServe`; returns why
 /// it could not, or null.
-Future<String?> launchNeovim(String address, {NvimKind kind = NvimKind.console}) async {
+/// [log] receives each step as a line: the plugin search, every command as it runs, and what it
+/// printed. Headless Neovim's output is piped to the log; a console or nvim-qt window shows its own.
+Future<String?> launchNeovim(
+  String address, {
+  NvimKind kind = NvimKind.console,
+  void Function(String line)? log,
+}) async {
+  void say(String line) => log?.call(line);
   try {
     final backend = findBackendDir();
+    final env = Platform.environment['NVIMOS_BACKEND'];
+    say(
+      backend != null
+          ? 'relay plugin: $backend'
+          : 'relay plugin: not found (NVIMOS_BACKEND=${env ?? '(unset)'}); searched folders named '
+                '${backendFolders.join(' or ')} with plugin/nvimos.lua, from the working directory and the exe, '
+                'up to the drive root; starting ${kind.exe} from PATH with :NvimosServe',
+    );
     final where = await Process.run('where', [kind.exe]);
+    say('> where ${kind.exe}');
+    _printLines(where.stdout, say);
+    _printLines(where.stderr, say, prefix: '! ');
     if (where.exitCode != 0) return '${kind.exe} is not on PATH';
     final (exe, args) = nvimCommand(kind, address, backend);
-    await Process.start(exe, args, mode: ProcessStartMode.detached);
+    say('> ${[exe, ...args].map(_quoteArg).join(' ')}');
+    if (kind == NvimKind.headless) {
+      _pipeOutput(await Process.start(exe, args, mode: ProcessStartMode.detachedWithStdio), say);
+    } else {
+      await Process.start(exe, args, mode: ProcessStartMode.detached);
+      say('(${kind.label} opened in its own window; its output is in that window)');
+    }
     return null;
   } on ProcessException catch (e) {
+    say('! ${e.message}');
     return 'could not start ${kind.exe}: ${e.message}';
   } catch (e) {
+    say('! $e');
     return 'could not start ${kind.exe}: $e';
   }
+}
+
+String _quoteArg(String s) => s.contains(' ') ? '"$s"' : s;
+
+void _printLines(Object? text, void Function(String line) say, {String prefix = '| '}) {
+  for (final l in '$text'.split(RegExp(r'\r?\n'))) {
+    if (l.trim().isNotEmpty) say('$prefix$l');
+  }
+}
+
+/// The stdout and stderr lines of a running process, and its exit code, as they come.
+void _pipeOutput(Process p, void Function(String line) say) {
+  void lines(Stream<List<int>> s, String prefix) => s.transform(utf8.decoder).transform(const LineSplitter()).listen(
+    (l) {
+      if (l.trim().isNotEmpty) say('$prefix$l');
+    },
+    onError: (Object _) {},
+  );
+  lines(p.stdout, '| ');
+  lines(p.stderr, '! ');
+  p.exitCode.then((code) => say('exit $code'));
 }
 
 /// The command line that opens [file] at [line] in a new nvim-qt, on its own (no server, no plugin).
