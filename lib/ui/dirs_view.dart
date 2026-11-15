@@ -41,6 +41,7 @@ class DirsViewState extends State<DirsView> {
     '}': () => st.move(3),
     'gg': () => st.move(-_far),
     'G': () => st.move(_far),
+    'gi': focusFilter, // go input: the filter field, as in the other modes
     'n': st.toggleNewNeovim,
   });
 
