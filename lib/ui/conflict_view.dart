@@ -2,48 +2,78 @@ import 'package:material_ui/material_ui.dart';
 
 import '../backend/models.dart';
 import '../state/merge_conflict.dart';
-import '../state/pr.dart';
 import 'error_view.dart';
 import 'widgets.dart';
 
-/// The merge that stopped with conflicts: its files on the left, the hunks of the open file on the
-/// right, each hunk with a button per side. Shown in place of the diff while the merge is open.
-class ConflictView extends StatelessWidget {
-  const ConflictView({super.key, required this.pr, required this.conflict});
+/// The conflict layout, in Changes and Pull request alike: the open merge's files on the left, the
+/// hunks of the open file on the right, each hunk with a button per side. Without an open merge it
+/// says so. It checks again when it opens (a conflict that is gone turns the merge into a plain one).
+class ConflictPane extends StatefulWidget {
+  const ConflictPane({super.key, required this.controller});
 
-  final PrState pr;
-  final MergeConflict conflict;
+  final ConflictController controller;
+
+  @override
+  State<ConflictPane> createState() => _ConflictPaneState();
+}
+
+class _ConflictPaneState extends State<ConflictPane> {
+  @override
+  void initState() {
+    super.initState();
+    _recheck();
+  }
+
+  /// Run the pre-flight again; a note (no conflicts any more) or an error shows as a snackbar.
+  Future<void> _recheck() async {
+    if (widget.controller.current == null) return;
+    final r = await widget.controller.recheck();
+    if (!mounted) return;
+    if (r.error != null) return showActionError(context, r.error);
+    if (r.note != null) _note(context, r.note!);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _ConflictBar(pr: pr, conflict: conflict),
-        Expanded(
-          child: Row(
-            children: [
-              SizedBox(width: 260, child: _ConflictFiles(pr: pr, conflict: conflict)),
-              const VerticalDivider(width: 1),
-              Expanded(child: _ConflictHunks(pr: pr, conflict: conflict)),
-            ],
-          ),
-        ),
-      ],
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final c = widget.controller.current;
+        if (c == null) return const Center(child: Text('No merge with conflicts is open.'));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ConflictBar(controller: widget.controller, conflict: c),
+            Expanded(
+              child: Row(
+                children: [
+                  SizedBox(width: 260, child: _ConflictFiles(controller: widget.controller, conflict: c)),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _ConflictHunks(controller: widget.controller, conflict: c)),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
 
-/// Run a conflict action; a failure shows as a short snackbar with its details.
+/// Show the outcome of a conflict action: nothing on success, else a short snackbar with its details.
 Future<void> _run(BuildContext context, Future<String?> Function() action) async {
   final err = await action();
   if (context.mounted) showActionError(context, err);
 }
 
-class _ConflictBar extends StatelessWidget {
-  const _ConflictBar({required this.pr, required this.conflict});
+void _note(BuildContext context, String text) => ScaffoldMessenger.of(context)
+  ..hideCurrentSnackBar()
+  ..showSnackBar(SnackBar(content: Text(text), duration: const Duration(seconds: 3)));
 
-  final PrState pr;
+class _ConflictBar extends StatelessWidget {
+  const _ConflictBar({required this.controller, required this.conflict});
+
+  final ConflictController controller;
   final MergeConflict conflict;
 
   @override
@@ -65,13 +95,13 @@ class _ConflictBar extends StatelessWidget {
               'finish',
               icon: Icons.check,
               primary: true,
-              onPressed: left == 0 ? () => _run(context, pr.finishConflict) : null,
+              onPressed: left == 0 ? () => _run(context, controller.finish) : null,
             ),
           ),
           const SizedBox(width: 8),
           Tooltip(
             message: 'Throw the merge away; ${conflict.base} is not touched',
-            child: SmallButton('abort', icon: Icons.close, onPressed: () => _run(context, pr.abortConflict)),
+            child: SmallButton('abort', icon: Icons.close, onPressed: () => _run(context, controller.abort)),
           ),
         ],
       ),
@@ -80,9 +110,9 @@ class _ConflictBar extends StatelessWidget {
 }
 
 class _ConflictFiles extends StatelessWidget {
-  const _ConflictFiles({required this.pr, required this.conflict});
+  const _ConflictFiles({required this.controller, required this.conflict});
 
-  final PrState pr;
+  final ConflictController controller;
   final MergeConflict conflict;
 
   @override
@@ -96,8 +126,8 @@ class _ConflictFiles extends StatelessWidget {
           name: file,
           selected: conflict.file == file,
           resolved: resolved,
-          onOpen: () => _run(context, () => pr.openConflictFile(file)),
-          onAdd: resolved ? null : () => _run(context, () => pr.addConflictFile(file)),
+          onOpen: () => _run(context, () => controller.openFile(file)),
+          onAdd: resolved ? null : () => _run(context, () => controller.addFile(file)),
           onNvim: () => _run(context, () => openInNvimQt('${conflict.path}/$file')),
         );
       },
@@ -154,15 +184,18 @@ class _FileRow extends StatelessWidget {
 }
 
 class _ConflictHunks extends StatelessWidget {
-  const _ConflictHunks({required this.pr, required this.conflict});
+  const _ConflictHunks({required this.controller, required this.conflict});
 
-  final PrState pr;
+  final ConflictController controller;
   final MergeConflict conflict;
 
   @override
   Widget build(BuildContext context) {
     final file = conflict.file;
     if (file == null) return const Center(child: Text('Pick a file'));
+    if (controller.loadError != null) {
+      return ErrorPane(controller.loadError!, onRetry: () => controller.openFile(file));
+    }
     if (conflict.hunks.isEmpty) return Center(child: Text('$file has no conflict hunks'));
     return ListView.builder(
       padding: const EdgeInsets.all(12),
@@ -172,8 +205,8 @@ class _ConflictHunks extends StatelessWidget {
         hunk: conflict.hunks[i],
         oursLabel: conflict.base,
         theirsLabel: conflict.head,
-        onOurs: () => _run(context, () => pr.pickHunk(i, 'ours')),
-        onTheirs: () => _run(context, () => pr.pickHunk(i, 'theirs')),
+        onOurs: () => _run(context, () => controller.pickHunk(i, 'ours')),
+        onTheirs: () => _run(context, () => controller.pickHunk(i, 'theirs')),
       ),
     );
   }

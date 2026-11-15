@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import '../backend/backend.dart';
+import 'merge_conflict.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
 import 'list_pair.dart';
@@ -38,6 +39,9 @@ class ChangesState extends ChangeNotifier {
   bool _disposed = false;
 
   DiffLayout get layout => session.diffPrefs.layout;
+
+  /// The merges with conflicts; the conflict layout shows the open one.
+  ConflictController get conflicts => session.conflicts;
   bool get wrap => session.diffPrefs.wrap;
 
   void toggleLayout() => session.diffPrefs.toggleLayout();

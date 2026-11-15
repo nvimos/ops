@@ -2,8 +2,8 @@ import 'package:flutter/widgets.dart';
 
 import 'prefs.dart';
 
-/// Unified or side-by-side diff.
-enum DiffLayout { unified, sideBySide }
+/// Unified or side-by-side diff, or the conflict view of a merge in progress (the third layout).
+enum DiffLayout { unified, sideBySide, conflict }
 
 /// How diffs are shown, the same in Pull request and Changes. The layout is for this session only;
 /// wrapping and the hunk headers are kept in [Prefs] (the app's state file) between runs.

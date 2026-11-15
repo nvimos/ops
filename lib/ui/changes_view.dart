@@ -9,6 +9,7 @@ import '../state/list_pair.dart';
 import '../state/session.dart';
 import 'checkout_dialog.dart';
 import 'commit_message_dialog.dart';
+import 'conflict_view.dart';
 import 'confirm_dialog.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
@@ -407,6 +408,7 @@ class ChangesViewState extends State<ChangesView> {
 
   Widget _main() {
     final f = st.diff;
+    if (st.layout == DiffLayout.conflict) return ConflictPane(controller: st.conflicts);
     if (st.error != null) return ErrorPane(st.error!, onRetry: st.refresh);
     if (st.selected == null) return const Empty('No changes. Edit in Neovim; files show up here as you save.');
     if (f == null) return const Empty('Loading…');

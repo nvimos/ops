@@ -7,6 +7,7 @@ import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../rpc/client.dart';
 import 'diff_prefs.dart';
+import 'merge_conflict.dart';
 import 'nvim_launcher.dart';
 import 'prefs.dart';
 
@@ -39,6 +40,9 @@ class Session extends ChangeNotifier {
 
   /// Unified / side-by-side, wrapping and hunk headers, shared by the diff modes.
   late final diffPrefs = DiffPrefs(_prefs);
+
+  /// The merges with conflicts: the open one is shown in Changes and Pull request alike.
+  late final conflicts = ConflictController(run, diffPrefs);
 
   /// Bumps when git state may have changed (hint from the backend); views re-query.
   final gitChanged = ValueNotifier<int>(0);

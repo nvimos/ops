@@ -124,8 +124,17 @@ class ModeRail extends StatelessWidget {
     for (final (l, icon, label) in [
       (DiffLayout.unified, Icons.subject, 'Unified'),
       (DiffLayout.sideBySide, Icons.compare, 'Side by side'),
+      (DiffLayout.conflict, Icons.call_merge, 'Conflict'),
     ])
-      RailEntry(icon: icon, label: label, tip: '$label diff (v)', selected: layout == l, onTap: () => onLayout(l), sub: true, marked: true),
+      RailEntry(
+        icon: icon,
+        label: label,
+        tip: l == DiffLayout.conflict ? 'Merge conflict view (no key)' : '$label diff (v)',
+        selected: layout == l,
+        onTap: () => onLayout(l),
+        sub: true,
+        marked: true,
+      ),
   ];
 
   void _wheel(PointerSignalEvent e) {

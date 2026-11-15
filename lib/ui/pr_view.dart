@@ -132,8 +132,7 @@ class _PrMain extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = pr.selectedFile;
-    final conflict = pr.conflict;
-    if (conflict != null) return ConflictView(pr: pr, conflict: conflict);
+    if (pr.layout == DiffLayout.conflict) return ConflictPane(controller: pr.conflicts);
     if (pr.error != null) return ErrorPane(pr.error!, onRetry: pr.refresh);
     if (pr.base == pr.head) return const Empty('Pick two different revisions.');
     if (pr.diff == null) return Empty(pr.loading ? 'Loading…' : 'No diff.');
@@ -262,10 +261,11 @@ Future<void> rebaseBranch(BuildContext context, PrState pr) async {
 /// offer to rebase head onto the new base, then merge it (the history stays one straight line).
 Future<void> mergeBranches(BuildContext context, PrState pr) async {
   final (base, head) = (pr.base!, pr.head!);
-  final err = await pr.merge();
+  final r = await pr.merge();
   if (!context.mounted) return;
+  final err = r.error;
   if (err == null) {
-    if (pr.conflict == null) _noteMerged(context, 'Merged $head into $base'); // else the conflict view is open
+    if (r.note != null) _noteMerged(context, r.note!);
     return;
   }
   if (!err.contains(baseMovedText)) return showActionError(context, err);
@@ -278,12 +278,12 @@ Future<void> mergeBranches(BuildContext context, PrState pr) async {
     okLabel: 'Rebase and merge',
   );
   if (!ok || !context.mounted) return;
-  final r = await pr.rebase();
+  final rb = await pr.rebase();
   if (!context.mounted) return;
-  if (r.error != null) return showActionError(context, r.error!);
+  if (rb.error != null) return showActionError(context, rb.error!);
   final again = await pr.merge();
   if (!context.mounted) return;
-  if (again != null) return showActionError(context, again);
+  if (again.error != null) return showActionError(context, again.error);
   _noteMerged(context, 'Rebased $head onto $base and merged');
 }
 
@@ -402,10 +402,20 @@ class _Files extends StatelessWidget {
   final PrState pr;
 
   @override
-  Widget build(BuildContext context) => FileTree(
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (pr.conflictFiles.isNotEmpty) _ConflictGroup(files: pr.conflictFiles),
+      Expanded(child: _tree()),
+    ],
+  );
+
+  /// The files that would merge cleanly: the conflicted ones are in their own group.
+  Widget _tree() => FileTree(
     files: [
       for (final f in pr.diff?.files ?? const <DiffFile>[])
-        TreeFile(path: f.path, status: f.status, additions: f.additions, deletions: f.deletions),
+        if (!pr.conflictFiles.contains(f.path))
+          TreeFile(path: f.path, status: f.status, additions: f.additions, deletions: f.deletions),
     ],
     selected: pr.selected,
     onSelect: (path) {
@@ -416,6 +426,38 @@ class _Files extends StatelessWidget {
     onToggleDir: pr.toggleDir,
     onStep: pr.stepFile,
     selectBottom: pr.selectBottomOfFiles,
+  );
+}
+
+/// The files that would conflict when merged. Not selectable: the merge opens them in the conflict view.
+class _ConflictGroup extends StatelessWidget {
+  const _ConflictGroup({required this.files});
+
+  final List<String> files;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Conflicts (${files.length})', style: const TextStyle(fontSize: 11)),
+        for (final f in files)
+          Tooltip(
+            message: 'Would conflict when merged; Merge opens it in the conflict view',
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber, size: 13),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(f, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    ),
   );
 }
 

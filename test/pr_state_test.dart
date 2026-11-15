@@ -39,12 +39,12 @@ void main() {
     pr.pick(base: 'main', head: 'feature');
     await until(() => !pr.loading && pr.diff != null && pr.canMerge);
 
-    expect(await pr.merge(), isNull);
+    expect((await pr.merge()).error, isNull);
     expect((await git(repo, ['log', '-1', '--format=%P'])).trim().split(' '), hasLength(2));
     expect((await git(repo, ['branch', '--show-current'])).trim(), 'main');
     await until(() => !pr.loading && !pr.canMerge); // nothing left to merge, once the refreshes settle
     expect(pr.canMerge, isFalse);
-    expect(await pr.merge(), contains('nothing that main lacks'));
+    expect((await pr.merge()).error, contains('nothing that main lacks'));
 
     pr.dispose();
     s.dispose();
