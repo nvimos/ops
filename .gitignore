@@ -51,3 +51,7 @@ app.*.map.json
 # Logs of make live
 /out/
 .claude/worktrees/
+
+/.agentsroom/
+/.vibe
+/test_results.txt

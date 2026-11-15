@@ -25,31 +25,38 @@ Widget row({required bool staged}) => MaterialApp(
 void main() {
   testWidgets('the add button shows only while the mouse is over its row; the staged box always', (t) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows; // the test default is Android
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
-    await t.pumpWidget(row(staged: false));
-    expect(find.text('add'), findsNothing);
+    // Reset before the test returns: the framework checks this before tearDown runs.
+    try {
+      await t.pumpWidget(row(staged: false));
+      expect(find.text('add'), findsNothing);
 
-    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    await mouse.moveTo(t.getCenter(find.text('file.txt')));
-    await t.pump();
-    await t.pump();
-    expect(find.text('add'), findsOneWidget);
+      final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(t.getCenter(find.text('file.txt')));
+      await t.pump();
+      await t.pump();
+      expect(find.text('add'), findsOneWidget);
 
-    await mouse.moveTo(const Offset(5, 590)); // below the row
-    await t.pump();
-    await t.pump(); // the exit is noticed after the frame; the rebuild comes with the next one
-    expect(find.text('add'), findsNothing);
-    await mouse.removePointer();
+      await mouse.moveTo(const Offset(5, 590)); // below the row
+      await t.pump();
+      await t.pump(); // the exit is noticed after the frame; the rebuild comes with the next one
+      expect(find.text('add'), findsNothing);
+      await mouse.removePointer();
 
-    await t.pumpWidget(row(staged: true));
-    expect(find.byIcon(Icons.check_box), findsOneWidget); // staged: always there
+      await t.pumpWidget(row(staged: true));
+      expect(find.byIcon(Icons.check_box), findsOneWidget); // staged: always there
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('without a mouse (a phone) the add button is always shown', (t) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
-    await t.pumpWidget(row(staged: false));
-    expect(find.text('add'), findsOneWidget);
+    try {
+      await t.pumpWidget(row(staged: false));
+      expect(find.text('add'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }

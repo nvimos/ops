@@ -7,10 +7,10 @@ import 'package:nvimos_poc/ui/theme.dart';
 
 import 'support/nvim.dart';
 
-/// Shift+C and `gb` in the whole window: Changes mode, the branch switcher focused, its list open.
+/// Shift+C and `gi` in the whole window: Changes mode, the branch switcher focused, its list open.
 /// Neovim runs in real time (runAsync); the widgets on the test clock.
 void main() {
-  testWidgets('Shift+C (also from Help) and gb open the branch switcher of Changes', (t) async {
+  testWidgets('Shift+C (also from Help) and gi open the branch switcher of Changes', (t) async {
     // Verify backend plugin is available for integration tests
     requireBackendPlugin();
     
@@ -60,7 +60,7 @@ void main() {
     expect(find.text('dev'), findsNothing); // the focus loss closed the list
 
     await t.sendKeyEvent(LogicalKeyboardKey.keyG, character: 'g');
-    await t.sendKeyEvent(LogicalKeyboardKey.keyB, character: 'b');
+    await t.sendKeyEvent(LogicalKeyboardKey.keyB, character: 'i');
     await settle();
     expect(focused(), 'branch switcher');
     expect(find.text('dev'), findsOneWidget);

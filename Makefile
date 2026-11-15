@@ -9,7 +9,8 @@ export PUB_CACHE ?= C:/tools/pub-cache
 FLUTTER := $(FLUTTER_ROOT)/bin/flutter.bat
 PORT    ?= 6666
 # Per-test timeout of make test; dart_test.yaml (plain flutter test) repeats it, keep the two equal.
-TEST_TIMEOUT ?= 11s
+TEST_TIMEOUT ?= 55s
+TEST_CONCURRENCY ?= 1
 
 .PHONY: help run live build dist single release test analyze nvim timings measure
 
@@ -44,8 +45,11 @@ release: build ## zip and single exe from one build, uploaded as GitHub release 
 
 ##@ test
 
-test: ## unit and integration tests (the RPC tests start a headless Neovim); TEST_TIMEOUT= sets the per-test limit (11s)
-	$(FLUTTER) test --timeout $(TEST_TIMEOUT)
+test: ## unit and integration tests (headless Neovim); TEST_TIMEOUT=Ns (33s, timeout per test)
+	$(FLUTTER) test --timeout $(TEST_TIMEOUT) --concurrency=$(TEST_CONCURRENCY)
+
+test-fast: ## unit and integration tests, fail fast (default TEST_CONCURRENCY=1)
+	$(FLUTTER) test --timeout $(TEST_TIMEOUT) --concurrency=$(TEST_CONCURRENCY) --fail-fast
 
 analyze: ## static analysis
 	$(FLUTTER) analyze

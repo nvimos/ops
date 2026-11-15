@@ -42,8 +42,8 @@ class TestNvim {
   static String get backendDir =>
       findBackendDir(starts: [
         Directory.current.path,
-        '${Directory.current.parent.path}/relay',
-        '${Directory.current.parent.path}/es/nvimos-poc-backend',
+        Directory.current.parent.path,
+        '${Directory.current.parent.path}/es',
       ]) ??
       '${Directory.current.parent.path}/relay'.replaceAll('\\', '/');
 

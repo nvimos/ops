@@ -33,7 +33,7 @@ void main() {
     expect(merge.top, greaterThanOrEqualTo(base.bottom - 1));
     expect(merge.bottom, lessThanOrEqualTo(head.top + 1));
     expect(merge.left, closeTo(fields.left, 1));
-    expect(t.widget<SmallButton>(find.byType(SmallButton)).onPressed, isNull); // no diff to merge
+    expect(t.widget<SmallButton>(find.widgetWithText(SmallButton, 'merge')).onPressed, isNull); // no diff to merge
     pr.dispose();
     s.dispose();
   });
