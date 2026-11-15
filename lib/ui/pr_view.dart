@@ -7,6 +7,7 @@ import '../state/pr.dart';
 import '../state/session.dart';
 import '../tasks/model.dart';
 import '../tasks/workspace.dart';
+import 'confirm_dialog.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
@@ -254,16 +255,38 @@ Future<void> rebaseBranch(BuildContext context, PrState pr) async {
     );
 }
 
-/// Merge head into base at once; say what happened.
+/// Merge head into base at once; say what happened. When base moved meanwhile, nothing was saved:
+/// offer to rebase head onto the new base, then merge it (the history stays one straight line).
 Future<void> mergeBranches(BuildContext context, PrState pr) async {
   final (base, head) = (pr.base!, pr.head!);
   final err = await pr.merge();
   if (!context.mounted) return;
-  if (err != null) return showActionError(context, err);
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text('Merged $head into $base'), duration: const Duration(seconds: 3)));
+  if (err == null) return _noteMerged(context, 'Merged $head into $base');
+  if (!err.contains(baseMovedText)) return showActionError(context, err);
+  final ok = await confirm(
+    context,
+    title: 'Rebase $head onto $base, then merge?',
+    text:
+        '$base moved while the merge ran, so nothing was saved.\n'
+        'The rebase checks $head out: the folder moves to it. The branch you were on is left as it is.',
+    okLabel: 'Rebase and merge',
+  );
+  if (!ok || !context.mounted) return;
+  final r = await pr.rebase();
+  if (!context.mounted) return;
+  if (r.error != null) return showActionError(context, r.error!);
+  final again = await pr.merge();
+  if (!context.mounted) return;
+  if (again != null) return showActionError(context, again);
+  _noteMerged(context, 'Rebased $head onto $base and merged');
 }
+
+/// The text the backend's merge error carries when base moved during the merge (git.lua, move_base).
+const baseMovedText = 'base moved during the merge';
+
+void _noteMerged(BuildContext context, String text) => ScaffoldMessenger.of(context)
+  ..hideCurrentSnackBar()
+  ..showSnackBar(SnackBar(content: Text(text), duration: const Duration(seconds: 3)));
 
 class PrPickers extends StatelessWidget {
   const PrPickers({super.key, required this.pr});
