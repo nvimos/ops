@@ -142,7 +142,7 @@ class _DebugBarState extends State<DebugBar> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(child: _DebugBox(child: _columns(columns))),
+          Expanded(child: _DebugBox(child: _columns(columns, () => showFocusPath(context, FocusManager.instance.primaryFocus)))),
           const SizedBox(width: 6),
           const _DebugBox(child: NetworkMonitor()),
         ],
@@ -151,7 +151,7 @@ class _DebugBarState extends State<DebugBar> {
   }
 
   /// The columns side by side; what does not fit next to the network monitor is cut off.
-  Widget _columns(List<List<String>> columns) => SingleChildScrollView(
+  Widget _columns(List<List<String>> columns, VoidCallback onFocusTap) => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     physics: const NeverScrollableScrollPhysics(),
     child: Row(
@@ -160,7 +160,7 @@ class _DebugBarState extends State<DebugBar> {
         for (final column in columns)
           Padding(
             padding: const EdgeInsets.only(right: 28),
-            child: debugTable(column),
+            child: debugTable(column, onFirstTap: identical(column, columns.first) ? onFocusTap : null),
           ),
       ],
     ),
@@ -193,17 +193,42 @@ class _DebugBox extends StatelessWidget {
 
 /// "Label: value" items as a table of two columns, the labels right-aligned so the colons line up.
 /// An item ending in `!` is shown in red (the `!` is not shown).
-Widget debugTable(List<String> items) => Table(
+Widget debugTable(List<String> items, {VoidCallback? onFirstTap}) => Table(
   defaultColumnWidth: const IntrinsicColumnWidth(),
-  children: [for (final item in items) _row(item)],
+  children: [for (var i = 0; i < items.length; i++) _row(items[i], onTap: i == 0 ? onFirstTap : null)],
 );
 
-TableRow _row(String item) {
+/// The full path of [node] in the focus tree, from the root down to the node. A node without a debug
+/// label is named by its widget.
+String focusPath(FocusNode? node) {
+  if (node == null) return 'nothing';
+  final chain = [...node.ancestors.toList().reversed, node];
+  return chain.map((n) => n.debugLabel ?? n.context?.widget.runtimeType.toString() ?? 'unlabelled').join('  >  ');
+}
+
+/// The dialog with the full path of the focused element.
+Future<void> showFocusPath(BuildContext context, FocusNode? node) => showDialog<void>(
+  context: context,
+  builder: (context) => AlertDialog(
+    backgroundColor: C.surface2,
+    title: const Text('Focus path', style: T.body),
+    content: SelectableText(
+      focusPath(node),
+      style: _debugStyle.copyWith(color: C.text),
+      selectionColor: C.accent.withAlpha(110),
+      cursorColor: C.accent,
+    ),
+    actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Close'))],
+  ),
+);
+
+TableRow _row(String item, {VoidCallback? onTap}) {
   final warn = item.endsWith('!');
   final text = warn ? item.substring(0, item.length - 1) : item;
   final style = warn ? _debugStyle.copyWith(color: C.red) : _debugStyle;
   final colon = text.indexOf(': ');
   final (label, value) = colon < 0 ? ('', text) : (text.substring(0, colon + 1), text.substring(colon + 2));
+  final valueText = Text(value, maxLines: 1, style: style);
   return TableRow(
     children: [
       Align(
@@ -213,7 +238,16 @@ TableRow _row(String item) {
           child: Text(label, maxLines: 1, style: style),
         ),
       ),
-      Text(value, maxLines: 1, style: style),
+      if (onTap == null)
+        valueText
+      else
+        Tooltip(
+          message: 'Show the full path of the focus',
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(onTap: onTap, behavior: HitTestBehavior.opaque, child: valueText),
+          ),
+        ),
     ],
   );
 }
