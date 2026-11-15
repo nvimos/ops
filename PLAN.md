@@ -530,7 +530,9 @@ _not strictly normative_
   - the file title in the header: the status icon (15 px, status colour), the path, `+n` green and
     `−n` red at 12 px
 
-- What is echoed from Linear and GitHub Desktop
+- What is echoed from Linear, GitHub Desktop and Meld
+  - from Meld (merge conflicts): the three-pane view of ours, the merged result and theirs, with a
+    pick of either side for each hunk; the conflict view is opened from the merge dialog
   - from Linear (Tasks): dark, quiet, one accent; dense 36 px rows with a status ring, a priority
     glyph, a mono id, label pills and small progress bars; the facets on the left and the detail
     panel that slides in on the right; small muted section titles; a command palette
@@ -751,11 +753,32 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
         - the merge actions in line with the fields, on the same line; more can follow
         - "merge" button: head into base, a merge commit (`--no-ff`) on base, local only, nothing is pushed
           - enabled when both sides are picked, differ and the diff has files
-          - asks first ("Merge head into base?"); base is checked out first when it is not the
-            current branch
+          - no question first; base is checked out first when it is not the current branch
           - refuses unsaved buffers or uncommitted changes to tracked files, a base that is not
             a local branch, and a head with nothing new
           - a conflict is undone (`merge --abort`) and the error names the files
+          - planned: a conflict opens the merge conflict view (see "merge conflict view" below), with a
+            pre-flight `git merge-tree --write-tree` that decides the dialog, re-checked on Resolve
+          - done: a short note "Merged head into base"; the lists refresh
+          - base moved during a clean merge (someone committed to base meanwhile): nothing is saved,
+            and Ops offers to rebase head onto the new base, then merge it
+          - strong preference, decided 2026-11-15: rebase, not a second merge, so the history of
+            base reads as one straight line; the user confirms the offer, it does not run by itself
+        - "merge conflict view": a third diff mode beside unified and side-by-side, opened automatically
+          - first version: per hunk, pick either side (modeled on Meld); a conflicted file can also be
+            opened in nvim (nvim-qt, a new instance, on that file, not in diff mode)
+          - the merge is finished by the commit in Changes (add marks a file resolved; the commit
+            completes the merge on base)
+          - open point, decided for now: the outcome is a merge on main. Concern: a mistake in the
+            resolution lands on main as-is, and main may be left broken. Two alternatives to weigh later:
+            1. an extra commit on the branch being merged: produce the resolution as a diff, commit it
+               on head, merge that, so the resolution is reviewable on the PR
+            2. produce the resolution as a diff, apply it to head, and reset base to the state it had
+               before the merge started, so main is untouched until a clean result is known
+          - add refuses a file that still has conflict markers (`<<<<<<<`, `=======`, `>>>>>>>` at the
+            start of a line); the error names the file and the first marker line, and the file stays unresolved
+          - verify step before the commit: no unmerged paths left, no conflict markers in staged files;
+            tests and analysis are optional, not a gate
           - done: a short note "Merged head into base"; the lists refresh
         - "rebase" button, 8 px right of "merge": head's commits replayed on top of base, local only
           - enabled when both sides are picked and differ; no question first
@@ -1094,8 +1117,8 @@ keyboard J/K/Enter/Esc/C and /.
 
 ## non-functional remarks
 
-A Note on cloning or imitating Github Desktop and Linear. The author is grateful to both companies for creating those
-products and their vision, of how things work, with utmost humility and gratitude.
+A Note on cloning or imitating Github Desktop, Linear and Meld. The author is grateful to all three for creating those
+products and their vision, of how things work, with utmost humility and gratitude. Meld (open source, GPL) is the model for picking either side of a conflict hunk.
 
 ## Performance
 
