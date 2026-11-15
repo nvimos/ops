@@ -81,11 +81,20 @@ Global
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
 | `M-]` / `M-[`      | next / previous mode (next is down the rail; the mouse  |
-|                    | wheel over the rail does the same)                      |
-| `M-1` … `M-5`      | mode by its place on the rail                           |
+|                    | wheel over the rail does the same); the rail takes the  |
+|                    | focus on the new mode's item, so the keys that follow   |
+|                    | start there                                             |
+| `M-1` … `M-5`      | mode by its place on the rail; the rail takes the focus |
+|                    | on that mode's item, as `M-]` does                      |
 | `Ctrl+B`           | expand / collapse the sidebar                           |
 | `Ctrl+K`           | command palette: every action and record (Tasks)        |
 | `?`                | the Help mode: this key table                           |
+| `Shift+P`          | the Pull request mode with the head picker focused and  |
+|                    | its list of branches open (any mode, Help too; not while|
+|                    | typing in a field)                                      |
+| `gi` (rail focused)| the first input of the mode shown: Pull request base,   |
+|                    | Changes branch switcher, Tasks and Directories filter,  |
+|                    | Help search                                             |
 | `b`                | show / hide the debug bar                               |
 | `Ctrl+Arrow`       | jump to the pane in that direction (PR: head picker,    |
 |                    | FILES, COMMITS, diff, the rail; Changes: branch         |
@@ -142,7 +151,7 @@ Changes
 |--------------------|---------------------------------------------------------|
 | `C` (Shift+C)      | the branch switcher: Changes mode, field focused, list  |
 |                    | open (any mode, Help too; not while typing in a field)  |
-| `gb`               | the same as Shift+C (go branch), in Changes             |
+| `gi`               | focus the branch switcher, its list closed (go input)   |
 | `]c` / `[c`        | next / previous hunk; the keys below then act on it     |
 | `-`                | stage or unstage the current hunk, or the file          |
 | `Space` / `u`      | stage / unstage the current hunk, or the file           |
@@ -167,6 +176,7 @@ Directories
 |--------------------|---------------------------------------------------------|
 | `Enter`            | make the dir the Active Directory                       |
 | `n`                | toggle "New Neovim per directory"                       |
+| `gi`               | focus the filter field (go input)                       |
 
 <!-- }}} -->
 
@@ -418,10 +428,14 @@ _not strictly normative_
     (line numbers, disabled, ids, "not connected")
   - `accent` `#6C8CFF`, the one strong colour: the selected mode's bar, the focus border of a field,
     the primary button, checked boxes, links, key labels in Help, the active list's title, Done
-  - status colours: `green` `#4CC38A` (added, connected, additions), `red` `#E5484D` (deleted,
-    errors, danger), `yellow` `#E6B450` (modified, in progress, connecting, the debug bar's text),
+  - status colours: `green` `#4CC38A` (added, connected, additions), `red` `#A02A2F` (deleted,
+    errors, danger, between Firebrick and Maroon), `yellow` `#E6B450` (modified, in progress, connecting, the debug bar's text),
     `purple` `#A78BFA` (renamed, needs test)
   - `found` `#66FFB84D` (ARGB), a translucent amber: the background of search matches
+  - the file list's change counts (Changes, Pull request): `+N` and `−N` in two columns each, the
+    sign and the number as separate items. The number has the plain colour (`addSign` `#8FD3A8` for
+    additions, `red` for deletions); the sign is 40% that colour over 60% the background `bg`. A
+    file without additions (or deletions) keeps its columns empty, so the counts line up down the list
   - the diff has four colours of its own, see "The diff"
   - translucent accent shows "on" and "current": 7 % on a hovered diff line, 15 % behind a toggled
     icon, 18 % behind the current hunk header; a pill's tint is its colour at 14 %
@@ -677,6 +691,9 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
 - each item is "Label: value" with the colons of a column on one line:
   - Focus: the focused element by its role in the interface (not its class), e.g. "Commits list",
     "Base revision field", "Mode rail", "Task detail"
+  - clicking the Focus value opens a dialog, "Focus path": the path of the focused element in the
+    focus tree from the root down, each node by its label (an unlabelled node by its widget type),
+    joined with ` > `; the text is selectable with the mouse
   - Mode, then the mode's state: in Pull request the commit under the cursor ("3 of 8" and its
     short hash), file and hunk; in Changes file (staged or not) and hunk
   - Key: the last key pressed

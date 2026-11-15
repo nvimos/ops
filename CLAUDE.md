@@ -46,6 +46,10 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 
 ## UI code
 
+- Use the typical Flutter names and classes for the elements you create or change (layout, widgets,
+  focus, input, and other components): `FocusNode`, `FocusScopeNode`, `Focus`, `Shortcuts`, `Actions`,
+  `OverlayPortal`, `RawAutocomplete` and so on. Pick the existing Flutter element that fits the job
+  before writing a custom one, and name the custom parts after the Flutter role they play.
 - Follow `declarative_ui_guidelines.md`: at most 3 levels of inline layout nesting, `build` under
   50 lines (extract named sub-widgets), lists from data with builders, no logic inside event
   handlers (call a named method or the state object), dumb atoms and molecules that take values
