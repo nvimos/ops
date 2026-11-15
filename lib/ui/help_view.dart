@@ -135,6 +135,9 @@ class HelpViewState extends State<HelpView> {
   }
 
   /// `/`: empty the field and the highlights, and type in the field.
+  /// `gi`: the search field, its text kept.
+  void focusSearch() => _focus.requestFocus();
+
   void startSearch() {
     _search.clear();
     setState(() {});

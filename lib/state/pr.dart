@@ -50,6 +50,8 @@ class PrState extends ChangeNotifier {
   /// The revision pickers' focus, so keys can jump to them.
   final baseFocus = FocusNode(debugLabel: 'base picker');
   final headFocus = FocusNode(debugLabel: 'head picker');
+  /// Shift+P: opens the head picker's list of branches.
+  final openHead = ValueNotifier<int>(0);
 
   int _gen = 0;
   String? _root;
@@ -451,6 +453,7 @@ class PrState extends ChangeNotifier {
     session.diffPrefs.removeListener(notifyListeners);
     baseFocus.dispose();
     headFocus.dispose();
+    openHead.dispose();
     diffScroll.dispose();
     selectBottomOfFiles.dispose();
     super.dispose();

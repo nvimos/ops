@@ -51,6 +51,9 @@ class _ShellState extends State<Shell> {
 
   /// The rail cursor: 0 is the expand / collapse button, 1.. are the modes in rail order.
   int _railCursor = 1;
+
+  /// The keys the rail takes for itself: `gi` goes to the first input of the mode shown.
+  late final _railKeys = KeySequence({'gi': _focusFirstInput});
   late final _prKeys = KeySequence({
     'v': () => _pr?.toggleLayout(),
     'i': () => _pr?.baseFocus.requestFocus(), // input: the base picker
@@ -120,9 +123,11 @@ class _ShellState extends State<Shell> {
   void _setLayout(DiffLayout l) => SessionScope.read(context).diffPrefs.setLayout(l);
 
   /// Switch modes and give the keyboard to the new one (Tasks and Directories have their own keys).
-  void _setMode(Mode m) {
+  /// Shows [m]. The keyboard goes to the mode's own pane, or with [onRail] to its item in the mode
+  /// rail, so the keys that follow start from the mode that is shown.
+  void _setMode(Mode m, {bool onRail = false}) {
     setState(() => _mode = m);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _focusMode(m));
+    WidgetsBinding.instance.addPostFrameCallback((_) => onRail ? _focusRail() : _focusMode(m));
   }
 
   void _focusMode(Mode m) => switch (m) {
@@ -138,7 +143,14 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _changesKey.currentState?.openBranchSwitcher());
   }
 
-  void _stepMode(int delta) => _setMode(Mode.values[(_mode.index + delta) % Mode.values.length]);
+  /// Shift+P: the Pull request mode, with the head picker focused and its list open.
+  void _openHeadPicker() {
+    _setMode(Mode.pullRequest);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pr?.openHead.value++);
+  }
+
+  void _stepMode(int delta, {bool onRail = false}) =>
+      _setMode(Mode.values[(_mode.index + delta) % Mode.values.length], onRail: onRail);
 
   // Keys -----------------------------------------------------------------------------------------
 
@@ -174,9 +186,11 @@ class _ShellState extends State<Shell> {
       LogicalKeyboardKey.tab when _hasNoTab && !_typing() && !hw.isControlPressed && !hw.isAltPressed =>
         _run(_focusRail),
       _ when hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed || _typing() => false,
+      _ when _railFocus.hasFocus && _railKeys.press(e.character) => true,
       _ when e.character == '?' => _run(() => _setMode(Mode.help)),
       // Shift+C: also in Help (a capital C is not search text there); Help's own search field is typing.
       _ when e.character == 'C' => _run(_openBranchSwitcher),
+      _ when e.character == 'P' => _run(_openHeadPicker),
       _ when e.character == '/' && _mode == Mode.help => _run(() => _helpKey.currentState?.startSearch()),
       _ when _mode == Mode.help && _printable(e.character) => _run(() => _helpKey.currentState?.type(e.character!)),
       // `b` (bug): the debug bar, as the bug button in the status bar; in Help it is search text.
@@ -189,10 +203,10 @@ class _ShellState extends State<Shell> {
   }
 
   bool _altKey(LogicalKeyboardKey k) {
-    if (k == LogicalKeyboardKey.bracketRight) return _run(() => _stepMode(1));
-    if (k == LogicalKeyboardKey.bracketLeft) return _run(() => _stepMode(-1));
+    if (k == LogicalKeyboardKey.bracketRight) return _run(() => _stepMode(1, onRail: true));
+    if (k == LogicalKeyboardKey.bracketLeft) return _run(() => _stepMode(-1, onRail: true));
     final i = _digits.indexOf(k);
-    return i >= 0 && _run(() => _setMode(Mode.values[i]));
+    return i >= 0 && _run(() => _setMode(Mode.values[i], onRail: true));
   }
 
   bool get _inPr => _mode == Mode.pullRequest && _pr != null;
@@ -228,6 +242,22 @@ class _ShellState extends State<Shell> {
   }
 
   // The mode rail ----------------------------------------------------------------------------------
+
+  /// `gi` with the rail focused: the first input field of the mode shown (Changes: the branch switcher).
+  void _focusFirstInput() {
+    switch (_mode) {
+      case Mode.pullRequest:
+        _pr?.baseFocus.requestFocus();
+      case Mode.changes:
+        _changesKey.currentState?.focusBranch();
+      case Mode.tasks:
+        _tasksKey.currentState?.filterFocus.requestFocus();
+      case Mode.directories:
+        _dirsKey.currentState?.focusFilter();
+      case Mode.help:
+        _helpKey.currentState?.focusSearch();
+    }
+  }
 
   void _focusRail() {
     setState(() => _railCursor = _mode.index + 1);

@@ -116,6 +116,9 @@ class ChangesViewState extends State<ChangesView> {
   void _focusPane() => (st.pane == ChangesPane.branch ? _branchFocus : focus).requestFocus();
 
   /// Shift+C: the keyboard goes to the branch switcher and its list of branches opens.
+  /// `gi`: the branch switcher, its list closed.
+  void focusBranch() => _branchFocus.requestFocus();
+
   void openBranchSwitcher() {
     st.goTo(ChangesPane.branch);
     _branchFocus.requestFocus();
