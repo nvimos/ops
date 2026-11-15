@@ -1,0 +1,141 @@
+# Weekly release: when the latest release is older than a week and the tests pass, build the
+# ordinary zip and the single-file exe, then publish them as a dated GitHub release (vYYYY-MM-DD).
+# Publish is its own job (stage), running after the whole build finishes.
+name: release
+
+on:
+  schedule:
+    - cron: '17 13 * * 3' # wednesday just before 1337 o'clock
+  workflow_dispatch:
+
+permissions:
+  contents: write # create the release and its tag
+
+jobs:
+  # 1. Gate: is the newest release older than a week, and is today not already released?
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.gate.outputs.build }}
+      version: ${{ steps.gate.outputs.version }}
+    steps:
+      - name: release is older than a week
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          today=$(date -u +%F)
+          version="v$today"
+          if gh release view "$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $version already exists; nothing to do"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          latest=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20 --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[0].createdAt' 2>/dev/null || true)
+          if [ -z "$latest" ]; then
+            echo "no release yet: making the first one"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            age_days=$(( (date -u +%s -d "$today") - (date -u +%s -d "${latest:0:10}") ))
+            age_days=$(( age_days / 86400 ))
+            echo "latest release is $age_days days old"
+            if [ "$age_days" -ge 7 ]; then
+              echo "build=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "build=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  # 2. The tests must pass before anything gets built.
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: backend plugin
+        uses: actions/checkout@v4
+        with:
+          repository: nvimos/relay
+          path: relay
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+          cache: true
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+      - name: TEMP without short names
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+      - name: git identity for the test repos
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.com
+          git config --global init.defaultBranch main
+      - run: flutter pub get
+      - run: flutter test --timeout 45s
+        env:
+          NVIMOS_BACKEND: ${{ github.workspace }}/relay
+
+  # 3. Build the ordinary zip first, then the single-file exe from the same Release folder.
+  build:
+    needs: [check, test]
+    if: needs.check.outputs.build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.50.0
+          cache: true
+      - run: flutter pub get
+      # Enigma Virtual Box packs the single-file exe through enigmavbconsole.exe, which dist.ps1's
+      # -Single drives. It is not on chocolatey; install it with winget and pass the exe's path
+      # to dist.ps1 via -Evb, wherever winget put it.
+      - name: Enigma Virtual Box
+        shell: pwsh
+        run: |
+          winget install --id Enigma.VirtualBox -e --silent `
+            --accept-package-agreements --accept-source-agreements
+      - name: zip and single exe
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        shell: pwsh
+        run: |
+          $console = Get-ChildItem -Recurse -Filter enigmavbconsole.exe @(
+            "$env:LOCALAPPDATA\Programs",
+            "${env:ProgramFiles(x86)}",
+            $env:ProgramFiles
+          ) -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $console) { throw 'enigmavbconsole.exe not found after winget install' }
+          pwsh -NoProfile -File tool/dist.ps1 -Zip -Single -Evb "$console" -Version "$env:VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: |
+            dist/*.zip
+            dist/*-single.exe
+
+  # 4. Publish: a separate stage, only after the whole build finished.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: dist
+      - name: create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          gh release create "$VERSION" dist/*.zip dist/*-single.exe \
+            --repo "$GITHUB_REPOSITORY" --title "ops $VERSION" --generate-notes
