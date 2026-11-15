@@ -532,7 +532,7 @@ _not strictly normative_
 
 - What is echoed from Linear, GitHub Desktop and Meld
   - from Meld (merge conflicts): the three-pane view of ours, the merged result and theirs, with a
-    pick of either side for each hunk; the conflict view is opened from the merge dialog
+    pick of either side for each hunk; the conflict view opens from the merge button, with no dialog
   - from Linear (Tasks): dark, quiet, one accent; dense 36 px rows with a status ring, a priority
     glyph, a mono id, label pills and small progress bars; the facets on the left and the detail
     panel that slides in on the right; small muted section titles; a command palette
@@ -756,10 +756,11 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
           - no question first; base is checked out first when it is not the current branch
           - refuses unsaved buffers or uncommitted changes to tracked files, a base that is not
             a local branch, and a head with nothing new
-          - a conflict is undone (`merge --abort`) and the error names the files
-          - planned: a conflict opens the merge conflict view (see "merge conflict view" below), with a
-            pre-flight `git merge-tree --write-tree` that decides the dialog, re-checked on Resolve
-          - done: a short note "Merged head into base"; the lists refresh
+          - a pre-flight `git merge-tree --write-tree` runs first, read only: with no conflict the merge
+            runs as above; with one, nothing is merged and the conflict layout opens (see "merge conflict
+            view" below); the same check runs again when the view opens, and a conflict that is gone
+            merges as a plain merge with a note
+          - done: a short note "Merged head into base" (or "no conflicts after all"); the lists refresh
           - base moved during a clean merge (someone committed to base meanwhile): nothing is saved,
             and Ops offers to rebase head onto the new base, then merge it
           - strong preference, decided 2026-11-15: rebase, not a second merge, so the history of
