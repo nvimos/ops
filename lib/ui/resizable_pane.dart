@@ -4,6 +4,9 @@ import 'package:material_ui/material_ui.dart';
 
 import '../backend/models.dart' show Commit;
 import 'file_tree.dart';
+import 'text_width.dart';
+
+export 'text_width.dart' show textWidth;
 import 'theme.dart';
 
 /// A left pane the mouse can resize by dragging its right edge. Until dragged it is [autoWidth]
@@ -64,13 +67,6 @@ class _Edge extends StatelessWidget {
 
 // Natural widths ---------------------------------------------------------------------------------
 
-/// The width of one line of [text].
-double textWidth(String text, TextStyle style) {
-  final p = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr, maxLines: 1)
-    ..layout();
-  return p.width;
-}
-
 const _slack = 16.0;
 
 /// The pane width that fits [content] (the widest row), kept between [least] and [most]: half and
@@ -90,8 +86,7 @@ Iterable<double> fileTreeWidths(List<TreeFile> files, Set<String> collapsed, {do
             14 +
             8 +
             textWidth(file.path.substring(file.path.lastIndexOf('/') + 1), T.body) +
-            (file.additions > 0 ? textWidth('+${file.additions}', const TextStyle(fontSize: 11)) : 0) +
-            (file.deletions > 0 ? textWidth(' −${file.deletions}', const TextStyle(fontSize: 11)) : 0) +
+            fileCountsWidth +
             (trailing > 0 ? 6 + trailing : 0),
     },
 ];

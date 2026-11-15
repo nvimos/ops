@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:material_ui/material_ui.dart';
 
 import 'reveal.dart';
+import 'text_width.dart';
 import 'theme.dart';
 import 'wheel_mode.dart';
 import 'widgets.dart';
@@ -236,14 +239,67 @@ class FileRow extends StatelessWidget {
           StatusMark(f.status),
           const SizedBox(width: 8),
           Expanded(child: Text(f.path.substring(f.path.lastIndexOf('/') + 1), style: T.body, overflow: TextOverflow.ellipsis)),
-          if (f.additions > 0) Text('+${f.additions}', style: const TextStyle(fontSize: 11, color: C.green)),
-          if (f.deletions > 0) Text(' −${f.deletions}', style: const TextStyle(fontSize: 11, color: C.red)),
+          _plusCount(f.additions),
+          const SizedBox(width: _countGap),
+          _minusCount(f.deletions),
           if (f.trailing != null) ...[const SizedBox(width: 6), f.trailing!],
         ],
       ),
     );
   }
 }
+
+const _countStyle = TextStyle(fontSize: 11);
+const _countGap = 4.0;
+
+/// The count columns after a file name, a table: a sign column and a two-digit number column for the
+/// additions, then the same for the deletions. The columns keep their width whether a file has a
+/// count or not, so the greens sit under the greens and the reds under the reds.
+final double _signWidth = math.max(textWidth('+', _countStyle), textWidth('−', _countStyle));
+final double _digitsWidth = textWidth('99', _countStyle);
+final double plusSlotWidth = _signWidth + _digitsWidth;
+final double minusSlotWidth = _signWidth + _digitsWidth;
+
+/// The room the two count groups and the gap between them take in a file row.
+final double fileCountsWidth = plusSlotWidth + _countGap + minusSlotWidth;
+
+/// The sign and the number of one count column; an empty column (a count of 0) keeps its width.
+Widget _countCells({required String sign, required Color signColor, required int n, required Color numberColor}) =>
+    Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: _signWidth,
+          child: n > 0 ? Text(sign, style: TextStyle(fontSize: 11, color: signColor)) : null,
+        ),
+        SizedBox(
+          width: _digitsWidth,
+          child: n > 0
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text('$n', style: TextStyle(fontSize: 11, color: numberColor)),
+                )
+              : null,
+        ),
+      ],
+    );
+
+/// The additions: the plus sign is 60% background and 40% the add colour, a faint mark.
+Widget _plusCount(int n) => _countCells(
+  sign: '+',
+  signColor: Color.lerp(C.bg, C.addSign, 0.4)!,
+  n: n,
+  numberColor: C.addSign,
+);
+
+/// The deletions: the minus sign is 60% background and 40% the delete colour, the count the plain red.
+Widget _minusCount(int n) => _countCells(
+  sign: '−',
+  signColor: Color.lerp(C.bg, C.red, 0.4)!,
+  n: n,
+  numberColor: C.red,
+);
 
 /// The mark of a file's status: the symbols and colors oil-git.nvim draws in Oil by default
 /// (`+` added, `~` modified, `->` renamed, `D` deleted, `!` conflict, `?` untracked).

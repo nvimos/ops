@@ -17,7 +17,7 @@ class C {
   static const green = Color(0xFF4CC38A);
   /// The paler green of the + sign and the line numbers of an added line in diffs.
   static const addSign = Color(0xFF8FD3A8);
-  static const red = Color(0xFFE5484D);
+  static const red = Color(0xFFA02A2F);
   static const yellow = Color(0xFFE6B450);
   static const purple = Color(0xFFA78BFA);
 
