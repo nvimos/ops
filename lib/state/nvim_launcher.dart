@@ -34,6 +34,11 @@ List<String> nvimArgs(String address, String backendDir) => [
   'runtime plugin/nvimos.lua',
 ];
 
+/// The arguments when no plugin checkout was found: Neovim from PATH, with the user's own config,
+/// which provides the relay plugin and its `:NvimosServe` command. The command returns at once, but
+/// Neovim keeps running (a window, or a headless loop), so nothing needs to wait.
+List<String> nvimFallbackArgs(String address) => ['--listen', address, '-c', 'NvimosServe $address'];
+
 /// How [launchNeovim] starts Neovim.
 enum NvimKind {
   /// `nvim` in its own console window.
@@ -60,9 +65,10 @@ List<String> qtArgs({Map<String, String>? env, bool Function(String path)? exist
   return ['-platform', 'windows:darkmode=1', if (qss != null && has(qss)) ...['-stylesheet', qss]];
 }
 
-/// The command line for [kind]: (executable, arguments). [qt] replaces [qtArgs] (tests).
-(String, List<String>) nvimCommand(NvimKind kind, String address, String backendDir, {List<String>? qt}) {
-  final args = nvimArgs(address, backendDir);
+/// The command line for [kind]: (executable, arguments). With no [backendDir], the fallback arguments
+/// are used. [qt] replaces [qtArgs] (tests).
+(String, List<String>) nvimCommand(NvimKind kind, String address, String? backendDir, {List<String>? qt}) {
+  final args = backendDir == null ? nvimFallbackArgs(address) : nvimArgs(address, backendDir);
   return switch (kind) {
     // `start` gives Neovim a console; the app has none. The first quoted argument is the title.
     NvimKind.console => ('cmd', ['/c', 'start', 'nvimos nvim', 'nvim', ...args]),
@@ -71,12 +77,12 @@ List<String> qtArgs({Map<String, String>? env, bool Function(String path)? exist
   };
 }
 
-/// Start Neovim as [kind], listening on [address] with the backend plugin; returns why it could not,
-/// or null.
+/// Start Neovim as [kind], listening on [address], with the backend plugin when its checkout is found
+/// (NVIMOS_BACKEND, or a folder near the app), else the Neovim on PATH with `:NvimosServe`; returns why
+/// it could not, or null.
 Future<String?> launchNeovim(String address, {NvimKind kind = NvimKind.console}) async {
   try {
     final backend = findBackendDir();
-    if (backend == null) return 'the relay plugin not found; set NVIMOS_BACKEND to its checkout';
     final where = await Process.run('where', [kind.exe]);
     if (where.exitCode != 0) return '${kind.exe} is not on PATH';
     final (exe, args) = nvimCommand(kind, address, backend);

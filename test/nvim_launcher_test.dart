@@ -52,6 +52,12 @@ void main() {
     expect(cmd(NvimKind.headless), ['nvim', '--headless', ...args]);
   });
 
+  test('nvimCommand without a checkout: PATH nvim listens and runs :NvimosServe, no plugin path', () {
+    final (exe, a) = nvimCommand(NvimKind.headless, '127.0.0.1:6666', null);
+    expect(exe, 'nvim');
+    expect(a, ['--headless', '--listen', '127.0.0.1:6666', '-c', 'NvimosServe 127.0.0.1:6666']);
+  });
+
   test('qtArgs: dark mode, and the config stylesheet when it exists', () {
     final env = {'LOCALAPPDATA': r'C:\Users\u\AppData\Local'};
     expect(qtArgs(env: env, exists: (_) => true), [
