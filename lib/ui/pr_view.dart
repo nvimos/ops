@@ -8,6 +8,7 @@ import '../state/session.dart';
 import '../tasks/model.dart';
 import '../tasks/workspace.dart';
 import 'confirm_dialog.dart';
+import 'conflict_view.dart';
 import 'diff_view.dart';
 import 'error_view.dart';
 import 'file_tree.dart';
@@ -131,6 +132,8 @@ class _PrMain extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = pr.selectedFile;
+    final conflict = pr.conflict;
+    if (conflict != null) return ConflictView(pr: pr, conflict: conflict);
     if (pr.error != null) return ErrorPane(pr.error!, onRetry: pr.refresh);
     if (pr.base == pr.head) return const Empty('Pick two different revisions.');
     if (pr.diff == null) return Empty(pr.loading ? 'Loading…' : 'No diff.');
@@ -261,7 +264,10 @@ Future<void> mergeBranches(BuildContext context, PrState pr) async {
   final (base, head) = (pr.base!, pr.head!);
   final err = await pr.merge();
   if (!context.mounted) return;
-  if (err == null) return _noteMerged(context, 'Merged $head into $base');
+  if (err == null) {
+    if (pr.conflict == null) _noteMerged(context, 'Merged $head into $base'); // else the conflict view is open
+    return;
+  }
   if (!err.contains(baseMovedText)) return showActionError(context, err);
   final ok = await confirm(
     context,

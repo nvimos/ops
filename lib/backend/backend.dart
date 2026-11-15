@@ -166,6 +166,22 @@ class Backend {
   static const upToDate = 'up-to-date';
   Future<String> commit(String message) async => str(await _git('commit', [message]));
 
+  /// Merges with conflicts, finished in a worktree of Ops's own (nvimos.merge). Indexes are 0-based here.
+  Future<List<String>> mergePreflight(String base, String head) async =>
+      asList(await _lua('nvimos.merge', 'preflight', [base, head])).map(str).toList();
+  Future<MergeStart> mergeStart(String base, String head) async =>
+      MergeStart(asMap(await _lua('nvimos.merge', 'start', [base, head])));
+  Future<List<String>> mergeUnmerged(String path) async =>
+      asList(await _lua('nvimos.merge', 'unmerged', [path])).map(str).toList();
+  Future<List<ConflictHunk>> mergeHunks(String path, String file) async =>
+      asList(await _lua('nvimos.merge', 'hunks', [path, file])).map((e) => ConflictHunk(asMap(e))).toList();
+  Future<void> mergePick(String path, String file, int index, String side) =>
+      _lua('nvimos.merge', 'pick', [path, file, index + 1, side]);
+  Future<void> mergeAdd(String path, String file) => _lua('nvimos.merge', 'add', [path, file]);
+  Future<String> mergeFinish(String base, String head, String path) async =>
+      str(await _lua('nvimos.merge', 'finish', [base, head, path]));
+  Future<void> mergeAbort(String path) => _lua('nvimos.merge', 'abort', [path]);
+
   // Files (Tasks mode) ------------------------------------------------------------------------
 
   Future<Object?> _files(String fn, [List<Object?> args = const []]) => _lua('nvimos.files', fn, args);

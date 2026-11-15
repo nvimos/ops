@@ -26,6 +26,25 @@ class Branches {
   final List<Branch> list;
 }
 
+/// A merge started in its worktree: where it is, and the files it conflicts on (empty: clean).
+class MergeStart {
+  MergeStart(Map<String, Object?> m)
+    : path = str(m['path']),
+      files = asList(m['files']).map(str).toList();
+
+  final String path;
+  final List<String> files;
+}
+
+/// One conflict hunk of a file: the lines of each side, between the markers.
+class ConflictHunk {
+  ConflictHunk(Map<String, Object?> m)
+    : ours = asList(m['ours']).map(str).toList(),
+      theirs = asList(m['theirs']).map(str).toList();
+
+  final List<String> ours, theirs;
+}
+
 class Commit {
   Commit(Map<String, Object?> m)
     : sha = str(m['sha']),

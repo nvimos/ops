@@ -4,6 +4,7 @@ import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
 import 'list_pair.dart';
+import 'merge_conflict.dart';
 import 'session.dart';
 
 export 'diff_prefs.dart' show DiffLayout;
@@ -153,13 +154,75 @@ class PrState extends ChangeNotifier {
   /// Whether there is something to merge: both sides are picked and they differ.
   bool get canMerge => base != null && head != null && base != head && (diff?.files.isNotEmpty ?? false);
 
-  /// Merge head into base (the backend checks base out when it is not the current branch).
-  /// Returns the error text, or null.
+  /// The merge that stopped with conflicts, in its own worktree; null when none is open.
+  MergeConflict? conflict;
+
+  /// Merge head into base. A pre-flight looks for conflicts first: without one the merge runs at
+  /// once; with one, the merge is started in its own worktree and the conflict view opens, and
+  /// nothing is merged into base yet. Returns the error text, or null.
   Future<String?> merge() async {
     final (b, h) = (base, head);
     if (b == null || h == null) return 'pick a base and a head first';
-    final err = await session.run((x) async => await x.merge(b, h));
+    final err = await session.run((x) async {
+      if ((await x.mergePreflight(b, h)).isEmpty) {
+        await x.merge(b, h);
+        return;
+      }
+      final s = await x.mergeStart(b, h);
+      if (s.files.isEmpty) {
+        await x.mergeFinish(b, h, s.path); // the merge is clean after all: commit it
+        return;
+      }
+      conflict = MergeConflict(base: b, head: h, path: s.path, files: s.files);
+    });
+    if (conflict != null) await openConflictFile(conflict!.files.first);
     await refresh();
+    return err;
+  }
+
+  /// Run an action on the open conflict (its worktree); returns the error text, or null.
+  Future<String?> _conflictAction(Future<void> Function(Backend x, MergeConflict c) action) async {
+    final c = conflict;
+    if (c == null) return 'no merge with conflicts is open';
+    final err = await session.run((x) => action(x, c));
+    notifyListeners();
+    return err;
+  }
+
+  Future<String?> openConflictFile(String file) => _conflictAction((x, c) async {
+    c.file = file;
+    c.hunks = await x.mergeHunks(c.path, file);
+  });
+
+  /// Take one side of hunk [index] of the open file, then read the file again.
+  Future<String?> pickHunk(int index, String side) => _conflictAction((x, c) async {
+    await x.mergePick(c.path, c.file!, index, side);
+    c.hunks = await x.mergeHunks(c.path, c.file!);
+  });
+
+  /// Mark a file resolved (refused while it has a conflict marker).
+  Future<String?> addConflictFile(String file) => _conflictAction((x, c) async {
+    await x.mergeAdd(c.path, file);
+    c.unresolved = await x.mergeUnmerged(c.path);
+  });
+
+  /// Complete the merge: commit in the worktree, move base, remove the worktree.
+  Future<String?> finishConflict() async {
+    final err = await _conflictAction((x, c) async {
+      await x.mergeFinish(c.base, c.head, c.path);
+      conflict = null;
+    });
+    if (conflict == null) await refresh();
+    return err;
+  }
+
+  /// Throw the merge away: the worktree is removed, base is not touched.
+  Future<String?> abortConflict() async {
+    final err = await _conflictAction((x, c) async {
+      await x.mergeAbort(c.path);
+      conflict = null;
+    });
+    if (conflict == null) await refresh();
     return err;
   }
 
