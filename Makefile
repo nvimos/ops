@@ -38,8 +38,9 @@ dist: build ## release build zipped as dist/ops-windows-x64-<VERSION>.zip (VERSI
 single: build ## one-file exe dist/ops-windows-x64-<VERSION>-single.exe (needs Enigma Virtual Box)
 	pwsh -NoProfile -File tool/dist.ps1 -Single -Version '$(VERSION)'
 
-release: build ## both downloads from one build: the zip and the single exe
+release: build ## zip and single exe from one build, uploaded as GitHub release v<VERSION> (nvimos/ops)
 	pwsh -NoProfile -File tool/dist.ps1 -Zip -Single -Version '$(VERSION)'
+	gh release create 'v$(VERSION)' dist/ops-windows-x64-$(VERSION).zip dist/ops-windows-x64-$(VERSION)-single.exe --repo nvimos/ops --title 'ops $(VERSION)' --generate-notes
 
 ##@ test
 
