@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../backend/models.dart';
+import '../state/picker_focus.dart';
 import '../state/pr.dart';
 import '../state/session.dart';
 import '../tasks/model.dart';
@@ -508,6 +509,13 @@ String ago(DateTime t) {
 
 /// A revision picker: lists the branches, filters as you type, takes any revision git accepts.
 /// When the filter leaves one branch, it is picked and the focus moves to [next].
+///
+/// The keyboard stays in the field, which is [RevPicker.focus]; the list has a position of its own.
+/// Down opens the list, and with it open Down moves into it, on the first item; Down and Up step
+/// through the items, highlighting them and showing each in the field, as an autocomplete drop-down
+/// does (the list keeps filtering on what was typed). Up from the first returns to the field with
+/// its text back, Enter or Space picks the item, Escape closes the list and puts the text back, and
+/// typing edits the item the field shows.
 class RevPicker extends StatefulWidget {
   const RevPicker({
     super.key,
@@ -528,7 +536,7 @@ class RevPicker extends StatefulWidget {
   final String? label;
   final String? value;
   final List<String> names;
-  final FocusNode focus;
+  final PickerFocusNode focus;
   final FocusNode? next;
   final ValueChanged<String> onPick;
 
@@ -547,14 +555,28 @@ class _RevPickerState extends State<RevPicker> {
   final _text = TextEditingController();
   Timer? _auto;
 
-  /// A click on the field opened the list of all branches (a click again closes it).
+  /// Whether the list is open: typing opens it, Down or a click opens and closes it, Escape closes.
   bool _open = false;
+
+  /// Whether the keyboard is in the list (its item at [_hi] is the one the keys act on).
+  bool _inList = false;
+
+  /// The item the keyboard is on in the list; Enter in the field picks it too.
+  int _hi = 0;
+
+  /// What the field held when the keyboard went into the list: the list keeps filtering on it while
+  /// the field shows the item the keyboard is on, and Up past the first item or Escape puts it back.
+  TextEditingValue _query = TextEditingValue.empty;
+
+  /// The drop-down's scroll, and the key of its highlighted row, to keep that row in view.
+  final _listScroll = ScrollController();
+  final _hiKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _text.text = widget.value ?? '';
-    widget.focus.addListener(_onFocus);
+    _attach(widget.focus);
     widget.openList?.addListener(_onOpenList);
   }
 
@@ -562,8 +584,8 @@ class _RevPickerState extends State<RevPicker> {
   void didUpdateWidget(RevPicker old) {
     super.didUpdateWidget(old);
     if (old.focus != widget.focus) {
-      old.focus.removeListener(_onFocus);
-      widget.focus.addListener(_onFocus);
+      _detach(old.focus);
+      _attach(widget.focus);
     }
     if (old.openList != widget.openList) {
       old.openList?.removeListener(_onOpenList);
@@ -575,20 +597,39 @@ class _RevPickerState extends State<RevPicker> {
   @override
   void dispose() {
     _auto?.cancel();
-    widget.focus.removeListener(_onFocus);
+    _detach(widget.focus);
     widget.openList?.removeListener(_onOpenList);
     _text.dispose();
+    _listScroll.dispose();
     super.dispose();
   }
 
+  void _attach(PickerFocusNode f) {
+    f.listHasFocus = () => _inList;
+    f.onKeyEvent = _onKey;
+    f.addListener(_onFocus);
+  }
+
+  void _detach(PickerFocusNode f) {
+    f.removeListener(_onFocus);
+    if (f.onKeyEvent == _onKey) f.onKeyEvent = null;
+    f.listHasFocus = null;
+  }
+
+  /// The field's focus changed. On the field it selects the text, as a text field does when it gets
+  /// the keyboard. Out of the picker the list closes and the text goes back to the value.
   void _onFocus() {
-    if (widget.focus.hasFocus) {
+    if (widget.focus.hasPrimaryFocus) {
       _text.selection = TextSelection(baseOffset: 0, extentOffset: _text.text.length);
-    } else {
-      _auto?.cancel();
-      _open = false;
-      _text.text = widget.value ?? '';
+      _repokeText(); // the list shows what _open says now, not what it showed before
+      return;
     }
+    if (widget.focus.hasFocus) return;
+    _auto?.cancel();
+    _open = false;
+    _inList = false;
+    _text.text = widget.value ?? '';
+    _repokeText();
   }
 
   /// Whether the text is what the picker shows when it just got the keyboard (the current value).
@@ -600,54 +641,155 @@ class _RevPickerState extends State<RevPicker> {
     return widget.names.where((n) => n.toLowerCase().contains(l)).toList();
   }
 
+  /// The items the list shows for [text]: none while the list is closed. While the keyboard is in
+  /// the list the field shows an item, and the list stays on what was typed.
+  List<String> _optionsFor(String text) => _open ? _filter(_inList ? _query.text : text) : const <String>[];
+
   void _pick(String v) {
     _auto?.cancel();
     final rev = v.trim();
     if (rev.isEmpty || (widget.strict && !widget.names.contains(rev))) return;
     _open = false;
+    _inList = false;
     _text.text = rev;
     if (rev != widget.value) widget.onPick(rev);
     final next = widget.next;
-    next != null ? next.requestFocus() : widget.focus.unfocus();
+    if (next != null) {
+      next.requestFocus();
+    } else {
+      widget.focus.unfocus();
+    }
   }
 
-  /// Typing: when the filter leaves one branch, pick it after a short pause, so a fast typist's
-  /// next keys don't land in the next picker.
+  /// Typing: the list opens on the filter, and when the filter leaves one branch, it is picked after
+  /// a short pause, so a fast typist's next keys don't land in the next picker.
   void _changed(String q) {
-    _open = false;
+    final wasOpen = _open;
+    _open = true;
+    _inList = false;
+    _hi = 0;
+    // RawAutocomplete read the options before this callback opened the list: read them again.
+    if (!wasOpen) _repokeText();
     _auto?.cancel();
     final hits = _filter(q);
     if (widget.strict || hits.length != 1 || q.trim().isEmpty) return;
     _auto = Timer(const Duration(milliseconds: 150), () {
-      if (mounted && widget.focus.hasFocus && _filter(_text.text).length == 1) _pick(hits.single);
+      if (mounted && widget.focus.hasPrimaryFocus && _filter(_text.text).length == 1) _pick(hits.single);
     });
   }
 
   /// Enter: a revision that matches no branch (sha, tag, HEAD~3) is taken as typed; otherwise
-  /// the highlighted branch.
-  void _submit(String v, VoidCallback pickHighlighted) {
+  /// the item the list is on.
+  void _submit(String v) {
     final asTyped = widget.strict ? widget.names.contains(v.trim()) : _untouched(v) || _filter(v).isEmpty || widget.names.contains(v.trim());
     if (asTyped) {
       _pick(v);
-    } else if (widget.strict && _filter(v).isEmpty) {
-      return;
-    } else {
-      pickHighlighted();
+    } else if (!(widget.strict && _filter(v).isEmpty)) {
+      _pickHighlighted(v);
     }
   }
 
-  void _cancel() => widget.focus.unfocus();
+  /// Picks the item the list is on, if the list shows.
+  void _pickHighlighted(String text) {
+    final options = _optionsFor(text);
+    if (options.isEmpty) return;
+    _pick(options[_clampHi(_hi, options.length)]);
+  }
 
-  /// A click on the field opens the list of all branches, or closes it when it is open. The list
-  /// follows the text, which RawAutocomplete only re-reads when the text changes, so the text is
-  /// changed and put back.
-  void _toggleList() {
-    _open = !_open;
+  /// Escape: the list closes and the text stays. Typing or Down opens it again.
+  void _close() {
+    _inList = false;
+    _open = false;
     _repokeText();
   }
 
-  /// The shortcut: focus the field (which selects its text), then show the list once the focus
-  /// has settled, so the focus change does not close it again.
+  /// Escape in the field, when the list is not in the keys' way: closes an open list, else leaves
+  /// the picker.
+  void _escape() {
+    if (_open) {
+      _close();
+    } else {
+      widget.focus.unfocus();
+    }
+  }
+
+  /// The keys of the field, which keeps the keyboard in both states (see the class comment).
+  KeyEventResult _onKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    if (!_noModifier()) return KeyEventResult.ignored;
+    final key = e.logicalKey;
+    final names = _optionsFor(_text.text);
+    if (!_inList) {
+      if (key != LogicalKeyboardKey.arrowDown) return KeyEventResult.ignored;
+      if (!_open) {
+        _open = true;
+        _repokeText();
+      }
+      if (_optionsFor(_text.text).isNotEmpty) _enterList(); // the top item, opened or not
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _moveTo(_clampHi(_hi + 1, names.length), names);
+    } else if (key == LogicalKeyboardKey.arrowUp) {
+      if (_hi == 0) {
+        _leaveList();
+      } else {
+        _moveTo(_hi - 1, names);
+      }
+    } else if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter || key == LogicalKeyboardKey.space) {
+      if (names.isEmpty) {
+        _leaveList();
+      } else {
+        _pick(names[_clampHi(_hi, names.length)]);
+      }
+    } else if (key == LogicalKeyboardKey.escape) {
+      _leaveList();
+      _close();
+    } else {
+      final c = e.character;
+      final edits = key == LogicalKeyboardKey.backspace || key == LogicalKeyboardKey.delete;
+      if (!edits && (c == null || c.length != 1 || c.trim().isEmpty)) return KeyEventResult.ignored;
+      // Typing goes on from the item the field shows, as in an autocomplete drop-down.
+      _keepItem();
+      return KeyEventResult.ignored; // the field takes the key
+    }
+    return KeyEventResult.handled;
+  }
+
+  /// Down from the field: the keyboard goes to the list's top item, and the field shows it.
+  void _enterList() {
+    _query = _text.value;
+    _inList = true;
+    _moveTo(0, _optionsFor(_query.text));
+  }
+
+  /// The keyboard goes to item [i]: it is highlighted, shown in the field and scrolled into view.
+  void _moveTo(int i, List<String> names) {
+    _hi = i;
+    final name = names[i];
+    _text.value = TextEditingValue(text: name, selection: TextSelection.collapsed(offset: name.length));
+    setState(() {});
+    revealIndex(_listScroll, _hiKey, i);
+  }
+
+  /// Up past the first item: back in the field, with what it held before the list.
+  void _leaveList() {
+    if (_inList) _text.value = _query;
+    _inList = false;
+    setState(() {});
+  }
+
+  /// A key that edits while in the list: the field keeps the item it shows and the key edits that.
+  void _keepItem() {
+    _inList = false;
+    setState(() {});
+  }
+
+  Widget _itemFor(int i, List<String> names, ValueChanged<String> onSelected) {
+    final on = _inList && i == _hi;
+    return _BranchOption(key: on ? _hiKey : null, name: names[i], selected: on, onTap: () => onSelected(names[i]));
+  }
+
   void _onOpenList() {
     widget.focus.requestFocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -655,6 +797,15 @@ class _RevPickerState extends State<RevPicker> {
       _open = true;
       _repokeText();
     });
+  }
+
+  /// A click on the field opens the list of all branches, or closes it when it is open. The list
+  /// follows the text, which RawAutocomplete only re-reads when the text changes, so the text is
+  /// changed and put back.
+  void _toggleList() {
+    _inList = false;
+    _open = !_open;
+    _repokeText();
   }
 
   void _repokeText() {
@@ -671,22 +822,24 @@ class _RevPickerState extends State<RevPicker> {
         child: RawAutocomplete<String>(
           textEditingController: _text,
           focusNode: widget.focus,
-          // The drop-down opens when the user starts typing, not when the keys land here.
-          optionsBuilder: (v) => _untouched(v.text) ? (_open ? widget.names : const <String>[]) : _filter(v.text),
+          optionsBuilder: (v) => _optionsFor(v.text),
           onSelected: _pick,
-          fieldViewBuilder: (context, controller, focus, submit) => _RevField(
+          fieldViewBuilder: (context, controller, fieldFocus, fieldSubmit) => _RevField(
             controller: controller,
-            focus: focus,
+            focus: widget.focus,
             onChanged: _changed,
-            onSubmitted: (v) => _submit(v, submit),
-            onCancel: _cancel,
+            onSubmitted: _submit,
+            onCancel: _escape,
             onTap: _toggleList,
           ),
-          optionsViewBuilder: (context, onSelected, options) => _RevOptions(
-            options: options.toList(),
-            highlighted: AutocompleteHighlightedOption.of(context),
-            onSelected: onSelected,
-          ),
+          optionsViewBuilder: (context, onSelected, options) {
+            final names = options.toList();
+            return _RevOptions(
+              options: names,
+              scroll: _listScroll,
+              itemBuilder: (context, i) => _itemFor(i, names, onSelected),
+            );
+          },
         ),
       ),
     ],
@@ -733,13 +886,22 @@ class _RevField extends StatelessWidget {
   );
 }
 
-/// The branches under a picker; the highlighted one is what Enter picks.
+/// No Ctrl, Alt or Meta: the keys a picker takes are the plain ones.
+bool _noModifier() {
+  final hw = HardwareKeyboard.instance;
+  return !(hw.isControlPressed || hw.isAltPressed || hw.isMetaPressed);
+}
+
+/// [i] kept inside a list of [n] items.
+int _clampHi(int i, int n) => i < 0 ? 0 : (i >= n ? n - 1 : i);
+
+/// The drop-down under a picker: a box of items, built one by one.
 class _RevOptions extends StatelessWidget {
-  const _RevOptions({required this.options, required this.highlighted, required this.onSelected});
+  const _RevOptions({required this.options, required this.scroll, required this.itemBuilder});
 
   final List<String> options;
-  final int highlighted;
-  final ValueChanged<String> onSelected;
+  final ScrollController scroll;
+  final IndexedWidgetBuilder itemBuilder;
 
   @override
   Widget build(BuildContext context) => Align(
@@ -751,14 +913,11 @@ class _RevOptions extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 280, maxWidth: 240),
         child: ListView.builder(
+          controller: scroll,
           padding: const EdgeInsets.symmetric(vertical: 4),
           shrinkWrap: true,
           itemCount: options.length,
-          itemBuilder: (context, i) => _BranchOption(
-            name: options[i],
-            selected: i == highlighted,
-            onTap: () => onSelected(options[i]),
-          ),
+          itemBuilder: itemBuilder,
         ),
       ),
     ),
@@ -768,7 +927,10 @@ class _RevOptions extends StatelessWidget {
 // Atoms -------------------------------------------------------------------------------------------
 
 class _BranchOption extends StatelessWidget {
-  const _BranchOption({required this.name, required this.selected, required this.onTap});
+  const _BranchOption({super.key, required this.name, required this.selected, required this.onTap});
+
+  /// The highlight of the item the keyboard is on: the box is [C.surface2], a plain selected row.
+  static final _highlight = Color.alphaBlend(C.accent.withValues(alpha: 0.28), C.surface2);
 
   final String name;
   final bool selected;
@@ -777,6 +939,7 @@ class _BranchOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) => HoverRow(
     selected: selected,
+    selectedColor: _highlight,
     onTap: onTap,
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     child: Row(

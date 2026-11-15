@@ -4,6 +4,7 @@ import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
 import 'list_pair.dart';
+import 'picker_focus.dart';
 import 'session.dart';
 
 export 'diff_prefs.dart' show DiffLayout;
@@ -48,8 +49,8 @@ class PrState extends ChangeNotifier {
   int hunk = -1;
 
   /// The revision pickers' focus, so keys can jump to them.
-  final baseFocus = FocusNode(debugLabel: 'base picker');
-  final headFocus = FocusNode(debugLabel: 'head picker');
+  final baseFocus = PickerFocusNode(debugLabel: 'base picker');
+  final headFocus = PickerFocusNode(debugLabel: 'head picker');
 
   int _gen = 0;
   String? _root;

@@ -1,12 +1,15 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:nvimos_poc/state/picker_focus.dart';
 import 'package:nvimos_poc/ui/file_tree.dart';
 import 'package:nvimos_poc/ui/pr_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
+import 'package:nvimos_poc/ui/widgets.dart';
 
 void main() {
   testWidgets('the branch drop-down stays closed when the keys land in the picker; typing opens it', (t) async {
-    final focus = FocusNode();
+    final focus = PickerFocusNode();
     final picked = <String>[];
     await t.pumpWidget(
       MaterialApp(
@@ -43,7 +46,7 @@ void main() {
   });
 
   testWidgets('a click on the picker opens the list of all branches, another click closes it', (t) async {
-    final focus = FocusNode();
+    final focus = PickerFocusNode();
     await t.pumpWidget(
       MaterialApp(
         theme: buildTheme(),
@@ -99,8 +102,146 @@ void main() {
     request.dispose();
   });
 
+  testWidgets('with the list open, Down moves the highlight and Space picks the highlighted branch', (t) async {
+    final focus = PickerFocusNode();
+    final picked = <String>[];
+    addTearDown(focus.dispose);
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: RevPicker(value: 'main', names: const ['main', 'dev', 'feature/x'], focus: focus, onPick: picked.add),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byType(TextField)); // opens the list of all branches
+    await t.pump();
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // main -> dev
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // dev -> feature/x
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // stays on the last one
+    await t.pump();
+    await t.sendKeyEvent(LogicalKeyboardKey.space);
+    await t.pump();
+    expect(picked, ['feature/x']);
+    expect(find.text('dev'), findsNothing); // the list closed with the pick
+  });
+
+  testWidgets('Down past the visible rows moves the highlight on; Space picks it', (t) async {
+    final focus = PickerFocusNode();
+    final picked = <String>[];
+    addTearDown(focus.dispose);
+    final names = [for (var i = 0; i < 60; i++) 'b${i.toString().padLeft(2, '0')}'];
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: RevPicker(value: 'b00', names: names, focus: focus, onPick: picked.add),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byType(TextField));
+    await t.pump();
+    for (var i = 0; i < 41; i++) { // the first Down takes the focus into the list, the rest step it
+      await t.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await t.pump();
+    }
+    await t.pump();
+    final row = find.descendant(of: find.byType(HoverRow), matching: find.text('b40'));
+    expect(row.hitTestable(), findsOneWidget); // scrolled into view
+    await t.sendKeyEvent(LogicalKeyboardKey.space);
+    await t.pump();
+    expect(picked, ['b40']);
+  });
+
+  testWidgets('Up from the first item returns to the field; Escape closes the list; Down reopens it', (t) async {
+    final focus = PickerFocusNode();
+    addTearDown(focus.dispose);
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: RevPicker(value: 'main', names: const ['main', 'dev', 'feature/x'], focus: focus, onPick: (_) {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byType(TextField));
+    await t.pump();
+    String field() => t.widget<TextField>(find.byType(TextField)).controller!.text;
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // into the list: the first item
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // the second
+    await t.pump();
+    expect(field(), 'dev'); // the field shows the item the keyboard is on
+    expect(find.text('feature/x'), findsOneWidget); // the list still has every branch
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowUp); // the first
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowUp); // past the first: back to the field
+    await t.pump();
+    expect(field(), 'main'); // with its text back
+    expect(find.text('dev'), findsOneWidget); // the list is still open
+    expect(focus.hasPrimaryFocus, isTrue); // the keyboard stays in the field
+
+    await t.sendKeyEvent(LogicalKeyboardKey.escape);
+    await t.pump();
+    expect(find.text('dev'), findsNothing); // Escape closes it, the focus stays in the field
+    expect(focus.hasPrimaryFocus, isTrue);
+
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // opens it again
+    await t.pump();
+    expect(find.text('dev'), findsOneWidget);
+  });
+
+  testWidgets('Down in an empty field opens the list and highlights the top item', (t) async {
+    final focus = PickerFocusNode();
+    final picked = <String>[];
+    addTearDown(focus.dispose);
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: RevPicker(value: '', names: const ['main', 'dev', 'feature/x'], focus: focus, onPick: picked.add),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byType(TextField));
+    await t.pump();
+    await t.sendKeyEvent(LogicalKeyboardKey.escape); // close the list the tap opened
+    await t.pump();
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // opens it and highlights the top item
+    await t.pump();
+    final selected = t.widgetList<HoverRow>(find.byType(HoverRow)).where((w) => w.selected).toList();
+    expect(selected, hasLength(1));
+    expect(selected.single.selectedColor, isNot(C.surface2)); // visible on the drop-down's box
+    expect(t.widget<TextField>(find.byType(TextField)).controller!.text, 'main'); // shown in the field
+    await t.sendKeyEvent(LogicalKeyboardKey.space);
+    await t.pump();
+    expect(picked, ['main']);
+  });
+
   testWidgets('the openList notifier focuses the field and opens the list of all branches', (t) async {
-    final focus = FocusNode();
+    final focus = PickerFocusNode();
     final open = ValueNotifier<int>(0);
     addTearDown(focus.dispose);
     addTearDown(open.dispose);
