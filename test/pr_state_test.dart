@@ -28,8 +28,13 @@ void main() {
   test('merge puts head into base with a merge commit; canMerge needs a diff', () async {
     final repo = await makeRepo();
     await git(repo, ['checkout', '-q', '-b', 'feature']);
-    await File('${repo.path}/b.txt').writeAsString('feature\n');
+    await File('${repo.path}/b.txt').writeAsString('feature\\n');
     await git(repo, ['commit', '-q', '-am', 'feature work']);
+    // Then main gets a commit of its own, so the histories diverge and the merge cannot fast-forward.
+    await git(repo, ['checkout', '-q', 'main']);
+    await File('${repo.path}/c.txt').writeAsString('main\\n');
+    await git(repo, ['add', 'c.txt']);
+    await git(repo, ['commit', '-q', '-m', 'main work']);
     final nvim = await TestNvim.start(cwd: repo);
     await nvim.connect().then((r) => r.close());
     final s = Session(port: nvim.port);
@@ -40,8 +45,8 @@ void main() {
     await until(() => !pr.loading && pr.diff != null && pr.canMerge);
 
     expect((await pr.merge()).error, isNull);
-    expect((await git(repo, ['log', '-1', '--format=%P'])).trim().split(' '), hasLength(2));
-    expect((await git(repo, ['branch', '--show-current'])).trim(), 'main');
+    expect((await git(repo, ['log', '-1', '--format=%P', 'main'])).trim().split(' '), hasLength(2));
+    expect((await git(repo, ['branch', '--show-current'])).trim(), 'main'); // base stays checked out
     await until(() => !pr.loading && !pr.canMerge); // nothing left to merge, once the refreshes settle
     expect(pr.canMerge, isFalse);
     expect((await pr.merge()).error, contains('nothing that main lacks'));
