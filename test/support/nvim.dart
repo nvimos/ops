@@ -40,7 +40,11 @@ class TestNvim {
 
   /// NVIMOS_BACKEND, else a relay checkout next to this repo or a parent (as the app finds it).
   static String get backendDir =>
-      findBackendDir(starts: [Directory.current.path]) ??
+      findBackendDir(starts: [
+        Directory.current.path,
+        '${Directory.current.parent.path}/relay',
+        '${Directory.current.parent.path}/es/nvimos-poc-backend',
+      ]) ??
       '${Directory.current.parent.path}/relay'.replaceAll('\\', '/');
 
   static Future<int> freePort() async {
