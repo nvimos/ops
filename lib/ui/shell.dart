@@ -448,11 +448,12 @@ class _ShellState extends State<Shell> {
         focusNode: _railFocus,
         onKeyEvent: _railKey,
         child: ListenableBuilder(
-          listenable: Listenable.merge([SessionScope.read(context).diffPrefs, _railFocus]),
+          listenable: Listenable.merge([SessionScope.read(context).diffPrefs, SessionScope.read(context).conflicts, _railFocus]),
           builder: (context, _) => ModeRail(
             mode: _mode,
             expanded: _expanded,
             layout: _pr == null ? null : SessionScope.read(context).diffPrefs.layout,
+            conflictOpen: SessionScope.read(context).conflicts.current != null,
             cursor: _railFocus.hasFocus && _railCursor > 0 ? Mode.values[_railCursor - 1] : null,
             toggleCursor: _railFocus.hasFocus && _railCursor == 0,
             onSelect: _setMode,

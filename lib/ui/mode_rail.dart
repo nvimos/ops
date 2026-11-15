@@ -67,6 +67,7 @@ class ModeRail extends StatelessWidget {
     required this.mode,
     required this.expanded,
     required this.layout,
+    this.conflictOpen = false,
     this.cursor,
     this.toggleCursor = false,
     required this.onSelect,
@@ -76,6 +77,9 @@ class ModeRail extends StatelessWidget {
   });
 
   final Mode mode;
+
+  /// A merge with conflicts is open: only then the Conflict layout is in the rail.
+  final bool conflictOpen;
   final bool expanded;
 
   /// The diff layout shared by Pull request and Changes; null: not connected.
@@ -124,7 +128,7 @@ class ModeRail extends StatelessWidget {
     for (final (l, icon, label) in [
       (DiffLayout.unified, Icons.subject, 'Unified'),
       (DiffLayout.sideBySide, Icons.compare, 'Side by side'),
-      (DiffLayout.conflict, Icons.call_merge, 'Conflict'),
+      if (conflictOpen || layout == DiffLayout.conflict) (DiffLayout.conflict, Icons.call_merge, 'Conflict'),
     ])
       RailEntry(
         icon: icon,
