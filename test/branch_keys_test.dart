@@ -11,6 +11,9 @@ import 'support/nvim.dart';
 /// Neovim runs in real time (runAsync); the widgets on the test clock.
 void main() {
   testWidgets('Shift+C (also from Help) and gb open the branch switcher of Changes', (t) async {
+    // Verify backend plugin is available for integration tests
+    requireBackendPlugin();
+    
     final (nvim, s) = (await t.runAsync(() async {
       final repo = await makeRepo();
       await git(repo, ['branch', 'dev']);

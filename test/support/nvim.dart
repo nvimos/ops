@@ -1,11 +1,34 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart' show addTearDown;
+import 'package:flutter_test/flutter_test.dart' show addTearDown, fail;
 import 'package:nvimos_poc/rpc/client.dart';
 import 'package:nvimos_poc/state/nvim_launcher.dart';
 
 import 'temp_dirs.dart';
+
+/// Check that the backend plugin is available and fail the test if not.
+/// Returns the backend directory path if available.
+String requireBackendPlugin() {
+  final backendDir = TestNvim.backendDir;
+  final pluginFile = '$backendDir/plugin/nvimos.lua';
+  if (!File(pluginFile).existsSync()) {
+    final searchPaths = [
+      'NVIMOS_BACKEND environment variable',
+      '${Directory.current.path} (current directory)',
+      '${Directory.current.parent.path} (parent directory)',
+    ];
+    fail('Backend plugin not found for integration test.\n\n'
+        'Searched for plugin/nvimos.lua in:\n'
+        '${searchPaths.map((p) => '  - $p').join('\n')}\n\n'
+        'The nvimos backend plugin must be available.\n'
+        'Solutions:\n'
+        '  1. Set NVIMOS_BACKEND environment variable to the plugin directory\n'
+        '  2. Place a "relay" or "nvimos-poc-backend" folder next to this repo\n'
+        '  3. Ensure the folder contains plugin/nvimos.lua');
+  }
+  return backendDir;
+}
 
 /// A headless Neovim listening on a free TCP port, with the backend plugin loaded.
 class TestNvim {
