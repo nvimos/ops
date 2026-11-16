@@ -8,9 +8,11 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 ## Running tests
 
 - Never wait on a hung test. Every run has a timeout at two levels:
-  - per test: `dart_test.yaml` sets `timeout: 11s`, and `make test` passes
-    `--timeout $(TEST_TIMEOUT)` (Makefile, 11s; keep the two equal);
+  - per test: `dart_test.yaml` sets `timeout: 55s`, and `make test` passes
+    `--timeout $(TEST_TIMEOUT)` (Makefile, 55s; keep the two equal);
     a test that needs longer sets its own `timeout:` explicitly
+  - tests run one at a time (`concurrency: 1` in `dart_test.yaml`): the Neovim tests start a
+    headless Neovim each, and several at once make them contend for the machine
   - per command: give the shell tool call a timeout of a few minutes, not the 10-minute maximum,
     and run one test file (`flutter test test/<file>.dart`) while iterating.
   - file operations (`cat`, here-docs, `sed`, small scripts that write files) get a shell tool
@@ -36,8 +38,7 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
     count of `nvimos_*` folders in `%TEMP%` is the same before and after.
   - a run that was killed or crashed leaves things behind: remove them (the folders, the headless
     `nvim --clean` processes, the daemons) and don't leave them for the user.
-- The whole suite takes about 25 s. `workspace_test.dart` "archive merges deltas" is flaky
-  (fails about half the runs, also before 2026-11-11); don't chase it as a regression.
+- The whole suite takes about 5 minutes at `concurrency: 1`.
 - Flutter: `C:/tools/flutter` (Makefile `FLUTTER_ROOT`), `PUB_CACHE=C:/tools/pub-cache`.
 - `make analyze` lists `package:flutter/material.dart` deprecation infos on every file
   (Flutter 3.50); anything else is a real finding.
