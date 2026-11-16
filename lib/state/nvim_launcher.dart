@@ -130,7 +130,9 @@ void _printLines(Object? text, void Function(String line) say, {String prefix = 
   }
 }
 
-/// The stdout and stderr lines of a running process, and its exit code, as they come.
+/// The stdout and stderr lines of a running process, as they come. Only the streams: a process
+/// started with `ProcessStartMode.detachedWithStdio` has no exit code — Dart throws
+/// `StateError: Process is detached` for it — and the headless Neovim is started that way.
 void _pipeOutput(Process p, void Function(String line) say) {
   void lines(Stream<List<int>> s, String prefix) => s.transform(utf8.decoder).transform(const LineSplitter()).listen(
     (l) {
@@ -140,7 +142,6 @@ void _pipeOutput(Process p, void Function(String line) say) {
   );
   lines(p.stdout, '| ');
   lines(p.stderr, '! ');
-  p.exitCode.then((code) => say('exit $code'));
 }
 
 /// The command line that opens [file] at [line] in a new nvim-qt, on its own (no server, no plugin).
