@@ -10,10 +10,10 @@ class ListPair {
   /// Folded lists show only their header.
   final collapsed = [false, false];
 
-  /// The "most room" button: on the dominant list it hands the room to the other one.
-  /// The list that gets the room unfolds.
+  /// The "most room" button: on the dominant list it hands the room to the other one, unless the
+  /// dominant list is folded — then it unfolds it. The list that gets the room unfolds.
   void toggleDominant(int i) {
-    dominant = dominant == i ? 1 - i : i;
+    dominant = dominant == i && !collapsed[i] ? 1 - i : i;
     collapsed[dominant] = false;
   }
 

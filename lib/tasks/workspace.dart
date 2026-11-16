@@ -100,13 +100,18 @@ class Workspace extends ChangeNotifier {
     return _ownWrites.keys.any((w) => rel == w || rel.endsWith('/$w'));
   }
 
+  /// Resolved when a queued reload finishes; a caller of [load] while one runs waits on it.
+  Completer<void>? _settled;
+
   /// Reload everything. A call while a load runs queues one more load after it, so a stream of
-  /// hints can't keep restarting it.
+  /// hints can't keep restarting it; the call then waits for that queued load, so a caller that
+  /// awaits [load] (like `archive`) sees the files it just wrote.
   Future<void> load() async {
     final b = session.backend;
     if (b == null) return;
     if (loading) {
       _again = true;
+      await (_settled ??= Completer<void>()).future;
       return;
     }
     final span = UiTiming.instance.span('tasks.load');
@@ -147,6 +152,9 @@ class Workspace extends ChangeNotifier {
         if (_again) {
           _again = false;
           load();
+        } else {
+          _settled?.complete();
+          _settled = null;
         }
       }
     }
