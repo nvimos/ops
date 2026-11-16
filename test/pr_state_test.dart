@@ -30,6 +30,11 @@ void main() {
     await git(repo, ['checkout', '-q', '-b', 'feature']);
     await File('${repo.path}/b.txt').writeAsString('feature\n');
     await git(repo, ['commit', '-q', '-am', 'feature work']);
+    // A commit of its own on main: the histories must diverge, or the merge is a fast-forward.
+    await git(repo, ['checkout', '-q', 'main']);
+    await File('${repo.path}/c.txt').writeAsString('main\n');
+    await git(repo, ['add', 'c.txt']);
+    await git(repo, ['commit', '-q', '-m', 'main work']);
     final nvim = await TestNvim.start(cwd: repo);
     await nvim.connect().then((r) => r.close());
     final s = Session(port: nvim.port);

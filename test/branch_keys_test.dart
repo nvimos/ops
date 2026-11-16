@@ -52,12 +52,16 @@ void main() {
     expect(focused(), 'branch switcher');
     expect(find.text('dev'), findsOneWidget); // the list is open
 
-    await t.sendKeyDownEvent(LogicalKeyboardKey.altLeft); // Alt+2: Changes again, the keyboard on its list
+    await t.sendKeyDownEvent(LogicalKeyboardKey.altLeft); // Alt+2: Changes again; the rail takes the keyboard
     await t.sendKeyEvent(LogicalKeyboardKey.digit2);
     await t.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
     await settle();
-    expect(focused(), isNot('branch switcher'));
+    expect(focused(), 'rail');
     expect(find.text('dev'), findsNothing); // the focus loss closed the list
+
+    await t.sendKeyEvent(LogicalKeyboardKey.escape); // Esc from the rail: the mode's own pane
+    await settle();
+    expect(focused(), 'changes');
 
     await t.sendKeyEvent(LogicalKeyboardKey.keyG, character: 'g');
     await t.sendKeyEvent(LogicalKeyboardKey.keyB, character: 'b');
