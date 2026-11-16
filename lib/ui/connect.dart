@@ -55,36 +55,39 @@ class _ConnectScreenState extends State<ConnectScreen> {
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
     return Center(
-      child: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Connect to Neovim', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            const Text('Start Neovim with the nvimos plugin listening, then retry.', style: T.small),
-            const SizedBox(height: 16),
-            AddressRow(
-              controller: _addr,
-              busy: s.conn == Conn.connecting || s.starting != null,
-              onConnect: _connect,
-              onCancel: _cancel,
-            ),
-            const SizedBox(height: 8),
-            StartButtons(
-              starting: s.starting,
-              enabled: s.conn == Conn.disconnected,
-              onStart: _startNeovim,
-              onStopHeadless: _stopHeadless,
-            ),
-            if (s.error != null) ConnectError(s.error!),
-            if (s.notice != null) ConnectNotice(s.notice!),
-            const SizedBox(height: 20),
-            const CodeBox(_howTo),
-            const SizedBox(height: 12),
-            LaunchLog(text: s.launchLog),
-          ],
+      // Scrolls when the window is shorter than the form (the how-to box and the launch log add up).
+      child: SingleChildScrollView(
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Connect to Neovim', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 6),
+              const Text('Start Neovim with the nvimos plugin listening, then retry.', style: T.small),
+              const SizedBox(height: 16),
+              AddressRow(
+                controller: _addr,
+                busy: s.conn == Conn.connecting || s.starting != null,
+                onConnect: _connect,
+                onCancel: _cancel,
+              ),
+              const SizedBox(height: 8),
+              StartButtons(
+                starting: s.starting,
+                enabled: s.conn == Conn.disconnected,
+                onStart: _startNeovim,
+                onStopHeadless: _stopHeadless,
+              ),
+              if (s.error != null) ConnectError(s.error!),
+              if (s.notice != null) ConnectNotice(s.notice!),
+              const SizedBox(height: 20),
+              const CodeBox(_howTo),
+              const SizedBox(height: 12),
+              LaunchLog(text: s.launchLog),
+            ],
+          ),
         ),
       ),
     );

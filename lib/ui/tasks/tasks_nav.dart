@@ -316,12 +316,17 @@ class TaskListHeader extends StatelessWidget {
     height: 44,
     padding: const EdgeInsets.symmetric(horizontal: 14),
     decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: C.border))),
+    // The title yields first; the filter shrinks as far as it must; the action keeps its width.
     child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Flexible(flex: 2, child: _titleAndCount()),
+        Expanded(child: _titleAndCount()),
         const SizedBox(width: 10),
-        Flexible(flex: 3, child: _controls()),
+        Flexible(
+          // Fills its share of the row, so the filter sits against the buttons at the right edge
+          // even when the field is narrower than the space it is given.
+          child: Align(alignment: Alignment.centerRight, child: FilterField(controller: filter, focus: filterFocus, onChanged: onQuery)),
+        ),
+        if (action != null) ...[const SizedBox(width: 10), action!],
       ],
     ),
   );
@@ -335,14 +340,6 @@ class TaskListHeader extends StatelessWidget {
     ],
   );
 
-  /// The filter and the view's own buttons, pushed against the right edge of the header.
-  Widget _controls() => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Flexible(child: FilterField(controller: filter, focus: filterFocus, onChanged: onQuery)),
-      if (action != null) ...[const SizedBox(width: 10), action!],
-    ],
-  );
 }
 
 class FilterField extends StatelessWidget {
