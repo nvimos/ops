@@ -55,3 +55,5 @@ app.*.map.json
 /.agentsroom/
 /.vibe
 /test_results.txt
+# Purrage
+/.claude/settings.local.json
