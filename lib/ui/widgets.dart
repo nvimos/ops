@@ -13,10 +13,14 @@ class HoverRow extends StatefulWidget {
     this.selected = false,
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
     this.pointer = true,
+    this.selectedColor = C.surface2,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// The background of a selected row; a row on a [C.surface2] box (a drop-down) needs another one.
+  final Color selectedColor;
 
   /// Show the pointing hand over a clickable row; off for rows whose clickability is obvious (files).
   final bool pointer;
@@ -51,7 +55,7 @@ class _HoverRowState extends State<HoverRow> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.selected ? C.surface2 : (_hover ? C.hover : Colors.transparent);
+    final bg = widget.selected ? widget.selectedColor : (_hover ? C.hover : Colors.transparent);
     return MouseRegion(
       cursor: widget.onTap != null && widget.pointer ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) => setState(() => _hover = true),

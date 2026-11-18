@@ -7,13 +7,12 @@ import 'package:nvimos_poc/ui/theme.dart';
 
 import 'support/nvim.dart';
 
-/// Shift+C and `gi` in the whole window: Changes mode, the branch switcher focused, its list open.
+/// Shift+C in the whole window: Changes mode, the branch switcher focused, its list open.
 /// Neovim runs in real time (runAsync); the widgets on the test clock.
 void main() {
-  testWidgets('Shift+C (also from Help) and gi open the branch switcher of Changes', (t) async {
-    // Verify backend plugin is available for integration tests
+  testWidgets('Shift+C (also from Help) opens the branch switcher of Changes; gi goes to its input', (t) async {
     requireBackendPlugin();
-    
+
     final (nvim, s) = (await t.runAsync(() async {
       final repo = await makeRepo();
       await git(repo, ['branch', 'dev']);
@@ -59,11 +58,11 @@ void main() {
     expect(focused(), isNot('branch switcher'));
     expect(find.text('dev'), findsNothing); // the focus loss closed the list
 
-    await t.sendKeyEvent(LogicalKeyboardKey.keyG, character: 'g');
-    await t.sendKeyEvent(LogicalKeyboardKey.keyB, character: 'i');
+    await t.sendKeyEvent(LogicalKeyboardKey.keyG, character: 'g'); // gi: go to the input, as in Pull request
+    await t.sendKeyEvent(LogicalKeyboardKey.keyI, character: 'i');
     await settle();
     expect(focused(), 'branch switcher');
-    expect(find.text('dev'), findsOneWidget);
+    expect(find.text('dev'), findsNothing); // the input, not the list
 
     await t.pumpWidget(const SizedBox());
     await t.runAsync(() async {

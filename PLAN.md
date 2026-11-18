@@ -151,7 +151,7 @@ Changes
 |--------------------|---------------------------------------------------------|
 | `C` (Shift+C)      | the branch switcher: Changes mode, field focused, list  |
 |                    | open (any mode, Help too; not while typing in a field)  |
-| `gi`               | focus the branch switcher, its list closed (go input)   |
+| `gi`               | focus the branch input, list closed (go input), in Changes |
 | `]c` / `[c`        | next / previous hunk; the keys below then act on it     |
 | `-`                | stage or unstage the current hunk, or the file          |
 | `Space` / `u`      | stage / unstage the current hunk, or the file           |
@@ -909,9 +909,15 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
   - the same field as the base and head pickers of Pull request (`RevPicker`: a click on it opens the
     list of all branches, a click again closes it, typing filters), but it is a separate widget with its
     own state: picking here never changes the pickers there
+  - the list works as an autocomplete drop-down, in all three pickers
+    - Down in the field goes to the list's top item, opening the list if it is closed; Down / Up
+      step through the items
+    - the item the keyboard is on is highlighted; the list stays filtered on what was typed
+    - Up from the first item returns to the field; Escape closes the list; Enter or Space picks the
+      highlighted item; a letter in the list goes back to the field and replaces its text
   - `C` (Shift+C) from anywhere, Help included (so a capital C cannot start a search there; typing in
     a text field, Help's search too, still types it), switches to Changes, focuses the field and opens
-    the list, as a click would; `gb` in Changes does the same
+    the list, as a click would; `gi` in Changes focuses the field without opening the list, as in Pull request
   - after a pick, a Cancel in the checkout modal or a failed checkout, the keyboard is on the Changes list
   - it only takes a listed local branch (no sha or tag); Enter or a click on a branch checks it out,
     typing alone never does (no pick after a pause, unlike the pickers)

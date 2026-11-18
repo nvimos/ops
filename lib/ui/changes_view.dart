@@ -6,6 +6,7 @@ import '../backend/models.dart';
 import '../state/changes.dart';
 import '../state/commit_template.dart';
 import '../state/list_pair.dart';
+import '../state/picker_focus.dart';
 import '../state/session.dart';
 import 'checkout_dialog.dart';
 import 'commit_message_dialog.dart';
@@ -44,7 +45,7 @@ class ChangesViewState extends State<ChangesView> {
   /// The shell gives the keyboard here when the mode is shown.
   final focus = FocusNode(debugLabel: 'changes');
   final _messageFocus = FocusNode(debugLabel: 'commit message');
-  final _branchFocus = FocusNode(debugLabel: 'branch switcher');
+  final _branchFocus = PickerFocusNode(debugLabel: 'branch switcher');
   final _openBranches = ValueNotifier<int>(0);
   static const _far = 1 << 20;
   late final _keys = KeySequence({
@@ -52,7 +53,7 @@ class ChangesViewState extends State<ChangesView> {
     'G': () => st.moveSelection(_far),
     ']c': () => st.moveHunk(1),
     '[c': () => st.moveHunk(-1),
-    'gb': openBranchSwitcher,
+    'gi': _branchFocus.requestFocus, // go input: the branch switcher, as in Pull request
     '-': _toggleCurrent,
     ' ': _stageCurrent,
     'u': _unstageCurrent,
@@ -855,7 +856,8 @@ class BranchSwitcher extends StatelessWidget {
 
   final String branch;
   final List<String> names;
-  final FocusNode focus, next;
+  final PickerFocusNode focus;
+  final FocusNode next;
   final ValueChanged<String> onPick;
   final Listenable? openList;
 
