@@ -12,7 +12,7 @@ PORT    ?= 6666
 TEST_TIMEOUT ?= 55s
 TEST_CONCURRENCY ?= 1
 
-.PHONY: help run live build dist single install release test analyze nvim timings measure
+.PHONY: help run live build dist single bin-local release test analyze nvim timings measure
 
 # `make help` prints the `##@` lines as section headers and `target: ## text` as entries.
 .DEFAULT_GOAL := help
@@ -39,7 +39,7 @@ dist: build ## release build zipped as dist/ops-windows-x64-<VERSION>.zip (VERSI
 single: build ## one-file exe dist/ops-windows-x64-<VERSION>-single.exe (needs Enigma Virtual Box)
 	pwsh -NoProfile -File tool/dist.ps1 -Single -Version '$(VERSION)'
 
-install: single ## one-file exe copied to ~/.local/bin/ops.exe (on PATH; a bare Release ops.exe needs its dll and data/)
+bin-local: single ## build the one-file exe and copy it to ~/.local/bin/ops.exe (a bare Release ops.exe needs its dll and data/)
 	Copy-Item -Force 'dist/ops-windows-x64-$(VERSION)-single.exe' "$$env:USERPROFILE/.local/bin/ops.exe"
 	@'installed {0}\.local\bin\ops.exe' -f $$env:USERPROFILE
 
@@ -75,4 +75,4 @@ icon: ## rebuild windows/runner/resources/app_icon.ico from assets/icon/ops.svg
 	pwsh -NoProfile -File tool/icon.ps1
 
 help: ## this list
-	@Select-String -Path Makefile -Pattern '^##@ (.*)', '^([a-z-]+):.*## (.*)' | ForEach-Object { $$g = $$_.Matches[0].Groups; if ($$_.Line.StartsWith('##@')) { ''; $$g[1].Value } else { '  {0,-8} {1}' -f $$g[1].Value, $$g[2].Value } }
+	@Select-String -Path Makefile -Pattern '^##@ (.*)', '^([a-z-]+):.*## (.*)' | ForEach-Object { $$g = $$_.Matches[0].Groups; if ($$_.Line.StartsWith('##@')) { ''; $$g[1].Value } else { '  {0,-9} {1}' -f $$g[1].Value, $$g[2].Value } }
