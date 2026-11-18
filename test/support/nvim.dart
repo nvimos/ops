@@ -24,7 +24,7 @@ String requireBackendPlugin() {
         'The nvimos backend plugin must be available.\n'
         'Solutions:\n'
         '  1. Set NVIMOS_BACKEND environment variable to the plugin directory\n'
-        '  2. Place a "relay" or "nvimos-poc-backend" folder next to this repo\n'
+        '  2. Place a "nvimos-relay", "relay" or "nvimos-poc-backend" folder next to this repo\n'
         '  3. Ensure the folder contains plugin/nvimos.lua');
   }
   return backendDir;

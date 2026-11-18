@@ -40,6 +40,9 @@ class _ShellState extends State<Shell> {
 
   /// The task whose branch the Pull request view is reviewing (its Verify list shows beside it).
   Task? _reviewing;
+
+  /// A directory was named on the command line: its opening mode was shown once.
+  bool _openedProject = false;
   final _tasksKey = GlobalKey<TasksViewState>();
   final _changesKey = GlobalKey<ChangesViewState>();
   final _dirsKey = GlobalKey<DirsViewState>();
@@ -419,8 +422,16 @@ class _ShellState extends State<Shell> {
     if (s.conn == Conn.connected) {
       _pr ??= PrState(s);
       _ws ??= Workspace(s);
+      _dirs ??= DirsState(s);
+      if (s.openProjectOnConnect && !_openedProject) {
+        _openedProject = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && SessionScope.read(context).conn == Conn.connected) _openProject();
+        });
+      }
+    } else {
+      _dirs ??= DirsState(s);
     }
-    _dirs ??= DirsState(s);
     return Focus(
       focusNode: _focus,
       autofocus: true,

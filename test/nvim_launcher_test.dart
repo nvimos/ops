@@ -19,6 +19,25 @@ void main() {
     expect(findBackendDir(env: {}, starts: [Directory.systemTemp.path]), anyOf(isNull, isNot(found)));
   });
 
+  test('findBackendDir finds the nvimos-relay checkout in a parent folder', () async {
+    final root = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_launch_'));
+    addTearDown(() => root.delete(recursive: true));
+    final deep = await Directory('${root.path}/ops/build/Release').create(recursive: true);
+    await File('${root.path}/nvimos-relay/plugin/nvimos.lua').create(recursive: true);
+    expect(findBackendDir(env: {}, starts: [deep.path]), '${root.absolute.path}/nvimos-relay'.replaceAll(r'\', '/'));
+  });
+
+  test('findBackendDir finds the nvimos-relay checkout in the home ws folder', () async {
+    final root = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_launch_'));
+    addTearDown(() => root.delete(recursive: true));
+    final deep = await Directory('${root.path}/somewhere/else').create(recursive: true);
+    await File('${root.path}/ws/nvimos-relay/plugin/nvimos.lua').create(recursive: true);
+    expect(
+      findBackendDir(env: {}, starts: [deep.path], home: root.path),
+      '${root.absolute.path}/ws/nvimos-relay'.replaceAll(r'\', '/'),
+    );
+  });
+
   test('findBackendDir finds a relay clone and skips a relay folder without the plugin', () async {
     final root = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_launch_'));
     addTearDown(() => root.delete(recursive: true));

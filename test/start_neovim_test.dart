@@ -19,6 +19,19 @@ void main() {
     s.dispose();
   });
 
+  test('Start headless in a directory: Neovim opens there and the project opens on connect', () async {
+    final repo = await makeRepo();
+    final s = Session();
+    await s.startNeovim(kind: NvimKind.headless, dir: repo.path).timeout(const Duration(seconds: 10));
+    final (conn, error, cwd, open) = (s.conn, s.error, s.repo?.cwd, s.openProjectOnConnect);
+    await s.stopHeadlessNeovims(); // before the checks: never leave a Neovim behind
+    expect(error, isNull);
+    expect(conn, Conn.connected);
+    expect(cwd, anyOf(repo.path, repo.path.replaceAll(r'\', '/')));
+    expect(open, isTrue);
+    s.dispose();
+  });
+
   test('Start on a port a silent program holds: says so at once, starts nothing, no stuck button', () async {
     final server = await ServerSocket.bind('127.0.0.1', 0);
     server.listen((c) {}); // accepts, never answers

@@ -1,16 +1,24 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// The folder names of a relay checkout (the backend plugin): its repo name, and the POC folder.
-const backendFolders = ['relay', 'nvimos-poc-backend'];
+/// The folder names of a relay checkout (the backend plugin): the current repo name, then the POC
+/// names it was cloned as before.
+const backendFolders = ['nvimos-relay', 'relay', 'nvimos-poc-backend'];
 
-/// The backend plugin checkout: NVIMOS_BACKEND, or a `relay` (or `nvimos-poc-backend`) folder with
-/// `plugin/nvimos.lua` in it, next to the app's folder or one of its parents (found from the
-/// working directory, then from the exe).
-String? findBackendDir({Map<String, String>? env, List<String>? starts}) {
+/// The backend plugin checkout: NVIMOS_BACKEND, or a `nvimos-relay` (or `relay` /
+/// `nvimos-poc-backend`) folder with `plugin/nvimos.lua` in it, next to the app's folder or one of
+/// its parents (found from the working directory, then from the exe), or in the home `ws` folder.
+/// [home] replaces the home folder lookup (tests).
+String? findBackendDir({Map<String, String>? env, List<String>? starts, String? home}) {
   final set = (env ?? Platform.environment)['NVIMOS_BACKEND'];
   if (set != null && set.isNotEmpty) return set.replaceAll('\\', '/');
-  for (final start in starts ?? [Directory.current.path, File(Platform.resolvedExecutable).parent.path]) {
+  final envMap = env ?? Platform.environment;
+  final homeDir = home ?? envMap['USERPROFILE'] ?? envMap['HOME'];
+  final roots = [
+    ...(starts ?? [Directory.current.path, File(Platform.resolvedExecutable).parent.path]),
+    if (homeDir != null) '$homeDir/ws',
+  ];
+  for (final start in roots) {
     var dir = Directory(start).absolute;
     while (true) {
       for (final name in backendFolders) {
@@ -81,14 +89,17 @@ List<String> qtArgs({Map<String, String>? env, bool Function(String path)? exist
 /// Start Neovim as [kind], listening on [address], with the backend plugin when its checkout is found
 /// (NVIMOS_BACKEND, or a folder near the app), else the Neovim on PATH with `:NvimosServe`; returns why
 /// it could not, or null.
+/// [dir] is Neovim's working directory (the project it opens); null keeps the app's own.
 /// [log] receives each step as a line: the plugin search, every command as it runs, and what it
 /// printed. Headless Neovim's output is piped to the log; a console or nvim-qt window shows its own.
 Future<String?> launchNeovim(
   String address, {
   NvimKind kind = NvimKind.console,
+  String? dir,
   void Function(String line)? log,
 }) async {
   void say(String line) => log?.call(line);
+  if (dir != null) say('in $dir');
   try {
     final backend = findBackendDir();
     final env = Platform.environment['NVIMOS_BACKEND'];
@@ -96,8 +107,8 @@ Future<String?> launchNeovim(
       backend != null
           ? 'relay plugin: $backend'
           : 'relay plugin: not found (NVIMOS_BACKEND=${env ?? '(unset)'}); searched folders named '
-                '${backendFolders.join(' or ')} with plugin/nvimos.lua, from the working directory and the exe, '
-                'up to the drive root; starting ${kind.exe} from PATH with :NvimosServe',
+                '${backendFolders.join(' or ')} with plugin/nvimos.lua, from the working directory, the exe '
+                'and the home ws folder, up to the drive root; starting ${kind.exe} from PATH with :NvimosServe',
     );
     final where = await Process.run('where', [kind.exe]);
     say('> where ${kind.exe}');
@@ -107,9 +118,9 @@ Future<String?> launchNeovim(
     final (exe, args) = nvimCommand(kind, address, backend);
     say('> ${[exe, ...args].map(_quoteArg).join(' ')}');
     if (kind == NvimKind.headless) {
-      _pipeOutput(await Process.start(exe, args, mode: ProcessStartMode.detachedWithStdio), say);
+      _pipeOutput(await Process.start(exe, args, mode: ProcessStartMode.detachedWithStdio, workingDirectory: dir), say);
     } else {
-      await Process.start(exe, args, mode: ProcessStartMode.detached);
+      await Process.start(exe, args, mode: ProcessStartMode.detached, workingDirectory: dir);
       say('(${kind.label} opened in its own window; its output is in that window)');
     }
     return null;
@@ -120,6 +131,15 @@ Future<String?> launchNeovim(
     say('! $e');
     return 'could not start ${kind.exe}: $e';
   }
+}
+
+/// A loopback port that was free a moment ago: for a Neovim the app starts itself (per directory),
+/// so it does not collide with one already listening on 6666.
+Future<int> freeLoopbackPort() async {
+  final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final p = s.port;
+  await s.close();
+  return p;
 }
 
 String _quoteArg(String s) => s.contains(' ') ? '"$s"' : s;

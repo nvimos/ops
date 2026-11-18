@@ -11,8 +11,10 @@ Backend: [relay](https://github.com/nvimos/relay), the Neovim plugin (checkout `
 
 ```
 make nvim     # Neovim on 127.0.0.1:6666 with the backend plugin (or :NvimosServe in yours)
-make run      # the app; or build/windows/x64/runner/Debug/ops.exe [host:port]
+make run      # the app; or build/windows/x64/runner/Debug/ops.exe [host:port | directory]
 ```
+
+With a directory argument the app starts Neovim there, on a free port, and opens that project.
 
 Flutter for Windows is in `H:\flutter` (`make` sets the path and `PUB_CACHE=H:\pub-cache`).
 

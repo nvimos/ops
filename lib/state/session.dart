@@ -34,6 +34,10 @@ class Session extends ChangeNotifier {
 
   /// A short outcome that is not an error (e.g. how many headless Neovims were stopped).
   String? notice;
+
+  /// A directory was named on the command line: once connected, show its opening mode
+  /// (the same choice the Directories mode makes, see `openTarget`).
+  bool openProjectOnConnect = false;
   Backend? backend;
   Cursor? cursor;
   RepoInfo? repo;
@@ -125,15 +129,23 @@ class Session extends ChangeNotifier {
   /// Start Neovim on [address] with the backend plugin (in a console, nvim-qt or headless), then
   /// connect once it listens (up to about 12 s). Whatever goes wrong ends in [error], never in a
   /// button stuck on "Starting…".
-  Future<void> startNeovim({NvimKind kind = NvimKind.console}) async {
+  /// With [dir] the Neovim opens that directory, on a free loopback port instead of the current
+  /// address (so it does not collide with a Neovim already running).
+  Future<void> startNeovim({NvimKind kind = NvimKind.console, String? dir}) async {
     if (conn != Conn.disconnected || starting != null) return;
     starting = kind;
     final token = ++_startToken;
     error = notice = null;
     launchLog = '';
+    if (dir != null) openProjectOnConnect = true;
     _notify();
     try {
-      final failed = await _startAndConnect(kind, token);
+      if (dir != null) {
+        _host = '127.0.0.1';
+        _port = await freeLoopbackPort();
+        if (token != _startToken) return;
+      }
+      final failed = await _startAndConnect(kind, token, dir);
       if (token == _startToken && failed != null) error = failed;
     } catch (e) {
       if (token == _startToken) error = 'could not start ${kind.label}: $e';
@@ -146,7 +158,7 @@ class Session extends ChangeNotifier {
   }
 
   /// The failure text, or null when connected (or cancelled).
-  Future<String?> _startAndConnect(NvimKind kind, int token) async {
+  Future<String?> _startAndConnect(NvimKind kind, int token, String? dir) async {
     _logLine('> ${kind.label} on $address');
     if (await _taken()) {
       final text = '$address is taken by a program that does not answer as Neovim with the nvimos plugin; '
@@ -154,7 +166,7 @@ class Session extends ChangeNotifier {
       _logLine('! $text');
       return text;
     }
-    final failed = await launchNeovim(address, kind: kind, log: _logLine);
+    final failed = await launchNeovim(address, kind: kind, dir: dir, log: _logLine);
     if (failed != null) {
       _logLine('! $failed');
       return failed;

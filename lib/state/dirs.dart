@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../backend/backend.dart';
 import '../backend/models.dart';
+import 'nvim_launcher.dart';
 import 'session.dart';
 
 /// The mode a project opens in: the first one with something to do.
@@ -122,7 +123,7 @@ class DirsState extends ChangeNotifier {
     try {
       final root = await b.pluginRoot();
       if (root == null) return 'cannot find the nvimos plugin to start a new Neovim with';
-      final port = await _freePort();
+      final port = await freeLoopbackPort();
       final address = '127.0.0.1:$port';
       await launch(dir, address, root);
       // Drops the current connection; retries every 2 s until the new Neovim listens.
@@ -131,13 +132,6 @@ class DirsState extends ChangeNotifier {
     } catch (e) {
       return '$e';
     }
-  }
-
-  static Future<int> _freePort() async {
-    final s = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-    final p = s.port;
-    await s.close();
-    return p;
   }
 
   @override

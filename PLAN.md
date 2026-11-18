@@ -359,6 +359,9 @@ mode area, which shrinks upward.
   - shown in place of the current mode whenever the app is not connected, at startup and after Neovim goes away
   - the mode rail on the left and the status bar stay visible
   - the address comes from the first command-line argument, else `NVIMOS_ADDR`, else `127.0.0.1:6666`
+  - when the first argument is an existing directory instead, the app starts Neovim there (console,
+    on a free loopback port) and connects to it; the project then opens in the first mode with
+    something to do, as double-clicking the Active Directory does in Directories
   - the app tries to connect once on startup without waiting for a click
   - an address field with a Retry button; Enter in the field also connects
   - a new address drops the current connection and connects there
