@@ -9,6 +9,7 @@ import 'git_repo.dart';
 import 'jobs.dart';
 import 'paths.dart';
 import 'repo.dart';
+import 'repo_watcher.dart';
 import 'status.dart';
 import 'system.dart';
 
@@ -54,10 +55,40 @@ class LocalBackend implements RepoBackend {
   @override
   Future<void> get done => _done.future;
 
+  RepoWatcher? _watcher;
+  StreamSubscription<RepoChange>? _watchSub;
+  int _gitSeq = 0;
+
+  /// The watcher of this repository while [watch] is on; History subscribes to its `changes` for
+  /// refs, the same signal the git events come from.
+  RepoWatcher? get watcher => _watcher;
+
+  /// Start the repository watcher: what changes on disk (an edit, a commit in a terminal) arrives
+  /// on [events] as a `git` event, the one the Neovim backend raises, once per burst. Stops with
+  /// [close]. [watcher] is for tests.
+  void watch({RepoWatcher? watcher}) {
+    if (_closed || _watcher != null) return;
+    final w = _watcher = watcher ?? RepoWatcher(root);
+    _watchSub = w.changes.listen((c) {
+      if (_closed) return;
+      _events.add(NvimEvent('git', 'changed', ++_gitSeq, {
+        'cwd': root,
+        'root': root,
+        'head': w.head(),
+        'paths': [...c.paths],
+        'refs': c.refs,
+        'index': c.index,
+      }));
+    });
+  }
+
   @override
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    await _watchSub?.cancel();
+    await _watcher?.close();
+    _watcher = null;
     _cancelJobs();
     await _events.close();
     if (!_done.isCompleted) _done.complete();
