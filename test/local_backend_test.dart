@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nvimos_poc/backend/models.dart';
 import 'package:nvimos_poc/backend/repo_backend.dart';
+import 'package:nvimos_poc/local/git_repo.dart';
 import 'package:nvimos_poc/local/local_backend.dart';
 import 'package:nvimos_poc/local/system.dart';
 
@@ -149,6 +151,28 @@ void main() {
     await backend.checkout('feature', how: CheckoutHow.force);
     expect(await File('${temp.path}/a.txt').readAsString(), 'a\n');
     expect(await backend.repo.currentBranch(), 'feature');
+  });
+
+  test('setLines, create and move work in the planning folder', () async {
+    final temp = await TempRepo.make();
+    await temp.write('task.md', 'status: To Do\n\nbody\n');
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+
+    await backend.setLines('task.md', [LineEdit(0, 1, ['status: Done'], expect: ['status: To Do'])]);
+    expect(await File('${temp.path}/task.md').readAsString(), 'status: Done\n\nbody\n');
+    await expectLater(
+      backend.setLines('task.md', [LineEdit(0, 1, ['status: X'], expect: ['status: To Do'])]),
+      throwsA(isA<GitException>()),
+    );
+
+    await backend.create('new.md', ['# New']);
+    expect(await File('${temp.path}/new.md').readAsString(), '# New\n');
+    await expectLater(backend.create('new.md', ['x']), throwsA(isA<GitException>()));
+
+    await backend.move('task.md', 'archive/task.md');
+    expect(await File('${temp.path}/archive/task.md').exists(), isTrue);
+    expect(await File('${temp.path}/task.md').exists(), isFalse);
   });
 
   test('read-only queries answer from the repository', () async {
