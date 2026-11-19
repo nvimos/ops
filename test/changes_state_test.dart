@@ -148,7 +148,7 @@ void main() {
     expect(st.staged.length, 1);
 
     // A failed stage puts the file back once git has answered.
-    final failing = st.act('stage', (b) => b.stage('no/such/file'), optimistic: () => st.status = st.status!.withFiles([]));
+    final failing = st.act('stage', (b) => b.stage('no/such/file'), predict: (_) => []);
     expect(st.unstaged, isEmpty);
     expect(await failing, isNotNull);
     expect(st.unstaged.single.path, 'c.txt');

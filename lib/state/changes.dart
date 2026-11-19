@@ -7,7 +7,9 @@ import 'merge_conflict.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
 import 'list_pair.dart';
+import 'action_queue.dart';
 import 'session.dart';
+import 'status_store.dart';
 
 /// The panes of the Changes view, in visual order: STAGED, CHANGES, the diff (the commit message
 /// is a text field between CHANGES and the diff; Tab visits it too).
@@ -16,26 +18,34 @@ enum ChangesPane { branch, staged, unstaged, diff }
 /// State of the Changes view: working tree vs HEAD, the selected file's diff, and actions.
 class ChangesState extends ChangeNotifier {
   ChangesState(this.session) {
-    session.gitChanged.addListener(refresh);
+    store.addListener(notifyListeners);
+    store.refreshed.addListener(_onRefreshed);
     session.diffPrefs.addListener(notifyListeners);
     refresh();
   }
 
   final Session session;
-  Status? status;
+
+  /// The repository's status and the action queue: shared with the other file modes, so this state
+  /// keeps only its cursor, selection and diff.
+  StatusStore get store => session.store;
+  ActionQueue get actions => session.actions;
+  Status? get status => store.status;
   String? selected;
   bool selectedStaged = false;
   DiffFile? diff;
   String? error; // the last refresh's error (full text); the view shows it in place of the diff
-  bool busy = false;
+
+  /// An action is waiting or running.
+  bool get busy => actions.busy;
 
   /// The current hunk of the selected file (]c / [c); -1: none, keys act on the whole file.
   int hunk = -1;
   int _gen = 0;
 
-  /// Actions still waiting for git. A refresh doesn't show a status while one runs: it could
-  /// predate the action and flip an optimistic move back; the action's own refresh follows.
-  int _pending = 0;
+  /// The follow-up of the last reload (selection, selected diff); `refresh` and the actions wait
+  /// for it.
+  Future<void> _reconciling = Future.value();
   bool _disposed = false;
 
   DiffLayout get layout => session.diffPrefs.layout;
@@ -61,7 +71,7 @@ class ChangesState extends ChangeNotifier {
   }
 
   /// The local branches, for the branch switcher.
-  Branches? branches;
+  Branches? get branches => store.branches;
   List<String> get branchNames => branches?.list.map((x) => x.name).toList() ?? [];
 
   /// The files a checkout would overwrite: those with uncommitted changes to tracked files
@@ -116,17 +126,26 @@ class ChangesState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> refresh() => UiTiming.instance.time('changes.refresh', _refresh);
+  /// Reload the status (the store's) and follow it.
+  Future<void> refresh() => UiTiming.instance.time('changes.refresh', () async {
+    await store.refresh();
+    await _reconciling;
+  });
 
-  Future<void> _refresh() async {
+  void _onRefreshed() => _reconciling = _reconcile();
+
+  /// A new status arrived: keep the selection when its file still has changes on that side, else
+  /// pick another, and load the selected file's diff.
+  Future<void> _reconcile() async {
     final b = session.backend;
-    if (b == null || _pending > 0) return;
+    if (b == null || _disposed) return;
     final gen = ++_gen;
+    if (store.error != null) {
+      error = store.error;
+      notifyListeners();
+      return;
+    }
     try {
-      final (st, br) = await (b.status(), b.branches()).wait;
-      if (gen != _gen || _pending > 0) return;
-      status = st;
-      branches = br;
       _handOverRoom();
       // Keep the selection if the file still has changes on that side; else pick another.
       final side = selectedStaged ? staged : unstaged;
@@ -408,20 +427,22 @@ class ChangesState extends ChangeNotifier {
   /// Run an action, then refresh; timed as `changes.<name>`. [optimistic] changes what the view
   /// shows before git answers; the refresh after the action keeps it or puts it back. Returns the
   /// error text, or null.
-  Future<String?> act(String name, Future<void> Function(RepoBackend b) action, {void Function()? optimistic}) async {
-    final span = UiTiming.instance.span('changes.$name');
-    busy = true;
-    _pending++;
-    optimistic?.call();
-    notifyListeners();
-    if (optimistic != null) span.markPainted();
-    final err = await session.run(action);
-    span.mark('git');
-    _pending--;
-    busy = false;
-    await refresh();
-    span.end();
-    return err;
+  /// [predict] moves the rows of the shared status, [optimistic] what this view shows around them.
+  Future<String?> act(
+    String name,
+    Future<void> Function(RepoBackend b) action, {
+    Prediction? predict,
+    void Function()? optimistic,
+  }) async {
+    final r = await actions.run(
+      name,
+      action,
+      area: 'changes',
+      predict: predict,
+      optimistic: optimistic,
+      settled: () => _reconciling,
+    );
+    return r.error;
   }
 
   Future<String?> commit(String message) => act('commit', (b) => b.commit(message));
@@ -448,7 +469,8 @@ class ChangesState extends ChangeNotifier {
           staged ? await b.unstage(p) : await b.stage(p);
         }
       },
-      optimistic: () => _moveLocally(paths, toStaged: !staged),
+      predict: (files) => _moved(files, paths, toStaged: !staged),
+      optimistic: () => _followMove(paths, toStaged: !staged),
     );
   }
 
@@ -456,15 +478,17 @@ class ChangesState extends ChangeNotifier {
   Future<String?> moveFile(String path, {required bool staged}) => act(
     staged ? 'unstage' : 'stage',
     (b) => staged ? b.unstage(path) : b.stage(path),
-    optimistic: () => _moveLocally({path}, toStaged: !staged),
+    predict: (files) => _moved(files, {path}, toStaged: !staged),
+    optimistic: () => _followMove({path}, toStaged: !staged),
   );
 
-  /// What git status will most likely say after staging or unstaging [paths] as whole files; the
-  /// selection follows its file.
-  void _moveLocally(Set<String> paths, {required bool toStaged}) {
-    final st = status;
-    if (st == null) return;
-    status = st.withFiles([for (final f in st.files) paths.contains(f.path) ? f.moved(toStaged: toStaged) : f]);
+  /// What git status will most likely say after staging or unstaging [paths] as whole files.
+  static List<StatusFile> _moved(List<StatusFile> files, Set<String> paths, {required bool toStaged}) => [
+    for (final f in files) paths.contains(f.path) ? f.moved(toStaged: toStaged) : f,
+  ];
+
+  /// The selection follows its file to the other list.
+  void _followMove(Set<String> paths, {required bool toStaged}) {
     if (selected != null && paths.contains(selected)) selectedStaged = toStaged;
     _handOverRoom();
   }
@@ -513,7 +537,8 @@ class ChangesState extends ChangeNotifier {
     _gen++;
     _diffGen++;
     _diffTimer?.cancel();
-    session.gitChanged.removeListener(refresh);
+    store.removeListener(notifyListeners);
+    store.refreshed.removeListener(_onRefreshed);
     session.diffPrefs.removeListener(notifyListeners);
     diffScroll.dispose();
     for (final n in selectBottom) {
