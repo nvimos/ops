@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../state/add_ignore.dart';
 import '../state/log_state.dart';
+import '../state/settings.dart';
 import '../state/repos.dart';
 import '../state/pr.dart';
 import '../state/session.dart';
@@ -15,6 +16,7 @@ import 'dirs_view.dart';
 import 'error_view.dart';
 import 'key_sequence.dart';
 import 'log_view.dart';
+import 'settings_view.dart';
 import 'nav_keys.dart';
 import 'help_view.dart';
 import 'debug_bar.dart';
@@ -43,6 +45,7 @@ class _ShellState extends State<Shell> {
   ReposState? _dirs;
   AddIgnoreState? _add;
   LogState? _log;
+  SettingsState? _settings;
 
   /// The session's backend generation the mode states above were made for.
   int _epoch = 0;
@@ -57,6 +60,7 @@ class _ShellState extends State<Shell> {
   final _changesKey = GlobalKey<ChangesViewState>();
   final _dirsKey = GlobalKey<DirsViewState>();
   final _addKey = GlobalKey<AddIgnoreViewState>();
+  final _settingsKey = GlobalKey<SettingsViewState>();
   final _helpKey = GlobalKey<HelpViewState>();
 
   /// The mode rail takes the keyboard (Left from the leftmost pane, Tab round the cycle); its cursor
@@ -104,6 +108,7 @@ class _ShellState extends State<Shell> {
     _dirs?.dispose();
     _add?.dispose();
     _log?.dispose();
+    _settings?.dispose();
     super.dispose();
   }
 
@@ -151,6 +156,7 @@ class _ShellState extends State<Shell> {
     Mode.tasks => _tasksKey.currentState?.focus.requestFocus(),
     Mode.repos => _dirsKey.currentState?.focusFilter(),
     Mode.addIgnore => _addKey.currentState?.focus.requestFocus(),
+    Mode.settings => _settingsKey.currentState?.focus.requestFocus(),
     _ => _focus.requestFocus(),
   };
 
@@ -444,13 +450,13 @@ class _ShellState extends State<Shell> {
     if (s.epoch == _epoch) return;
     _epoch = s.epoch;
     // disposed after this frame: the views of the old states are still in the tree until it ends
-    final old = <ChangeNotifier?>[_pr, _ws, _dirs, _add, _log];
+    final old = <ChangeNotifier?>[_pr, _ws, _dirs, _add, _log, _settings];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       for (final o in old) {
         o?.dispose();
       }
     });
-    _pr = _ws = _dirs = _add = _log = null;
+    _pr = _ws = _dirs = _add = _log = _settings = null;
     _openedProject = false;
   }
 
@@ -466,6 +472,7 @@ class _ShellState extends State<Shell> {
       _dirs ??= ReposState(s);
       _add ??= AddIgnoreState(s);
       _log ??= LogState(s);
+      _settings ??= SettingsState(s, onDepth: (d) => _dirs?.browser.useDepth(d));
       _dirs!.onScan = _log!.addScan;
       if (s.openProjectOnConnect && !_openedProject) {
         _openedProject = true;
@@ -540,7 +547,7 @@ class _ShellState extends State<Shell> {
       const ModePlaceholder(Mode.history),
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
       DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
-      const ModePlaceholder(Mode.settings),
+      SettingsView(key: _settingsKey, state: _settings!, onRail: _focusRail),
       LogView(log: _log!),
       _help(),
     ],

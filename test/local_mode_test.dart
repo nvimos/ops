@@ -26,7 +26,7 @@ void main() {
     addTearDown(s.disconnect); // runs first: the watcher lets go of the folder before it is deleted
     await s.openFolder(repo.path);
     expect(s.conn, Conn.connected, reason: s.error);
-    expect(s.hasEditor, isFalse);
+    expect(s.hasEditor, isTrue, reason: 'an external editor from Settings');
 
     // Pull request: branches, commits and a diff, no editor involved
     final pr = PrState(s);

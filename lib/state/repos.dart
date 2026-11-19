@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import '../backend/models.dart';
 import '../backend/repo_backend.dart';
 import '../local/browser.dart';
+import '../local/editors.dart';
 import '../local/paths.dart';
 import '../local/project_hints.dart';
+import '../local/terminals.dart';
 import 'nvim_launcher.dart';
 import 'prefs.dart';
 import 'session.dart';
@@ -58,7 +60,12 @@ class ReposState extends ChangeNotifier {
   final RepoBrowser? _browserOverride;
 
   /// The crawler: walks from [ProjectHints.startDirectory].
-  late final RepoBrowser browser = _browserOverride ?? RepoBrowser(startDirectory: _hintsNow().startDirectory());
+  late final RepoBrowser browser =
+      _browserOverride ??
+      RepoBrowser(
+        startDirectory: _hintsNow().startDirectory(),
+        maxDepth: (session.prefs.number(Settings.scanDepthKey) ?? RepoBrowser.depthDefault).clamp(RepoBrowser.depthMin, RepoBrowser.depthMax),
+      );
 
   /// The start dirs of the connected backend, when it has any (a Neovim with genja-startdirs).
   StartDirs? dirs;
@@ -161,6 +168,34 @@ class ReposState extends ChangeNotifier {
   Future<void> rescan() => browser.rescan();
 
   Future<List<String>> drives() => browser.listDrives();
+
+  /// Start the terminal Settings names (else the first one found) in [path]; the error text, or null.
+  Future<String?> openTerminal(String path) async {
+    final found = await session.terminals.detect();
+    final terminal = TerminalLauncher.pick(found, session.prefs.text(Settings.terminalKey));
+    if (terminal == null) return 'No terminal found on this machine.';
+    try {
+      await session.terminals.start(terminal, path);
+      return null;
+    } on TerminalException catch (e) {
+      return '$e';
+    }
+  }
+
+  /// Open [path] as a folder: in the editor when Settings says so (and it can), else in the file
+  /// manager; the error text, or null.
+  Future<String?> openInFileManager(String path) async {
+    try {
+      if (session.prefs.text(Settings.folderOpenerKey) == 'editor') {
+        await session.editors.open(file: path, folder: true);
+      } else {
+        await session.editors.openFolderInSystem(path);
+      }
+      return null;
+    } on EditorException catch (e) {
+      return '$e';
+    }
+  }
 
   /// Resolve the hints and walk from the start folder; the list fills in as the walk finds repos.
   Future<void> load() async {

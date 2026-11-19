@@ -6,7 +6,10 @@ import 'package:flutter/widgets.dart';
 import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../backend/repo_backend.dart';
+import '../local/editors.dart';
+import '../local/external_editor.dart';
 import '../local/local_backend.dart';
+import '../local/terminals.dart';
 import '../rpc/client.dart';
 import 'action_queue.dart';
 import 'diff_prefs.dart';
@@ -126,7 +129,12 @@ class Session extends ChangeNotifier {
     _notify();
   }
 
-  /// Open the repository in [dir] with the local backend: no Neovim, no editor. The repository
+  /// Finds the editor and the terminal of this machine; the choice saved in Settings leads.
+  late final Editors editors = Editors(savedCommand: () => _prefs.text(Settings.editorKey));
+  late final TerminalLauncher terminals = TerminalLauncher();
+
+  /// Open the repository in [dir] with the local backend: no Neovim; files open in the editor
+  /// Settings names. The repository
   /// watcher raises the git hints. On failure [error] says why. [openProject]: show the opening
   /// mode once connected (a folder named on the command line).
   Future<void> openFolder(String dir, {bool openProject = false}) async {
@@ -141,7 +149,7 @@ class Session extends ChangeNotifier {
       final branches = await b.branches();
       if (mine != _attempt) return await b.close();
       backend = b;
-      editor = null;
+      editor = ExternalEditor(editors, root: b.root);
       conn = Conn.connected;
       cursor = null;
       repo = RepoInfo({'cwd': b.root, 'root': b.root, 'head': branches.current});
