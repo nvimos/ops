@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
-import '../state/dirs.dart';
+import '../state/repos.dart';
 import 'error_view.dart';
 import 'key_sequence.dart';
 import 'nav_keys.dart';
@@ -14,11 +14,11 @@ import 'widgets.dart';
 /// filter, and the Active Directory. Picking moves the connected Neovim there (`:cd`), or starts a
 /// new Neovim there when "New Neovim per directory" is on.
 ///
-/// Page: owns keys and event handlers; [DirsState] does the work.
+/// Page: owns keys and event handlers; [ReposState] does the work.
 class DirsView extends StatefulWidget {
   const DirsView({super.key, required this.state, this.onRail, this.onOpen});
 
-  final DirsState state;
+  final ReposState state;
 
   /// Gives the keyboard to the mode rail (Left, Tab round the cycle).
   final VoidCallback? onRail;
@@ -45,7 +45,7 @@ class DirsViewState extends State<DirsView> {
     'n': st.toggleNewNeovim,
   });
 
-  DirsState get st => widget.state;
+  ReposState get st => widget.state;
 
   void _toRail() => widget.onRail?.call();
 
@@ -178,7 +178,7 @@ class DirsViewState extends State<DirsView> {
 
   Widget _body() {
     if (st.error != null) return ErrorPane(st.error!, onRetry: st.load);
-    if (st.dirs == null) return Empty(st.loading ? 'Loading…' : 'No list yet.');
+    if (st.entries.isEmpty) return Empty(st.loading || st.browser.scanning ? 'Looking for repositories…' : 'No repositories found.');
     if (st.shown.isEmpty) return const Empty('No directory matches.');
     return _DirList(dirs: st.shown, cursor: st.cursor, active: st.active, onTap: _tap);
   }

@@ -64,6 +64,12 @@ class Prefs {
     _save();
   }
 
+  /// Drop [path] from the recent projects (a stale hint the user removed).
+  void forgetProject(String path) {
+    _data['recentProjects'] = (recentProjects()..removeWhere((p) => p.toLowerCase() == path.toLowerCase()));
+    _save();
+  }
+
   /// The folder the project browser starts in.
   String? lastProjectFolder() {
     final v = _data['lastProjectFolder'];

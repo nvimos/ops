@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nvimos_poc/state/dirs.dart';
+import 'package:nvimos_poc/state/repos.dart';
 import 'package:nvimos_poc/state/session.dart';
 
 import 'session_test.dart' show until;
@@ -20,10 +20,12 @@ void main() {
 
     final s = Session(port: nvim.port);
     await s.connect();
-    final d = DirsState(s);
+    final d = ReposState(s);
     await until(() => d.dirs != null);
     expect(d.dirs!.source, 'oldfiles');
-    expect(d.shown.map(norm), [norm(two.path)]);
+    // the open repository first, then the start dirs; the crawl finds `one` again but adds no row
+    expect(d.shown.map(norm), [norm(one.path), norm(two.path)]);
+    expect(d.entries.map((e) => e.source), ['connected', 'startdirs']);
 
     d.setFilter('no such thing');
     expect(d.shown, isEmpty);
@@ -47,7 +49,7 @@ void main() {
 
     final s = Session(port: first.port);
     await s.connect();
-    final d = DirsState(
+    final d = ReposState(
       s,
       launch: (dir, address, root) async {
         expect(norm(root), norm(TestNvim.backendDir));
@@ -69,7 +71,7 @@ void main() {
     final nvim = await TestNvim.start(cwd: repo);
     final s = Session(port: nvim.port);
     await s.connect();
-    final d = DirsState(s);
+    final d = ReposState(s);
 
     expect(await d.openingTarget(), OpenTarget.tasks); // main only, clean
 
