@@ -6,6 +6,7 @@ import '../state/prefs.dart' show BackendKind;
 import '../state/session.dart';
 import 'debug_bar.dart';
 import 'error_view.dart';
+import 'nvim_logo.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -31,6 +32,8 @@ class StatusBar extends StatelessWidget {
           if (dir.isNotEmpty) _Item(icon: Icons.folder_outlined, text: dir, tip: 'Active Directory'),
           if (head != null) _Item(icon: Icons.call_split, text: head, tip: 'Current branch'),
           Expanded(child: cur == null ? const SizedBox() : _Cursor(cursor: cur, root: s.repo?.root)),
+          BackendIndicator(kind: s.kind, connected: s.conn == Conn.connected),
+          const SizedBox(width: 8),
           _Connection(conn: s.conn, address: s.kind == BackendKind.local ? 'local' : s.address),
           if (const HotReload().available) ...[
             const SizedBox(width: 10),
@@ -113,6 +116,23 @@ class _Cursor extends StatelessWidget {
     '${relative(cursor.name, root)}  ${cursor.row}:${cursor.col + 1}',
     style: T.tiny,
     overflow: TextOverflow.ellipsis,
+  );
+}
+
+/// Which backend the session runs on: a desktop for the local one (the app reads the repository
+/// itself), Neovim's mark for Neovim. Faint while not connected.
+class BackendIndicator extends StatelessWidget {
+  const BackendIndicator({super.key, required this.kind, required this.connected});
+
+  final BackendKind kind;
+  final bool connected;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: kind == BackendKind.local ? 'Backend is local' : 'Backend is nvim',
+    child: kind == BackendKind.local
+        ? Icon(Icons.desktop_windows_outlined, size: 13, color: connected ? C.muted : C.faint)
+        : NvimLogo(size: 12, dimmed: !connected),
   );
 }
 

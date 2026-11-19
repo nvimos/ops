@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'state/prefs.dart';
 import 'state/session.dart';
 import 'timing/ui_timing.dart';
+import 'ui/input_modality.dart';
 import 'ui/shell.dart';
 import 'ui/theme.dart';
 
@@ -26,12 +27,24 @@ import 'ui/theme.dart';
   return (dir: null, address: arg);
 }
 
-/// Address of Neovim, or a directory to start it in: first command-line argument (an existing
-/// directory there wins), else NVIMOS_ADDR, else 127.0.0.1:6666.
+/// The folder to open locally when the command line names nothing: the last folder opened with the
+/// local backend that still exists, else [cwd]. Local mode is the default; Neovim only when an
+/// address is given (argument or `NVIMOS_ADDR`) or picked on the connect screen.
+String startupFolder(List<Recent> recents, String cwd, {bool Function(String path)? isDir}) {
+  final exists = isDir ?? (p) => Directory(p).existsSync();
+  for (final r in recents) {
+    if (r.kind == BackendKind.local && exists(r.target)) return r.target;
+  }
+  return cwd;
+}
+
+/// A directory to open locally or the address of Neovim: the first command-line argument (an
+/// existing directory there wins), else NVIMOS_ADDR; with neither, the [startupFolder] locally.
 void main(List<String> args) {
   final target = launchTarget(args, envAddress: Platform.environment['NVIMOS_ADDR']);
   WidgetsFlutterBinding.ensureInitialized();
   UiTiming.instance.start();
+  InputModality.instance.watch();
   runApp(NvimosApp(address: target.address, directory: target.dir));
 }
 
@@ -55,11 +68,12 @@ class _NvimosAppState extends State<NvimosApp> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onExitRequested: _onExit);
-    final dir = widget.directory;
-    if (dir != null) {
-      _session.openFolder(dir, openProject: true);
+    final address = widget.address;
+    if (address != null && widget.directory == null) {
+      _session.connect(address: address);
     } else {
-      _session.connect(address: widget.address);
+      final dir = widget.directory ?? startupFolder(_session.recents, Directory.current.path);
+      _session.openFolder(dir, openProject: true);
     }
   }
 
