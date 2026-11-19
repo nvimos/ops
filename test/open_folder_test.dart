@@ -1,3 +1,4 @@
+import 'package:nvimos_poc/local/external_editor.dart';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +13,7 @@ import 'support/nvim.dart';
 import 'support/temp_dirs.dart';
 
 void main() {
-  test('a folder opens with the local backend: no editor, the repository watched, remembered', () async {
+  test('a folder opens with the local backend: an external editor, the repository watched, remembered', () async {
     final repo = await makeRepo();
     final s = Session();
     addTearDown(s.dispose);
@@ -24,11 +25,10 @@ void main() {
     expect(s.error, isNull);
     expect(s.kind, BackendKind.local);
     expect(s.backend, isA<LocalBackend>());
-    expect(s.editor, isNull, reason: 'a local session has no editor');
+    expect(s.editor, isA<ExternalEditor>(), reason: 'a local session opens files in the editor Settings names');
     expect(s.repo!.head, 'main');
     expect((await s.backend!.status()).branch, 'main');
     expect(s.recents.single.kind, BackendKind.local);
-    expect(await s.runEditor((e) => e.open('a.txt', 1)), 'no editor');
 
     // the watcher is on: an edit from outside raises the git hint without a click
     final before = s.gitChanged.value;
@@ -68,7 +68,7 @@ void main() {
 
     await s.openFolder(repo.path);
     expect(s.kind, BackendKind.local);
-    expect(s.editor, isNull);
+    expect(s.editor, isA<ExternalEditor>());
     expect(s.epoch, greaterThan(nvimEpoch));
     expect(s.recents.map((r) => r.kind), [BackendKind.local, BackendKind.nvim]);
 

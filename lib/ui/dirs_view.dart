@@ -95,6 +95,14 @@ class DirsViewState extends State<DirsView> {
     _pick(dir);
   }
 
+  Future<void> _terminal(String path) async => _say(await st.openTerminal(path));
+
+  Future<void> _folder(String path) async => _say(await st.openInFileManager(path));
+
+  void _say(String? err) {
+    if (mounted) showActionError(context, err);
+  }
+
   /// When the filter leaves one dir, it becomes the Active Directory after a short pause, so
   /// typing on doesn't switch to a dir the next key filters out anyway.
   void _filtered(String q) {
@@ -189,6 +197,8 @@ class DirsViewState extends State<DirsView> {
       onTap: _tap,
       onRemove: st.remove,
       onCrawl: st.scanFrom,
+      onTerminal: _terminal,
+      onFolder: _folder,
     );
   }
 }
@@ -322,12 +332,14 @@ class _RepoList extends StatelessWidget {
     required this.onTap,
     required this.onRemove,
     required this.onCrawl,
+    required this.onTerminal,
+    required this.onFolder,
   });
 
   final List<RepoEntry> entries;
   final int cursor;
   final String? active;
-  final ValueChanged<String> onTap, onRemove, onCrawl;
+  final ValueChanged<String> onTap, onRemove, onCrawl, onTerminal, onFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -341,6 +353,8 @@ class _RepoList extends StatelessWidget {
         onTap: () => onTap(entries[i].path),
         onRemove: () => onRemove(entries[i].path),
         onCrawl: () => onCrawl(entries[i].path),
+        onTerminal: () => onTerminal(entries[i].path),
+        onFolder: () => onFolder(entries[i].path),
       ),
     );
   }
@@ -366,11 +380,13 @@ class DirRow extends StatelessWidget {
     required this.onTap,
     required this.onRemove,
     required this.onCrawl,
+    required this.onTerminal,
+    required this.onFolder,
   });
 
   final RepoEntry entry;
   final bool selected, active;
-  final VoidCallback onTap, onRemove, onCrawl;
+  final VoidCallback onTap, onRemove, onCrawl, onTerminal, onFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -386,7 +402,7 @@ class DirRow extends StatelessWidget {
           Expanded(child: Text(entry.path, style: T.body.copyWith(color: color), overflow: TextOverflow.ellipsis)),
           if (entry.stale) const Text('no longer a repository', style: T.tiny),
           if (active) const Text('Active Directory', style: T.tiny) else _Source(entry.source),
-          _RowActions(entry: entry, onRemove: onRemove, onCrawl: onCrawl),
+          _RowActions(entry: entry, onRemove: onRemove, onCrawl: onCrawl, onTerminal: onTerminal, onFolder: onFolder),
         ],
       ),
     );
@@ -407,10 +423,10 @@ class _Source extends StatelessWidget {
 
 /// Remove (a stale hint) and crawl from here, shown while the mouse is over the row.
 class _RowActions extends StatelessWidget {
-  const _RowActions({required this.entry, required this.onRemove, required this.onCrawl});
+  const _RowActions({required this.entry, required this.onRemove, required this.onCrawl, required this.onTerminal, required this.onFolder});
 
   final RepoEntry entry;
-  final VoidCallback onRemove, onCrawl;
+  final VoidCallback onRemove, onCrawl, onTerminal, onFolder;
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +435,11 @@ class _RowActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (entry.stale) IconAction(icon: Icons.close, tooltip: 'Remove this hint', onPressed: onRemove),
-        if (!entry.stale) IconAction(icon: Icons.travel_explore, tooltip: 'Crawl from this folder', onPressed: onCrawl),
+        if (!entry.stale) ...[
+          IconAction(icon: Icons.terminal, tooltip: 'Open a terminal in this folder', onPressed: onTerminal),
+          IconAction(icon: Icons.folder_open_outlined, tooltip: 'Open this folder outside the app', onPressed: onFolder),
+          IconAction(icon: Icons.travel_explore, tooltip: 'Crawl from this folder', onPressed: onCrawl),
+        ],
       ],
     );
   }

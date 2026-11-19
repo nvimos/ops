@@ -95,6 +95,30 @@ class Prefs {
         Recent(e['kind'] == 'nvim' ? BackendKind.nvim : BackendKind.local, e['target'] as String),
   ];
 
+  /// A text setting from Settings (the editor command, the terminal id), null until chosen.
+  String? text(String key) {
+    final v = (_data['settings'] as Map?)?[key];
+    return v is String && v.trim().isNotEmpty ? v : null;
+  }
+
+  /// Save a text setting; null (or blank) clears it, so detection decides again.
+  void setText(String key, String? value) => _setting(key, value == null || value.trim().isEmpty ? null : value.trim());
+
+  /// A number setting from Settings (the crawl depth), null until chosen.
+  int? number(String key) {
+    final v = (_data['settings'] as Map?)?[key];
+    return v is int ? v : null;
+  }
+
+  void setNumber(String key, int value) => _setting(key, value);
+
+  void _setting(String key, Object? value) {
+    final m = ((_data['settings'] as Map?) ?? {}).cast<String, Object?>();
+    value == null ? m.remove(key) : m[key] = value;
+    _data['settings'] = m;
+    _save();
+  }
+
   /// Remember [r] as the newest entry (an older copy of it goes); at most [maxRecents] are kept.
   void addRecent(Recent r) {
     final all = [r, ...recents().where((x) => x != r)].take(maxRecents);
@@ -138,4 +162,19 @@ class Recent {
 
   @override
   int get hashCode => Object.hash(kind, target);
+}
+
+/// The keys of the settings the Settings mode edits (see [Prefs.text] and [Prefs.number]).
+abstract final class Settings {
+  /// The editor command with `{file}` and `{line}`; unset: the first detected editor.
+  static const editorKey = 'editorCommand';
+
+  /// The terminal's id from the known list; unset: the first detected one.
+  static const terminalKey = 'terminalId';
+
+  /// Who opens a folder: `editor`, else the system's file manager.
+  static const folderOpenerKey = 'folderOpener';
+
+  /// How many levels below its start folder the crawl goes.
+  static const scanDepthKey = 'scanDepth';
 }
