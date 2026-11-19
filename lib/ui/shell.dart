@@ -152,12 +152,17 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => onRail ? _focusRail() : _focusMode(m));
   }
 
+  void _openSettings() {
+    _settings?.ensureDetected();
+    _settingsKey.currentState?.focus.requestFocus();
+  }
+
   void _focusMode(Mode m) => switch (m) {
     Mode.changes => _changesKey.currentState?.focus.requestFocus(),
     Mode.tasks => _tasksKey.currentState?.focus.requestFocus(),
     Mode.repos => _dirsKey.currentState?.focusFilter(),
     Mode.addIgnore => _addKey.currentState?.focus.requestFocus(),
-    Mode.settings => _settingsKey.currentState?.focus.requestFocus(),
+    Mode.settings => _openSettings(),
     _ => _focus.requestFocus(),
   };
 
