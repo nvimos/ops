@@ -211,6 +211,51 @@ class NvimBackend implements RepoBackend, EditorSession {
   @override
   Future<void> create(String path, List<String> lines) => _files('create', [path, lines]);
 
+  // Ignore files --------------------------------------------------------------------------------
+
+  Future<Object?> _ignore(String fn, [List<Object?> args = const []]) =>
+      _lua('nvimos.gitignore', fn, args);
+
+  static IgnoreFileRef? _ignoreRef(Object? v) => v is Map ? IgnoreFileRef.fromMap(asMap(v)) : null;
+
+  @override
+  Future<IgnoreSnapshot> loadIgnorePanes({IgnoreFileRef? selected}) async {
+    final r = asMap(await _ignore('load', [if (selected != null) selected.toMap()]));
+    return IgnoreSnapshot(
+      files: asList(r['files']).map((e) => IgnoreFileRef.fromMap(asMap(e))).toList(),
+      selected: _ignoreRef(r['selected']),
+      text: r['text'] is String ? r['text'] as String : null,
+    );
+  }
+
+  @override
+  Future<List<IgnoreFileRef>> untrackedIgnoreFiles() async =>
+      asList(await _ignore('untracked')).map((e) => IgnoreFileRef.fromMap(asMap(e))).toList();
+
+  @override
+  Future<String> readIgnoreFile(IgnoreFileRef file) async => str(await _ignore('read', [file.toMap()]));
+
+  @override
+  Future<List<IgnoreAppend>> appendIgnoreLines(IgnoreFileRef file, List<String> patterns) async =>
+      asList(await _ignore('append', [file.toMap(), patterns]))
+          .map((e) => str(e) == 'duplicate' ? IgnoreAppend.duplicate : IgnoreAppend.added)
+          .toList();
+
+  @override
+  Future<bool> replaceIgnoreLine(
+    IgnoreFileRef file,
+    int number,
+    String expected,
+    String? replacement,
+  ) async => await _ignore('replace', [file.toMap(), number, expected, replacement]) == true;
+
+  @override
+  Future<void> insertIgnoreLine(IgnoreFileRef file, int number, String text) async =>
+      _ignore('insert', [file.toMap(), number, text]);
+
+  @override
+  Future<void> createIgnoreFile(IgnoreFileRef file) async => _ignore('create', [file.toMap()]);
+
   // Jobs ---------------------------------------------------------------------------------------
 
   @override

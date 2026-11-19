@@ -1,13 +1,16 @@
-import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nvimos_poc/backend/models.dart';
 import 'package:nvimos_poc/state/action_queue.dart';
 import 'package:nvimos_poc/state/add_ignore.dart';
+import 'package:nvimos_poc/state/prefs.dart';
 import 'package:nvimos_poc/state/session.dart';
 import 'package:nvimos_poc/ui/add_ignore_view.dart';
+import 'package:nvimos_poc/ui/ignore_pane.dart';
+import 'package:nvimos_poc/ui/preview_pane.dart';
+import 'package:nvimos_poc/ui/side_pane.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 
 Map<String, Object?> file(String path, {String index = ' ', String worktree = ' ', String kind = ''}) => {
@@ -36,6 +39,12 @@ class RecordingState extends AddIgnoreState {
   Future<ActionResult> untrackSelected() async {
     calls.add('untrack ${actionRows.map((r) => r.path).join(',')}');
     return const ActionResult('untrack', null);
+  }
+
+  @override
+  Future<ActionResult> deleteSelected() async {
+    calls.add('delete ${actionRows.map((r) => r.path).join(',')}');
+    return const ActionResult('delete', null);
   }
 }
 
@@ -80,13 +89,30 @@ void main() {
 
   testWidgets('the list shows the four sections with their rows', (t) async {
     await mount(t);
-    for (final s in ['CONFLICTS  1', 'STAGED  1', 'CHANGED  1', 'UNTRACKED  2']) {
+    for (final s in ['Conflicts (1)', 'Staged (1)', 'Changed (1)', 'Untracked (2)']) {
       expect(find.text(s), findsOneWidget);
     }
     for (final n in ['clash.txt', 'staged.txt', 'changed.txt', 'new.txt', 'other.txt']) {
       expect(find.text(n), findsOneWidget);
     }
     expect(find.text('5'), findsOneWidget, reason: 'the header counts the rows');
+  });
+
+  testWidgets('a right click on a row opens its menu: Open, Ignore…, Delete', (t) async {
+    await mount(t);
+    await t.tapAt(t.getCenter(find.text('new.txt')), buttons: kSecondaryButton);
+    await t.pumpAndSettle();
+    expect(find.text('Open'), findsOneWidget);
+    expect(find.text('Ignore…'), findsOneWidget);
+    expect(find.text('Delete'), findsOneWidget);
+  });
+
+  testWidgets('the row buttons are always there, not only under the mouse', (t) async {
+    await mount(t);
+    expect(find.byIcon(Icons.add), findsNWidgets(3), reason: 'the changed row and the two untracked ones');
+    expect(find.byIcon(Icons.remove), findsNWidgets(2), reason: 'the staged row and the changed one');
+    expect(find.byIcon(Icons.visibility_off_outlined), findsNWidgets(2), reason: 'the eye on the untracked rows');
+    expect(find.byIcon(Icons.delete_outline), findsNothing, reason: 'delete lives in the right-click menu');
   });
 
   testWidgets('arrows move the cursor, Shift+arrow and Ctrl+click highlight more rows', (t) async {
@@ -148,18 +174,129 @@ void main() {
     expect(find.text('other.txt'), findsOneWidget);
   });
 
-  testWidgets('a row has its actions on hover, each with a tooltip', (t) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows; // a touch platform shows them all the time
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+  testWidgets("a row's actions are always there, each with a tooltip", (t) async {
     await mount(t);
-    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    addTearDown(mouse.removePointer);
-    await mouse.moveTo(t.getCenter(find.text('new.txt')));
-    await t.pump();
-    for (final tip in ['Add: stage the whole file (t)', 'Ignore: add a rule to .gitignore (i)', 'Delete: move to the trash (x)']) {
-      expect(find.byTooltip(tip), findsOneWidget);
+    for (final tip in ['Add: stage the whole file (t)', 'Untrack: take it out of the index (u)']) {
+      expect(find.byTooltip(tip), findsWidgets);
     }
-    expect(find.byTooltip('Untrack: take it out of the index (u)'), findsNothing, reason: 'an untracked file has nothing to untrack');
+    expect(
+      find.byTooltip('Ignore: add the literal path to the project .gitignore (I; i or right-click to choose)'),
+      findsNWidgets(2),
+      reason: 'the eye is on the untracked rows only',
+    );
+    expect(find.byTooltip(RegExp('Delete')), findsNothing, reason: 'delete is in the right-click menu');
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+  testWidgets('hovering a state letter explains what it means on its side', (t) async {
+    await mount(t);
+    for (final tip in [
+      'Unmerged: a conflict is waiting to be resolved',
+      'Added: staged in the index, ready to commit',
+      'Modified: in the working tree, not staged yet',
+      'Untracked: git does not track this path yet',
+    ]) {
+      expect(find.byTooltip(tip), findsWidgets);
+    }
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+  testWidgets('p and v show one pane at a time, the view is remembered, and the width is kept', (t) async {
+    await mount(t);
+    expect(find.byType(SidePane), findsOneWidget, reason: 'the pane is open, as in Purrage');
+    expect(find.byType(IgnorePane), findsOneWidget, reason: 'the ignore rules until another view is asked');
+
+    await t.sendKeyEvent(LogicalKeyboardKey.keyV); // the one pane switches to the preview
+    await t.pump();
+    expect(find.byType(IgnorePane), findsNothing);
+    expect(find.byType(PreviewPane), findsOneWidget);
+    expect(session.prefs.text(Settings.sideViewKey), 'preview');
+
+    await t.sendKeyEvent(LogicalKeyboardKey.keyV); // the same key again hides it
+    await t.pump();
+    expect(find.byType(SidePane), findsNothing);
+
+    await t.sendKeyEvent(LogicalKeyboardKey.keyP); // p shows it on the rules
+    await t.pump();
+    expect(find.byType(IgnorePane), findsOneWidget);
+    expect(session.prefs.text(Settings.sideViewKey), 'ignore');
+
+    // The visible switch above the pane picks the same views.
+    await t.tap(find.byTooltip('The highlighted files (v)'));
+    await t.pump();
+    expect(find.byType(PreviewPane), findsOneWidget);
+    expect(session.prefs.text(Settings.sideViewKey), 'preview');
+    await t.tap(find.byTooltip('The .gitignore files and their lines (p)'));
+    await t.pump();
+    expect(find.byType(IgnorePane), findsOneWidget);
+    expect(session.prefs.text(Settings.sideViewKey), 'ignore');
+
+    // The remembered view and the width a drag leaves are both restored next run.
+    session.prefs.setText(Settings.sideViewKey, 'preview');
+    session.prefs.setNumber(Settings.sidePaneWidthKey, 420);
+    await t.pumpWidget(const SizedBox.shrink());
+    await mount(t);
+    expect(find.byType(PreviewPane), findsOneWidget, reason: 'the remembered view, not the default');
+    expect(t.widget<SidePane>(find.byType(SidePane)).width.value, 420);
   });
+
+  testWidgets('dragging the pane edge resizes without rebuilding the list or the pane', (t) async {
+    await mount(t);
+    final pane = t.widget(find.byType(IgnorePane));
+    final filter = t.widget(find.byType(TextField));
+    final before = t.getSize(find.byType(IgnorePane)).width;
+    final edge = find.descendant(
+      of: find.byType(SidePane),
+      matching: find.byWidgetPredicate((w) => w is GestureDetector && w.onHorizontalDragUpdate != null),
+    );
+    await t.drag(edge, const Offset(-60, 0));
+    await t.pump(const Duration(milliseconds: 400)); // past the edge's double-tap timer
+    expect(t.getSize(find.byType(IgnorePane)).width, greaterThan(before), reason: 'dragged left, the pane grows');
+    expect(identical(t.widget(find.byType(IgnorePane)), pane), isTrue, reason: 'the pane is not rebuilt');
+    expect(identical(t.widget(find.byType(TextField)), filter), isTrue, reason: 'the list column is not rebuilt');
+  });
+
+  testWidgets('under 600 px the pane starts hidden; p opens it for the session and a resize keeps it', (t) async {
+    t.view.devicePixelRatio = 1;
+    t.view.physicalSize = const Size(500, 700);
+    addTearDown(t.view.resetDevicePixelRatio);
+    addTearDown(t.view.resetPhysicalSize);
+    await t.pumpWidget(
+      SessionScope(
+        session: session,
+        child: MaterialApp(theme: buildTheme(), home: Scaffold(body: AddIgnoreView(state: state))),
+      ),
+    );
+    final view = t.state<AddIgnoreViewState>(find.byType(AddIgnoreView));
+    view.focus.requestFocus();
+    await t.pump();
+    expect(MediaQuery.sizeOf(t.element(find.byType(AddIgnoreView))).width, 500);
+    expect(find.byType(SidePane), findsNothing, reason: 'hidden by default under 600 px');
+
+    await t.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await t.pump();
+    expect(find.byType(SidePane), findsOneWidget, reason: 'p still opens it under 600 px');
+
+    t.view.physicalSize = const Size(1000, 700);
+    await t.pump();
+    expect(find.byType(SidePane), findsOneWidget, reason: 'a later resize does not undo the choice');
+
+    await t.sendKeyEvent(LogicalKeyboardKey.keyP);
+    await t.pump();
+    expect(find.byType(SidePane), findsNothing);
+  });
+
+  testWidgets('delete asks only when Settings says so; the default deletes at once', (t) async {
+    await mount(t);
+    await t.sendKeyEvent(LogicalKeyboardKey.keyX);
+    await t.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing, reason: 'no question unless Settings asks');
+    expect(state.calls.single, startsWith('delete '));
+
+    session.prefs.setFlag(Settings.confirmDeleteFlag, true);
+    await t.sendKeyEvent(LogicalKeyboardKey.keyX);
+    await t.pumpAndSettle();
+    expect(find.text('Move to the trash?'), findsOneWidget);
+    await t.tap(find.text('Move to trash'));
+    await t.pumpAndSettle();
+    expect(state.calls.length, 2);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }

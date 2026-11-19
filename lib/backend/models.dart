@@ -241,6 +241,54 @@ class Job {
   final int? code;
 }
 
+/// What appending a rule did.
+enum IgnoreAppend { added, duplicate }
+
+/// One ignore file the backend can read and write.
+///
+/// A [gitignore] is named by its repo-relative path with forward slashes; [exclude] is the
+/// repository's own `.git/info/exclude`, which the backend resolves (it is not under the work
+/// tree, and a worktree or submodule puts it elsewhere). Never a local absolute path: the backend
+/// may be another machine's Neovim.
+class IgnoreFileRef {
+  const IgnoreFileRef.gitignore(this.path) : exclude = false;
+  const IgnoreFileRef.exclude() : path = '', exclude = true;
+
+  /// Repo-relative, forward slashes; empty for the exclude file.
+  final String path;
+
+  /// This is the `.git/info/exclude` target instead of a `.gitignore` file.
+  final bool exclude;
+
+  factory IgnoreFileRef.fromMap(Map<String, Object?> m) =>
+      m['exclude'] == true ? const IgnoreFileRef.exclude() : IgnoreFileRef.gitignore(str(m['path']));
+
+  Map<String, Object?> toMap() => exclude ? const {'exclude': true} : {'path': path, 'exclude': false};
+
+  @override
+  bool operator ==(Object other) =>
+      other is IgnoreFileRef && other.exclude == exclude && (exclude || other.path == path);
+
+  @override
+  int get hashCode => exclude ? -1 : path.hashCode;
+
+  @override
+  String toString() => exclude ? 'IgnoreFileRef.exclude()' : 'IgnoreFileRef.gitignore($path)';
+}
+
+/// The ignore panes' first load: every `.gitignore` name, the selected file, and its text.
+///
+/// [files] is the tracked `.gitignore` files plus the project `.gitignore` when it exists, project
+/// first then path order. [selected] is the file asked for, else the project file, else the first;
+/// [text] is that file's content. Both are null when the project has no `.gitignore` at all.
+class IgnoreSnapshot {
+  const IgnoreSnapshot({required this.files, this.selected, this.text});
+
+  final List<IgnoreFileRef> files;
+  final IgnoreFileRef? selected;
+  final String? text;
+}
+
 /// The planning folder of the repo (tracking.lua): the repo root, or the folder `.nvimos` names,
 /// and this repo's project name there (for the project filter).
 class Tracking {

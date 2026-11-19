@@ -2,14 +2,15 @@
 ///
 /// Git reads `.gitignore` at every level, so a rule belongs in the narrowest
 /// file that covers the path: patterns in a nested file are relative to that
-/// file's folder, patterns in the root file are repo-relative.
+/// file's folder, patterns in the project's file are repo-relative.
 library;
 
 /// What the rule should cover.
 enum IgnoreScope { file, extension, folder }
 
-/// The four places a rule can live.
-enum IgnoreTargetKind { folderGitignore, rootGitignore, localExclude, globalIgnore }
+/// The three places a rule can live: a `.gitignore` of the work tree (at the row's folder or the
+/// project's), and the repository's own `.git/info/exclude`.
+enum IgnoreTargetKind { folderGitignore, projectGitignore, localExclude }
 
 /// One writable ignore file, with the repo-relative folder it governs.
 class IgnoreTarget {
@@ -32,7 +33,7 @@ class IgnoreTarget {
 
   final bool exists;
 
-  bool get isCommitted => kind == IgnoreTargetKind.folderGitignore || kind == IgnoreTargetKind.rootGitignore;
+  bool get isCommitted => kind == IgnoreTargetKind.folderGitignore || kind == IgnoreTargetKind.projectGitignore;
 }
 
 /// Pure rule building, so the shapes are unit-tested without git or widgets.
@@ -99,6 +100,26 @@ class IgnoreRules {
     return _Line.join(lines);
   }
 
+  /// [text] with [line] inserted as line [number] (1-based), the line endings and the final
+  /// newline kept. Null when [number] is outside `1..lineCount+1`.
+  ///
+  /// An empty file becomes the line and one newline. Inserting at the end of a file without a final
+  /// newline keeps that: the old last line gains the ending and the new one is last without one.
+  static String? insertLine(String text, int number, String line) {
+    final lines = _Line.split(text);
+    if (number < 1 || number > lines.length + 1) return null;
+    final eol = text.contains('\r\n') ? '\r\n' : '\n';
+    if (lines.isEmpty) return '$line$eol';
+    final atEnd = number == lines.length + 1;
+    if (atEnd && lines.last.end.isEmpty) {
+      lines[lines.length - 1] = _Line(lines.last.text, eol);
+      lines.add(_Line(line, ''));
+    } else {
+      lines.insert(number - 1, _Line(line, eol));
+    }
+    return _Line.join(lines);
+  }
+
   static bool _isRule(String line) {
     final text = line.trim();
     return text.isNotEmpty && !text.startsWith('#');
@@ -126,6 +147,9 @@ class IgnoreRules {
   }) {
     final cleanPath = _noTrailingSlash(path);
     final cleanDir = _noTrailingSlash(targetDir);
+    // The rule goes into a `.gitignore` inside the folder it is about (a folder row): the only line that
+    // ignores the folder's contents from there is `*`.
+    if (path.endsWith('/') && cleanDir == cleanPath && scope != IgnoreScope.extension) return '*';
     final relative = cleanDir.isEmpty ? cleanPath : _withoutPrefix(cleanPath, cleanDir);
 
     switch (scope) {
@@ -150,7 +174,6 @@ class IgnoreRules {
     required String repoPath,
     required List<String> gitignoreFiles,
     required String localExclude,
-    required String globalIgnore,
     required String path,
   }) {
     final repo = _noTrailingSlash(repoPath.replaceAll(r'\', '/'));
@@ -158,6 +181,18 @@ class IgnoreRules {
     final existing = gitignoreFiles.map(_noTrailingSlash).toSet();
     final targets = <IgnoreTarget>[];
 
+    // A folder row can take a `.gitignore` inside itself, which governs what is below it (its contents
+    // are ignored with `*`, so the folder keeps its own rules).
+    final own = path.endsWith('/') ? _noTrailingSlash(path) : null;
+    if (own != null && own.isNotEmpty) {
+      targets.add(IgnoreTarget(
+        kind: IgnoreTargetKind.folderGitignore,
+        label: own,
+        path: '$repo/$own/.gitignore',
+        dir: own,
+        exists: existing.contains('$own/.gitignore'),
+      ));
+    }
     if (folder.isNotEmpty) {
       final nested = '$repo/$folder/.gitignore';
       targets.add(IgnoreTarget(
@@ -169,8 +204,8 @@ class IgnoreRules {
       ));
     }
     targets.add(IgnoreTarget(
-      kind: IgnoreTargetKind.rootGitignore,
-      label: 'root',
+      kind: IgnoreTargetKind.projectGitignore,
+      label: 'project',
       path: '$repo/.gitignore',
       dir: '',
       exists: existing.contains('.gitignore'),
@@ -179,13 +214,6 @@ class IgnoreRules {
       kind: IgnoreTargetKind.localExclude,
       label: '.git/info/exclude (not committed)',
       path: localExclude,
-      dir: '',
-      exists: true,
-    ));
-    targets.add(IgnoreTarget(
-      kind: IgnoreTargetKind.globalIgnore,
-      label: 'global ignore (all repos)',
-      path: globalIgnore,
       dir: '',
       exists: true,
     ));

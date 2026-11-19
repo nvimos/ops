@@ -84,8 +84,29 @@ const keyTable = [
     [
       ('t  u', 'add or untrack the highlighted'),
       ('i  I', 'ignore: dialog, or at once'),
-      ('x  p  v  r', 'trash (asks), rules, preview, reload'),
+      ('x  p  v  r', 'delete; the side pane: ignore panes / preview; reload'),
       ('Space  Ctrl+A', 'highlight the row, every row'),
+    ],
+  ),
+  (
+    'Ignore panes',
+    [
+      ('Tab', 'the .gitignore list, then the lines'),
+      ('jk, sw, {up}{down}', 'pick a file, or move the line cursor'),
+      ('hl, ad, {left}{right}', 'between the file list and the lines'),
+      ('Ctrl+{left}{right}', 'jump between the panes'),
+      ('Enter', 'open the file, or the line, in the editor'),
+      ('Delete', 'delete the line (the notice has Undo)'),
+      ('Shift+wheel', 'scroll the lines'),
+      ('Right click', 'a line: Delete, Dirname, Flip, Open'),
+    ],
+  ),
+  (
+    'Ignore dialog',
+    [
+      ('1 2 3  f x d', 'scope: this file, this extension, this folder'),
+      ('j  k', 'where the rule goes'),
+      ('Enter  Esc', 'write the rule, close without writing'),
     ],
   ),
   (

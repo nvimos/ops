@@ -4,7 +4,10 @@
 /// without a repository, a subprocess or a real clock.
 library;
 
+import '../backend/models.dart';
 import 'status.dart';
+
+export '../backend/models.dart' show IgnoreAppend, IgnoreFileRef, IgnoreSnapshot;
 
 /// A failure worth showing to the user, with git's own words kept.
 class GitException implements Exception {
@@ -18,9 +21,6 @@ class GitException implements Exception {
   @override
   String toString() => message;
 }
-
-/// What appending a rule did.
-enum IgnoreAppend { added, duplicate }
 
 /// One line of `git check-ignore -v`: the file, the line, and the pattern that
 /// decided it.
@@ -131,11 +131,14 @@ abstract class GitRepo {
   /// Every `.gitignore` in the working tree, repo-relative.
   Future<List<String>> gitignoreFiles();
 
+  /// The tracked `.gitignore` files that still exist on disk, repo-relative, sorted.
+  Future<List<String>> trackedGitignoreFiles();
+
+  /// The untracked, not-ignored `.gitignore` files that exist on disk, repo-relative, sorted.
+  Future<List<String>> untrackedGitignoreFiles();
+
   /// `.git/info/exclude` for this repository.
   Future<String> localExcludePath();
-
-  /// The global ignore file.
-  Future<String> globalIgnorePath();
 
   /// Text of a file, or an empty string when it does not exist.
   Future<String> readTextFile(String absolutePath);
@@ -152,6 +155,10 @@ abstract class GitRepo {
   /// remove it when that is null. False, and nothing written, when that line is
   /// no longer [expected]: the file changed since it was read.
   Future<bool> replaceIgnoreLine(String absolutePath, int number, String expected, String? replacement);
+
+  /// Insert [text] as line [number] (1-based), keeping line endings and the final newline.
+  /// Throws [GitException] for a number outside `1..lineCount+1`.
+  Future<void> insertIgnoreLine(String absolutePath, int number, String text);
 
   /// Create an empty ignore file with the Purrage header, if it is not there.
   Future<void> createIgnoreFile(String absolutePath);

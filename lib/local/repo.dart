@@ -26,7 +26,7 @@ class Repo implements GitRepo {
   /// Status and `attrib` go through this; the rest of git through [dir].
   final ProcessRunner runner;
 
-  /// `USERPROFILE`, `HOME`, `XDG_CONFIG_HOME` for the global ignore file.
+  /// The environment `open()` read: its `isWindows` drives the Hidden/System repair of dot files.
   final Env env;
 
   /// The Hidden/System repair for dot files.
@@ -265,6 +265,35 @@ class Repo implements GitRepo {
     return found;
   }
 
+  /// The `.gitignore` files git lists for [args] that still exist on disk, sorted. A tracked file
+  /// stays in `ls-files --cached` after it is deleted from disk, so the list is filtered against the
+  /// filesystem.
+  Future<List<String>> _existingGitignores(List<String> args) async {
+    final result = await _git([
+      'ls-files',
+      ...args,
+      '--',
+      ':(glob)**/.gitignore',
+    ]);
+    final found = <String>[];
+    for (final line in (result.stdout as String).split('\n')) {
+      final path = line.trim();
+      if (path.isEmpty) continue;
+      if (await File(pathIn(this.path, path)).exists()) found.add(path);
+    }
+    found.sort();
+    return found;
+  }
+
+  /// The tracked `.gitignore` files that exist on disk.
+  @override
+  Future<List<String>> trackedGitignoreFiles() => _existingGitignores(const ['--cached']);
+
+  /// The untracked, not-ignored `.gitignore` files that exist on disk.
+  @override
+  Future<List<String>> untrackedGitignoreFiles() =>
+      _existingGitignores(const ['--others', '--exclude-standard']);
+
   /// `.git/info/exclude` for this repository, resolved through git so worktrees
   /// and submodules land on the right file.
   @override
@@ -276,27 +305,6 @@ class Repo implements GitRepo {
         ? out
         : '$path/$out';
     return absolute.replaceAll(r'\', '/');
-  }
-
-  /// The global ignore file: `core.excludesFile`, else `~/.config/git/ignore`.
-  @override
-  Future<String> globalIgnorePath() async {
-    final result = await _git(['config', '--get', 'core.excludesFile'], throwOnError: false);
-    final configured = (result.stdout as String).trim();
-    return globalIgnoreFrom(configured, env);
-  }
-
-  /// `core.excludesFile` with `~` expanded, else `$XDG_CONFIG_HOME/git/ignore`,
-  /// else `<home>/.config/git/ignore`; forward slashes.
-  static String globalIgnoreFrom(String configured, Env env) {
-    final home = env.home ?? '';
-    if (configured.isNotEmpty) {
-      final expanded =
-          configured.startsWith('~') ? '$home${configured.substring(1)}' : configured;
-      return expanded.replaceAll(r'\', '/');
-    }
-    final base = env['XDG_CONFIG_HOME'] ?? '$home/.config';
-    return '$base/git/ignore'.replaceAll(r'\', '/');
   }
 
   /// Text of an ignore file, or an empty string when it does not exist yet.
@@ -341,6 +349,16 @@ class Repo implements GitRepo {
     if (text == null) return false;
     await writeTextFile(File(absolutePath), text);
     return true;
+  }
+
+  /// Insert one line, keeping line endings and the final newline; see [IgnoreRules.insertLine].
+  @override
+  Future<void> insertIgnoreLine(String absolutePath, int number, String text) async {
+    final next = IgnoreRules.insertLine(await readTextFile(absolutePath), number, text);
+    if (next == null) throw GitException('nvimos: no line $number in $absolutePath');
+    final file = File(absolutePath);
+    await file.parent.create(recursive: true);
+    await writeTextFile(file, next);
   }
 
   /// Create an ignore file that is not there yet: just the `# Purrage` section.

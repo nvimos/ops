@@ -1,11 +1,14 @@
 import 'package:flutter/foundation.dart';
 
 import '../backend/models.dart';
-import '../local/git_repo.dart';
+import '../local/editors.dart';
+import '../local/git_repo.dart' show GitException;
+import '../local/ignore_edits.dart';
 import '../local/local_backend.dart';
 import '../local/paths.dart';
 import '../local/repo.dart';
 import '../local/trash.dart';
+import '../timing/ui_timing.dart';
 import 'action_queue.dart';
 import 'session.dart';
 import 'status_store.dart';
@@ -22,18 +25,38 @@ class AddIgnoreRow {
 
   String get path => file.path;
   String get key => '${section.name}:${file.path}';
+
+  /// True for a directory row: git prints those with a trailing slash.
+  bool get isDirectory => path.endsWith('/');
+
+  /// [path] without the directory's trailing slash, so its base name is not empty.
+  String get _clean => isDirectory ? path.substring(0, path.length - 1) : path;
+
+  /// The base name, with a slash for a directory, as in Purrage.
   String get name {
-    final slash = path.lastIndexOf('/');
-    return slash < 0 ? path : path.substring(slash + 1);
+    final slash = _clean.lastIndexOf('/');
+    final base = slash < 0 ? _clean : _clean.substring(slash + 1);
+    return isDirectory ? '$base/' : base;
   }
 
+  /// The folder before the base name; empty at the repository root.
   String get folder {
-    final slash = path.lastIndexOf('/');
-    return slash < 0 ? '' : path.substring(0, slash);
+    final slash = _clean.lastIndexOf('/');
+    return slash < 0 ? '' : _clean.substring(0, slash);
   }
 
   bool get untracked => section == AddIgnoreSection.untracked;
   bool get conflicted => section == AddIgnoreSection.conflicts;
+}
+
+/// An Ignore dialog write: the file it went into, the rules it asked for, and what each one came to
+/// (added, or already there). The pane selects the file and centres the first new rule from it.
+class IgnoreWrite {
+  const IgnoreWrite(this.file, this.patterns, this.appends);
+
+  final IgnoreFileRef file;
+  final List<String> patterns;
+  final List<IgnoreAppend> appends;
 }
 
 /// State for the Add and Ignore mode: one file-first list over the shared
@@ -42,7 +65,7 @@ class AddIgnoreRow {
 /// filter.
 class AddIgnoreState extends ChangeNotifier {
   AddIgnoreState(this.session, {Future<void> Function(List<String> paths)? remove})
-      : _remove = remove ?? Trash().send {
+    : _remove = remove ?? ((paths) => Trash().send(paths, permanent: !session.deleteToTrash)) {
     store.addListener(notifyListeners);
     store.refreshed.addListener(_onRefreshed);
     store.refresh();
@@ -60,11 +83,81 @@ class AddIgnoreState extends ChangeNotifier {
   int? _anchor;
   bool _disposed = false;
 
-  Repo? get repo => session.backend is LocalBackend ? (session.backend! as LocalBackend).repo : null;
+  /// The last Ignore dialog write, for the panes: select that file, centre its new rule.
+  final ignoreWrites = ValueNotifier<IgnoreWrite?>(null);
 
-  /// Every row, in section order and tree order.
+  /// What the last ignore write did to the list (rows back or now ignored), from the status the
+  /// action queue already read; no extra git call.
+  IgnoreEffect? lastIgnoreEffect;
+
+  /// The repository on disk the rules engine (ignore, delete) works on: the local backend's own, or,
+  /// connected to Neovim, one opened on the root Neovim reports ([ensureRepo]), since Neovim runs on
+  /// this machine. Null until that has opened, or when the root is not a git folder here.
+  Repo? get repo {
+    final b = session.backend;
+    if (b is LocalBackend) return b.repo;
+    final root = session.repo?.root;
+    return root != null && root == _nvimRoot ? _nvimRepo : null;
+  }
+
+  Repo? _nvimRepo;
+  String? _nvimRoot;
+  Future<void>? _opening;
+
+  /// [repo], opening the Neovim session's root first when it changed; a caller that comes while
+  /// the open runs waits for the same one.
+  Future<Repo?> ensureRepo() async {
+    if (session.backend is LocalBackend) return repo;
+    final root = session.repo?.root;
+    if (root == null) return null;
+    if (root != _nvimRoot) {
+      _nvimRoot = root;
+      _nvimRepo = null;
+      _opening = _open(root);
+    }
+    await _opening;
+    return repo;
+  }
+
+  Future<void> _open(String root) async {
+    try {
+      final opened = await Repo.open(root);
+      if (_nvimRoot == root) _nvimRepo = opened;
+    } on GitException {
+      // not a git folder on this machine: ignore and delete stay off
+    }
+  }
+
+  /// Open [path] (relative to the repository root) in the editor Settings names; a folder opens as a
+  /// folder. The error text, or null.
+  Future<String?> openInEditor(String path) async {
+    final root = session.repo?.root;
+    if (root == null) return 'Open needs a local repository.';
+    try {
+      await session.editors.open(file: '$root/$path', folder: path.endsWith('/'));
+      return null;
+    } on EditorException catch (e) {
+      return '$e';
+    }
+  }
+
+  /// Every row, in section order and tree order. Built once per status: the store replaces the
+  /// [Status] object on every change and never edits one, so the identity is the cache key. Before,
+  /// this getter rebuilt and sorted every row on each read, and one cursor move read it a dozen
+  /// times (move, selected, actionRows, headersAbove, the build, the pane and the preview).
   List<AddIgnoreRow> get rows {
-    final files = store.status?.files ?? const <StatusFile>[];
+    final status = store.status;
+    if (_rows == null || !identical(status, _rowsOf)) {
+      _rowsOf = status;
+      _rows = _buildRows(status?.files ?? const <StatusFile>[]);
+    }
+    return _rows!;
+  }
+
+  List<AddIgnoreRow>? _rows;
+  Status? _rowsOf;
+
+  List<AddIgnoreRow> _buildRows(List<StatusFile> files) {
     final out = <AddIgnoreRow>[];
     for (final file in files) {
       if (file.conflicted) {
@@ -82,10 +175,20 @@ class AddIgnoreState extends ChangeNotifier {
     return out;
   }
 
+  /// [rows] that pass the filter, cached for the same rows and filter.
   List<AddIgnoreRow> get visible {
-    final q = filter.trim().toLowerCase();
-    return q.isEmpty ? rows : [for (final row in rows) if (row.path.toLowerCase().contains(q)) row];
+    final all = rows;
+    if (_visible == null || !identical(all, _visibleOf) || filter != _visibleFilter) {
+      _visibleOf = all;
+      _visibleFilter = filter;
+      final q = filter.trim().toLowerCase();
+      _visible = q.isEmpty ? all : [for (final row in all) if (row.path.toLowerCase().contains(q)) row];
+    }
+    return _visible!;
   }
+
+  List<AddIgnoreRow>? _visible, _visibleOf;
+  String? _visibleFilter;
 
   AddIgnoreRow? get selected => visible.isEmpty ? null : visible[cursor.clamp(0, visible.length - 1)];
 
@@ -114,6 +217,7 @@ class AddIgnoreState extends ChangeNotifier {
 
   void move(int delta) {
     if (visible.isEmpty) return;
+    UiTiming.instance.span('addIgnore.move').markPainted(); // the key press -> the frame with the new cursor
     cursor = (cursor + delta).clamp(0, visible.length - 1);
     _selection
       ..clear()
@@ -225,11 +329,11 @@ class AddIgnoreState extends ChangeNotifier {
     );
   }
 
-  Future<ActionResult> deleteSelected() {
+  Future<ActionResult> deleteSelected() async {
     final rows = actionRows.where((row) => !row.conflicted).toList();
-    if (rows.isEmpty) return Future.value(const ActionResult('delete', 'nothing to delete'));
-    final r = repo;
-    if (r == null) return Future.value(const ActionResult('delete', 'delete needs a local repository'));
+    if (rows.isEmpty) return const ActionResult('delete', 'nothing to delete');
+    final r = await ensureRepo();
+    if (r == null) return const ActionResult('delete', 'delete needs a local repository');
     final paths = [for (final row in rows) pathIn(r.path, row.path)];
     return actions.run(
       'delete',
@@ -241,52 +345,53 @@ class AddIgnoreState extends ChangeNotifier {
     );
   }
 
-  /// Write a literal ignore rule for each untracked selected row into [target]
-  /// (an absolute `.gitignore` path). Tracked rows stay: a rule does not untrack.
-  Future<ActionResult> ignoreSelected(String target) {
+  /// Write a literal ignore rule for each untracked selected row into [target], through the
+  /// backend. Tracked rows stay: a rule does not untrack.
+  Future<ActionResult> ignoreSelected(IgnoreFileRef target) async {
     final rows = actionRows.where((row) => row.untracked).toList();
-    if (rows.isEmpty) return Future.value(const ActionResult('ignore', 'nothing to ignore'));
-    final r = repo;
-    if (r == null) return Future.value(const ActionResult('ignore', 'ignore needs a local repository'));
+    if (rows.isEmpty) return const ActionResult('ignore', 'nothing to ignore');
     final paths = rows.map((row) => row.path).toSet().toList();
-    return actions.run(
+    final before = store.status?.files ?? const <StatusFile>[];
+    var appends = const <IgnoreAppend>[];
+    final result = await actions.run(
       'ignore',
-      (b) async {
-        final existing = await r.checkIgnoreAll(paths);
-        final patterns = [for (final path in paths) if (!existing.containsKey(path)) path];
-        if (patterns.isNotEmpty) await r.appendIgnoreLines(target, patterns);
-      },
+      (b) async => appends = await b.appendIgnoreLines(target, paths),
       predict: (files) => [for (final file in files) if (!paths.contains(file.path)) file],
-      origin: 'Add and Ignore.ignore -> LocalBackend.appendIgnoreLines',
-      command: '${target.split(RegExp(r'[\\/]')).last} += ${paths.length} rule(s)',
+      settled: () async => _noteWrite(target, paths, appends),
+      origin: 'Add and Ignore.ignore -> RepoBackend.appendIgnoreLines',
+      command: '${_targetName(target)} += ${paths.length} rule(s)',
       changed: paths.length,
     );
+    lastIgnoreEffect = IgnoreEffect.between(before, store.status?.files ?? const <StatusFile>[]);
+    return result;
   }
 
   /// Write [patterns] (built by the Ignore dialog) into [target]; the rows in [covered] leave the
-  /// list at once, a failure puts them back.
-  Future<ActionResult> ignoreWith(String target, List<String> patterns, {required List<String> covered}) {
-    final r = repo;
-    if (r == null) return Future.value(const ActionResult('ignore', 'ignore needs a local repository'));
-    if (patterns.isEmpty) return Future.value(const ActionResult('ignore', 'nothing to ignore'));
-    return actions.run(
+  /// list at once, a failure puts them back. The write's file and rules reach the open ignore pane,
+  /// which selects the file and centres the first new rule.
+  Future<ActionResult> ignoreWith(IgnoreFileRef target, List<String> patterns, {required List<String> covered}) async {
+    if (patterns.isEmpty) return const ActionResult('ignore', 'nothing to ignore');
+    final before = store.status?.files ?? const <StatusFile>[];
+    var appends = const <IgnoreAppend>[];
+    final result = await actions.run(
       'ignore',
-      (b) async => r.appendIgnoreLines(target, patterns),
+      (b) async => appends = await b.appendIgnoreLines(target, patterns),
       predict: (files) => [for (final file in files) if (!covered.contains(file.path)) file],
-      origin: 'Add and Ignore.ignore -> LocalBackend.appendIgnoreLines',
-      command: '${target.split(RegExp(r'[\\/]')).last} += ${patterns.join(' ')}',
+      settled: () async => _noteWrite(target, patterns, appends),
+      origin: 'Add and Ignore.ignore -> RepoBackend.appendIgnoreLines',
+      command: '${_targetName(target)} += ${patterns.join(' ')}',
       changed: covered.length,
     );
+    lastIgnoreEffect = IgnoreEffect.between(before, store.status?.files ?? const <StatusFile>[]);
+    return result;
   }
 
-  /// The rules git already uses for the selected rows, for the dialog preview.
-  Future<Map<String, IgnoreMatch>> alreadyIgnored() async {
-    final r = repo;
-    if (r == null || actionRows.isEmpty) return const {};
-    return r.checkIgnoreAll(actionRows.map((row) => row.path));
+  void _noteWrite(IgnoreFileRef target, List<String> patterns, List<IgnoreAppend> appends) {
+    if (appends.isEmpty) return;
+    ignoreWrites.value = IgnoreWrite(target, patterns, appends);
   }
 
-  String? get rootIgnore => repo == null ? null : '${repo!.path}/.gitignore';
+  static String _targetName(IgnoreFileRef f) => f.exclude ? 'exclude' : f.path.split('/').last;
 
   void _onRefreshed() {
     final keys = {for (final row in visible) row.key};
@@ -294,6 +399,11 @@ class AddIgnoreState extends ChangeNotifier {
     _selectCursor();
     notifyListeners();
   }
+
+  /// A repository is there or can be opened: the local backend's, or the root Neovim reports. The
+  /// actions open it on demand ([ensureRepo]), not on every refresh (a git process per refresh, and
+  /// one a widget test's fake clock never finishes).
+  bool get mayHaveRepo => session.backend is LocalBackend ? repo != null : session.repo?.root != null;
 
   void _selectCursor() {
     if (_selection.isNotEmpty || visible.isEmpty) return;
@@ -310,6 +420,7 @@ class AddIgnoreState extends ChangeNotifier {
     _disposed = true;
     store.removeListener(notifyListeners);
     store.refreshed.removeListener(_onRefreshed);
+    ignoreWrites.dispose();
     super.dispose();
   }
 }

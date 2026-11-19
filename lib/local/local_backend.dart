@@ -564,6 +564,72 @@ class LocalBackend implements RepoBackend {
     return true;
   }
 
+  // Ignore files ------------------------------------------------------------------------------
+
+  /// The absolute file a repo-relative ref names; the exclude target is resolved by git, so a
+  /// worktree or submodule lands on the right `.git/info/exclude`.
+  Future<String> _ignorePath(IgnoreFileRef file) async =>
+      file.exclude ? repo.localExcludePath() : pathIn(root, file.path);
+
+  @override
+  Future<IgnoreSnapshot> loadIgnorePanes({IgnoreFileRef? selected}) async {
+    const project = IgnoreFileRef.gitignore('.gitignore');
+    final tracked = await repo.trackedGitignoreFiles();
+    final projectExists = await File(pathIn(root, project.path)).exists();
+
+    final others = <IgnoreFileRef>[
+      for (final path in tracked)
+        if (path != project.path) IgnoreFileRef.gitignore(path),
+    ];
+    if (selected != null &&
+        !selected.exclude &&
+        selected.path != project.path &&
+        !others.contains(selected)) {
+      others.add(selected);
+    }
+    others.sort((a, b) => a.path.compareTo(b.path));
+    final files = <IgnoreFileRef>[if (projectExists) project, ...others];
+    if (selected != null && !files.contains(selected)) files.add(selected);
+
+    final chosen = selected ?? files.firstOrNull;
+    final text = chosen == null ? null : await readIgnoreFile(chosen);
+    return IgnoreSnapshot(files: files, selected: chosen, text: text);
+  }
+
+  @override
+  Future<List<IgnoreFileRef>> untrackedIgnoreFiles() async {
+    const project = IgnoreFileRef.gitignore('.gitignore');
+    final paths = await repo.untrackedGitignoreFiles();
+    return [
+      for (final path in paths)
+        if (path != project.path) IgnoreFileRef.gitignore(path),
+    ];
+  }
+
+  @override
+  Future<String> readIgnoreFile(IgnoreFileRef file) async =>
+      repo.readTextFile(await _ignorePath(file));
+
+  @override
+  Future<List<IgnoreAppend>> appendIgnoreLines(IgnoreFileRef file, List<String> patterns) async =>
+      repo.appendIgnoreLines(await _ignorePath(file), patterns);
+
+  @override
+  Future<bool> replaceIgnoreLine(
+    IgnoreFileRef file,
+    int number,
+    String expected,
+    String? replacement,
+  ) async => repo.replaceIgnoreLine(await _ignorePath(file), number, expected, replacement);
+
+  @override
+  Future<void> insertIgnoreLine(IgnoreFileRef file, int number, String text) async =>
+      repo.insertIgnoreLine(await _ignorePath(file), number, text);
+
+  @override
+  Future<void> createIgnoreFile(IgnoreFileRef file) async =>
+      repo.createIgnoreFile(await _ignorePath(file));
+
   // Jobs --------------------------------------------------------------------------------------
 
   /// [stdin] has no local seam yet: [LocalJobs.start] does not take it.

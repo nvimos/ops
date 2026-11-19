@@ -214,6 +214,48 @@ void main() {
       expect(await File('${inner.path}/a.txt').readAsString(), 'three');
     });
 
+    test('the ignore panes discovery splits tracked and untracked .gitignore files', () async {
+      final temp = await TempRepo.make(withGitignore: false);
+      await temp.write('.gitignore', 'build/\n');
+      await temp.git(['add', '.gitignore']);
+      await temp.write('lib/.gitignore', '/gen/\n');
+      await temp.git(['add', 'lib/.gitignore']);
+      await temp.write('web/.gitignore', 'dist/\n');
+      final repo = await Repo.open(temp.path);
+
+      expect(await repo.trackedGitignoreFiles(), ['.gitignore', 'lib/.gitignore']);
+      expect(await repo.untrackedGitignoreFiles(), ['web/.gitignore']);
+
+      // A tracked file deleted from disk is not offered: the pane would show a file that is gone.
+      await File('${temp.path}/web/.gitignore').delete();
+      await temp.git(['add', '-A']);
+      await File('${temp.path}/lib/.gitignore').delete();
+      expect(await repo.trackedGitignoreFiles(), ['.gitignore']);
+      expect(await repo.untrackedGitignoreFiles(), isEmpty);
+    });
+
+    test('insertIgnoreLine keeps CRLF and a missing final newline', () async {
+      final temp = await TempRepo.make(withGitignore: false);
+      final path = '${temp.path}/.gitignore';
+      await File(path).writeAsString('/a\r\n/b');
+      final repo = await Repo.open(temp.path);
+
+      await repo.insertIgnoreLine(path, 2, '/mid');
+      expect(await File(path).readAsString(), '/a\r\n/mid\r\n/b');
+      await repo.insertIgnoreLine(path, 4, '/last');
+      expect(await File(path).readAsString(), '/a\r\n/mid\r\n/b\r\n/last');
+      await repo.insertIgnoreLine(path, 1, '/first');
+      expect(await File(path).readAsString(), '/first\r\n/a\r\n/mid\r\n/b\r\n/last');
+      expect(() => repo.insertIgnoreLine(path, 99, 'x'), throwsA(isA<GitException>()));
+    });
+
+    test('insertIgnoreLine gives an empty file one line', () async {
+      final temp = await TempRepo.make(withGitignore: false);
+      final repo = await Repo.open(temp.path);
+      await repo.insertIgnoreLine('${temp.path}/new/.gitignore', 1, '/x');
+      expect(await File('${temp.path}/new/.gitignore').readAsString(), '/x\n');
+    });
+
     test('a nested rule can be written and git honours it', () async {
       final temp = await TempRepo.make();
       await temp.write('lib/generated/a.g.dart', 'x\n');

@@ -1,10 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nvimos_poc/backend/models.dart';
-import 'package:nvimos_poc/local/git_repo.dart';
 import 'package:nvimos_poc/local/ignore_rules.dart';
 import 'package:nvimos_poc/state/add_ignore.dart';
 import 'package:nvimos_poc/state/ignore_choice.dart';
@@ -36,6 +36,18 @@ Future<(Session, AddIgnoreState, Directory)> localRepo() async {
   return (s, add, repo);
 }
 
+/// An open pane with its first load and the later untracked pass done.
+Future<IgnorePaneState> openPane(AddIgnoreState add) async {
+  final pane = IgnorePaneState(add);
+  addTearDown(pane.dispose);
+  await until(() => !pane.loading && pane.selected != null);
+  await Future<void>.delayed(const Duration(milliseconds: 80));
+  return pane;
+}
+
+const project = IgnoreFileRef.gitignore('.gitignore');
+const nested = IgnoreFileRef.gitignore('src/.gitignore');
+
 void main() {
   test('the dialog builds the rules for the scope and the file, and writes them', () async {
     final (_, add, repo) = await localRepo();
@@ -46,11 +58,11 @@ void main() {
     expect(choice.paths, ['notes/n.txt', 'src/a.log']);
     expect(choice.targets.map((t) => t.kind), [
       IgnoreTargetKind.folderGitignore,
-      IgnoreTargetKind.rootGitignore,
+      IgnoreTargetKind.projectGitignore,
       IgnoreTargetKind.localExclude,
-      IgnoreTargetKind.globalIgnore,
     ]);
-    choice.setTarget(1); // the root .gitignore
+    expect(choice.targets, everyElement(predicate<IgnoreTarget>((t) => !t.path.startsWith('/'))));
+    choice.setTarget(1); // the project .gitignore
     expect(choice.patterns, ['/notes/n.txt', '/src/a.log']);
     expect(choice.covered, ['notes/n.txt', 'src/a.log']);
 
@@ -65,6 +77,7 @@ void main() {
     final result = await choice.apply();
     expect(result.error, isNull, reason: result.error);
     expect(await File('${repo.path}/.gitignore').readAsString(), allOf(contains('*.txt'), contains('*.log')));
+    expect(add.lastIgnoreEffect?.lost, greaterThan(0), reason: 'the rows the rules cover left the list');
     await until(() => add.rows.isEmpty);
   });
 
@@ -79,123 +92,323 @@ void main() {
     expect(choice.problem, contains('names nothing'));
   });
 
-  test('the pane follows the cursor with one lookup at rest, and edits the rules', () async {
+  test('the pane lists every .gitignore, the project file first, and every line as it is', () async {
     final (_, add, repo) = await localRepo();
-    await File('${repo.path}/.gitignore').writeAsString('*.tmp\n# a comment\n/src/old/\n');
-    final pane = IgnorePaneState(add, delay: const Duration(milliseconds: 60));
-    addTearDown(pane.dispose);
+    await File('${repo.path}/.gitignore').writeAsString('# rules\n\n/src/old/\n');
+    await File('${repo.path}/src/.gitignore').writeAsString('*.tmp\n');
+    await git(repo, ['add', '.gitignore', 'src/.gitignore']);
 
-    // the file just written reaches the list through the watcher: let that settle first
-    await until(() => pane.info != null);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    final before = pane.lookups;
-    for (final i in [1, 2, 1, 0, 2]) {
-      add.click(i); // a walk over the rows: no lookup while the cursor moves
+    final pane = await openPane(add);
+    expect(pane.files.first.path, '.gitignore');
+    expect(IgnorePaneState.labelOf(pane.files.first), 'project .gitignore');
+    expect(pane.files.map((f) => f.path), containsAll(['.gitignore', 'src/.gitignore']));
+    expect(pane.selected!.path, '.gitignore');
+    expect(pane.lines, ['# rules', '', '/src/old/'], reason: 'comments and blank lines are shown, no numbers');
+
+    final loads = pane.loads;
+    await pane.pick(nested);
+    expect(pane.selected!.path, 'src/.gitignore');
+    expect(pane.lines, ['*.tmp']);
+    expect(pane.loads, loads, reason: 'picking a file reads only that file');
+  });
+
+  test('the list keeps the session pick and never follows the cursor', () async {
+    final (_, add, repo) = await localRepo();
+    await File('${repo.path}/.gitignore').writeAsString('/x\n');
+    await File('${repo.path}/src/.gitignore').writeAsString('*.tmp\n');
+    await git(repo, ['add', '.gitignore', 'src/.gitignore']);
+    final pane = await openPane(add);
+    await pane.pick(nested);
+    await until(() => pane.lines.isNotEmpty);
+
+    final loads = pane.loads, reads = pane.reads;
+    for (final path in ['notes/n.txt', 'src/a.log', 'src/b.log', 'notes/n.txt']) {
+      add.click(add.visible.indexWhere((r) => r.path == path));
     }
-    expect(pane.lookups, before);
-    await until(() => pane.info?.path == add.selected?.path && !pane.loading);
-    expect(pane.lookups, before + 1, reason: 'one lookup once the cursor rested');
-    final root = pane.info!.files.firstWhere((f) => f.target.kind == IgnoreTargetKind.rootGitignore);
-    expect(root.lines.map((l) => l.text), ['*.tmp', '/src/old/'], reason: 'comments are not rules');
-    expect(pane.info!.match, isNull);
-
-    final rule = root.lines.last;
-    expect(pane.canMoveUp(rule), isTrue);
-    expect(await pane.ruleOneFolderUp(root, rule), isTrue, reason: '/src/old/ -> /src/ is a real parent');
+    expect(pane.selected!.path, 'src/.gitignore');
+    expect(pane.loads, loads, reason: 'a cursor move reads no file');
+    expect(pane.reads, reads);
+    expect(pane.governing, contains('.gitignore'), reason: 'the project file governs every folder');
   });
 
-  test('a rule can be deleted, or moved one folder up', () async {
+  test('a write selects its file and centres the first new rule; a duplicate does not scroll', () async {
     final (_, add, repo) = await localRepo();
-    await File('${repo.path}/.gitignore').writeAsString('*.tmp\n/src/old/deep/\n');
-    final pane = IgnorePaneState(add, delay: const Duration(milliseconds: 20));
-    addTearDown(pane.dispose);
-    await until(() => pane.info != null);
-    var root = pane.info!.files.firstWhere((f) => f.target.kind == IgnoreTargetKind.rootGitignore);
+    await File('${repo.path}/.gitignore').writeAsString('/x\n');
+    await File('${repo.path}/src/.gitignore').writeAsString('*.tmp\n');
+    await git(repo, ['add', '.gitignore', 'src/.gitignore']);
+    final pane = await openPane(add);
+    expect(pane.selected!.path, '.gitignore');
 
-    expect(await pane.ruleOneFolderUp(root, root.lines.last), isTrue);
-    expect(await File('${repo.path}/.gitignore').readAsString(), '*.tmp\n/src/old/\n');
-    await until(() => pane.info!.files.first.lines.isNotEmpty || true);
-    await Future<void>.delayed(const Duration(milliseconds: 200));
-    root = pane.info!.files.firstWhere((f) => f.target.kind == IgnoreTargetKind.rootGitignore);
+    final writes = await add.ignoreWith(nested, ['/a.log'], covered: const []);
+    expect(writes.error, isNull, reason: writes.error);
+    await until(() => pane.selected!.path == 'src/.gitignore' && pane.centreLine > 0);
+    expect(pane.lines[pane.centreLine - 1], '/a.log');
+    expect(pane.lineCursor, pane.centreLine);
 
-    expect(await pane.deleteRule(root, root.lines.first), isTrue);
-    expect(await File('${repo.path}/.gitignore').readAsString(), '/src/old/\n');
-    expect(await pane.deleteRule(root, root.lines.first), isFalse, reason: 'the file changed since it was read');
+    final request = pane.centreRequest;
+    final reads = pane.reads;
+    await add.ignoreWith(nested, ['/a.log'], covered: const []);
+    await until(() => pane.reads > reads);
+    expect(pane.selected!.path, 'src/.gitignore', reason: 'the write selects its file even when it is a duplicate');
+    expect(pane.centreRequest, request, reason: 'nothing new was written: no scroll');
   });
 
-  testWidgets('the dialog shows the rules and the rows they cover, and the choices change them', (t) async {
+  test('Delete removes the line and Undo puts it back; Undo refuses a changed file', () async {
+    final (_, add, repo) = await localRepo();
+    final file = File('${repo.path}/.gitignore');
+    await file.writeAsString('*.tmp\n/src/old/\n');
+    final pane = await openPane(add);
+    await until(() => pane.lines.length == 2);
+
+    final edit = await pane.deleteLine(1);
+    expect(edit.ok, isTrue, reason: edit.refusal);
+    expect(await file.readAsString(), '/src/old/\n');
+    final undone = await edit.undo!();
+    expect(undone.ok, isTrue, reason: undone.refusal);
+    expect(await file.readAsString(), '*.tmp\n/src/old/\n');
+
+    final again = await pane.deleteLine(1);
+    expect(again.ok, isTrue);
+    await file.writeAsString('# changed elsewhere\n');
+    final refused = await again.undo!();
+    expect(refused.ok, isFalse);
+    expect(refused.refusal, contains('changed'));
+  });
+
+  test('Dirname moves the rule up, or removes it when the parent is already there, and Undo restores', () async {
+    final (_, add, repo) = await localRepo();
+    final file = File('${repo.path}/.gitignore');
+    await file.writeAsString('/src/old/deep/\n');
+    final pane = await openPane(add);
+    await until(() => pane.lines.isNotEmpty);
+
+    final edit = await pane.dirnameLine(1);
+    expect(edit.ok, isTrue, reason: edit.refusal);
+    expect(await file.readAsString(), contains('/src/old/'));
+    final undone = await edit.undo!();
+    expect(undone.ok, isTrue, reason: undone.refusal);
+    expect(await file.readAsString(), '/src/old/deep/\n');
+
+    await file.writeAsString('/src/\n/src/a.log\n');
+    await pane.load();
+    await until(() => pane.lines.length == 2 && pane.lines.last == '/src/a.log');
+    final removed = await pane.dirnameLine(2);
+    expect(removed.ok, isTrue, reason: removed.refusal);
+    expect(await file.readAsString(), '/src/\n');
+    final restored = await removed.undo!();
+    expect(restored.ok, isTrue, reason: restored.refusal);
+    expect(await file.readAsString(), '/src/\n/src/a.log\n');
+  });
+
+  test('Flip toggles the leading ! and Undo restores the old line', () async {
+    final (_, add, repo) = await localRepo();
+    final file = File('${repo.path}/.gitignore');
+    await file.writeAsString('/src/a.log\n');
+    final pane = await openPane(add);
+    await until(() => pane.lines.isNotEmpty);
+
+    final edit = await pane.flipLine(1);
+    expect(edit.ok, isTrue, reason: edit.refusal);
+    expect(await file.readAsString(), '!/src/a.log\n');
+    final undone = await edit.undo!();
+    expect(undone.ok, isTrue, reason: undone.refusal);
+    expect(await file.readAsString(), '/src/a.log\n');
+  });
+
+  test('the effect notice says the rows that came back after a rule was deleted', () async {
+    final (_, add, repo) = await localRepo();
+    await File('${repo.path}/.gitignore').writeAsString('/src/a.log\n');
+    await until(() => !add.rows.any((r) => r.path == 'src/a.log'));
+    final pane = await openPane(add);
+    await until(() => pane.lines.isNotEmpty);
+
+    final edit = await pane.deleteLine(1);
+    expect(edit.ok, isTrue, reason: edit.refusal);
+    expect(edit.message, contains('back in the list'));
+    expect(add.rows.any((r) => r.path == 'src/a.log'), isTrue, reason: 'the row came back without an extra git call');
+  });
+
+  test('the marker shows the files that govern the cursor folder and leaves the selection alone', () async {
+    final (_, add, repo) = await localRepo();
+    await File('${repo.path}/.gitignore').writeAsString('/x\n');
+    await File('${repo.path}/src/.gitignore').writeAsString('*.tmp\n');
+    await git(repo, ['add', '.gitignore', 'src/.gitignore']);
+    final pane = await openPane(add);
+    final picked = pane.selected;
+
+    add.click(add.visible.indexWhere((r) => r.path == 'src/b.log'));
+    expect(pane.governing, containsAll(['.gitignore', 'src/.gitignore']));
+    expect(pane.selected, picked, reason: 'the marker never moves the selection');
+
+    add.click(add.visible.indexWhere((r) => r.path == 'notes/n.txt'));
+    expect(pane.governing, {'.gitignore'});
+    expect(pane.selected, picked);
+  });
+
+  test('hidden, the pane reads nothing and marks itself stale until shown', () async {
+    final (_, add, repo) = await localRepo();
+    await File('${repo.path}/.gitignore').writeAsString('/x\n');
+    final pane = await openPane(add);
+    pane.setVisible(false);
+    expect(pane.stale, isTrue);
+
+    final loads = pane.loads;
+    await File('${repo.path}/.gitignore').writeAsString('/x\n/y\n');
+    await add.store.refresh();
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(pane.loads, loads, reason: 'a refresh while hidden reads nothing');
+    expect(pane.stale, isTrue);
+
+    pane.setVisible(true);
+    await until(() => pane.loads > loads);
+    expect(pane.stale, isFalse);
+  });
+
+  test('a tracked row can be ignored too, and the project .gitignore is the default target', () async {
+    final (_, add, repo) = await localRepo();
+    await git(repo, ['add', 'notes/n.txt']);
+    await until(() => add.rows.any((r) => r.path == 'notes/n.txt' && !r.untracked));
+    add.click(add.visible.indexWhere((r) => r.path == 'notes/n.txt'));
+    final choice = await IgnoreChoice.forSelection(add);
+    expect(choice, isNotNull, reason: 'Purrage opens the dialog for a tracked row');
+    expect(choice!.paths, ['notes/n.txt']);
+    expect(choice.target.kind, IgnoreTargetKind.projectGitignore);
+    expect(choice.summary, '1 file → 1 rule');
+  });
+
+  test('connected to Neovim, the dialog works on the root Neovim reports', () async {
+    final repo = await makeRepo();
+    await File('${repo.path}/x.log').writeAsString('x');
+    final nvim = await TestNvim.start(cwd: repo);
+    await nvim.connect().then((r) => r.close());
+    final s = Session(port: nvim.port);
+    addTearDown(s.dispose);
+    addTearDown(s.disconnect);
+    await s.connect();
+    final add = AddIgnoreState(s);
+    addTearDown(add.dispose);
+    await until(() => add.rows.any((r) => r.path == 'x.log'));
+    add.click(add.visible.indexWhere((r) => r.path == 'x.log'));
+    expect(s.repo?.root, isNotNull, reason: 'Neovim reports the repository root');
+    expect(add.actionRows.map((r) => r.path), ['x.log']);
+
+    final choice = await IgnoreChoice.forSelection(add);
+    expect(choice, isNotNull, reason: 'a Neovim session has no LocalBackend, but the backend holds the ignore files');
+    final result = await choice!.apply();
+    expect(result.error, isNull, reason: result.error);
+    expect(await File('${repo.path}/.gitignore').readAsString(), contains('/x.log'));
+  });
+
+  test('a folder row offers a .gitignore inside it, which ignores what is below it', () async {
+    final (_, add, repo) = await localRepo();
+    await Directory('${repo.path}/build').create();
+    await File('${repo.path}/build/x.bin').writeAsString('x');
+    final r = add.repo!;
+
+    final targets = IgnoreRules.targets(
+      repoPath: repo.path,
+      gitignoreFiles: await r.gitignoreFiles(),
+      localExclude: await r.localExcludePath(),
+      path: 'build/',
+    );
+    final inside = targets.first;
+    expect(inside.kind, IgnoreTargetKind.folderGitignore);
+    expect(inside.dir, 'build');
+    expect(inside.path, endsWith('/build/.gitignore'));
+    expect(inside.exists, isFalse, reason: 'the dialog says it will be made');
+    expect(IgnoreRules.targets(
+      repoPath: repo.path,
+      gitignoreFiles: await r.gitignoreFiles(),
+      localExclude: await r.localExcludePath(),
+      path: 'build/',
+    ).map((t) => t.kind), [
+      IgnoreTargetKind.folderGitignore,
+      IgnoreTargetKind.projectGitignore,
+      IgnoreTargetKind.localExclude,
+    ], reason: 'no parent folder at the root: inside, project, exclude');
+
+    // A rule written inside the folder ignores all of it, and the file appears.
+    expect(IgnoreRules.pattern(scope: IgnoreScope.folder, targetDir: inside.dir, path: 'build/'), '*');
+    expect(IgnoreRules.pattern(scope: IgnoreScope.file, targetDir: inside.dir, path: 'build/'), '*');
+
+    await r.appendIgnoreLine(inside.path, '*');
+    expect(await File(inside.path).readAsString(), contains('*'));
+  });
+
+  testWidgets('the dialog shows the rules, and the scope and target keys change them', (t) async {
     final choice = (await t.runAsync(() async {
       final (_, add, _) = await localRepo();
       add.click(1); // src/a.log
-      final c = (await IgnoreChoice.forSelection(add))!;
-      c.setTarget(1);
-      return c;
+      return (await IgnoreChoice.forSelection(add))!;
     }))!;
     await t.binding.setSurfaceSize(const Size(900, 800));
     addTearDown(() => t.binding.setSurfaceSize(null));
     await t.pumpWidget(MaterialApp(theme: buildTheme(), home: Scaffold(body: IgnoreDialog(choice: choice))));
     await t.pump();
 
-    expect(find.text('Ignore a.log'), findsOneWidget);
-    expect(find.text('+ /src/a.log'), findsOneWidget);
-    expect(find.textContaining('takes 1 row off the list: a.log'), findsOneWidget);
+    expect(find.text('Ignore src/a.log'), findsOneWidget);
+    expect(find.text('project .gitignore'), findsOneWidget);
+    expect(find.text('.gitignore in src'), findsOneWidget);
+    expect(find.text('/src/a.log'), findsOneWidget);
+    expect(find.text('1 file → 1 rule'), findsOneWidget);
+    expect(
+      find.text('does not exist yet: writing a rule creates it'),
+      findsNWidgets(2),
+      reason: 'neither .gitignore is there yet; .git/info/exclude is',
+    );
 
-    await t.tap(find.text('Every file like it'));
+    await t.tap(find.text('this extension'));
     await t.pump();
-    expect(find.text('+ *.log'), findsOneWidget);
-    expect(find.textContaining('takes 2 rows off the list'), findsOneWidget);
+    expect(find.text('*.log'), findsOneWidget);
 
-    await t.tap(find.text('Its folder'));
+    await t.sendKeyEvent(LogicalKeyboardKey.digit3);
     await t.pump();
-    expect(find.text('+ /src/'), findsOneWidget);
+    expect(choice.scope, IgnoreScope.folder);
+    expect(find.text('/src/'), findsOneWidget);
+
+    await t.sendKeyEvent(LogicalKeyboardKey.keyK); // up: the .gitignore in src
+    await t.pump();
+    expect(choice.target.kind, IgnoreTargetKind.folderGitignore);
   });
 
-  testWidgets('the pane shows the ignore files of the cursor row and moves with the cursor', (t) async {
-    final session = Session();
-    addTearDown(session.dispose);
-    session.store.status = Status({
-      'files': [
-        {'path': 'a.log', 'index': '?', 'worktree': '?', 'untracked': true},
-        {'path': 'b.txt', 'index': '?', 'worktree': '?', 'untracked': true},
-      ],
-    });
-    final add = AddIgnoreState(session);
-    addTearDown(add.dispose);
-    const root = IgnoreTarget(kind: IgnoreTargetKind.rootGitignore, label: 'root', path: 'C:/r/.gitignore', dir: '', exists: true);
-    final asked = <String>[];
-    final pane = IgnorePaneState(
-      add,
-      delay: const Duration(milliseconds: 50),
-      lookup: (p) async {
-        asked.add(p);
-        final match = p == 'a.log' ? const IgnoreMatch(source: 'C:/r/.gitignore', line: 1, pattern: '*.log', path: 'a.log') : null;
-        return IgnoreInfo(p, [
-          const IgnoreFileView(root, [IgnoreLine(1, '*.log'), IgnoreLine(2, '/build/x/')]),
-        ], match);
-      },
+  testWidgets('the pane shows the two panes, with the hover buttons on the lines', (t) async {
+    final pane = (await t.runAsync(() async {
+      final (_, add, repo) = await localRepo();
+      await File('${repo.path}/.gitignore').writeAsString('# a comment\n*.tmp\n');
+      await File('${repo.path}/src/.gitignore').writeAsString('*.log\n');
+      final pane = IgnorePaneState(add);
+      addTearDown(pane.dispose);
+      await until(() => !pane.loading && pane.selected != null && pane.lines.length == 2);
+      await until(() => pane.files.length >= 2);
+      return pane;
+    }))!;
+    final filesFocus = FocusNode(debugLabel: 'ignore files');
+    final linesFocus = FocusNode(debugLabel: 'ignore lines');
+    addTearDown(filesFocus.dispose);
+    addTearDown(linesFocus.dispose);
+    await t.binding.setSurfaceSize(const Size(900, 500));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: SizedBox(width: 360, height: 400, child: IgnorePane(state: pane, filesFocus: filesFocus, linesFocus: linesFocus)),
+        ),
+      ),
     );
-    addTearDown(pane.dispose);
-    await t.pumpWidget(MaterialApp(theme: buildTheme(), home: Scaffold(body: IgnorePane(state: pane))));
-    await t.pump(const Duration(milliseconds: 100));
+    await t.pump();
 
-    expect(find.text('a.log'), findsOneWidget);
-    expect(find.textContaining('Ignored by *.log'), findsOneWidget);
-    expect(find.text('/build/x/'), findsOneWidget);
-
-    add.move(1);
-    add.move(-1);
-    add.move(1);
-    await t.pump(const Duration(milliseconds: 100));
-    expect(find.text('b.txt'), findsOneWidget);
-    expect(find.text('No rule ignores it.'), findsOneWidget);
-    expect(asked, ['a.log', 'b.txt'], reason: 'one lookup per resting place, not per key');
+    expect(find.text('project .gitignore'), findsOneWidget);
+    expect(find.text('src'), findsOneWidget);
+    expect(find.text('# a comment'), findsOneWidget);
+    expect(find.text('*.tmp'), findsOneWidget);
 
     final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
     addTearDown(mouse.removePointer);
-    await mouse.moveTo(t.getCenter(find.text('/build/x/')));
+    await mouse.moveTo(t.getCenter(find.text('*.tmp')));
     await t.pump();
-    expect(find.byTooltip('Move the rule one folder up'), findsOneWidget);
-    expect(find.byTooltip('Delete this rule'), findsOneWidget);
+    expect(find.byTooltip('Delete this line'), findsOneWidget);
+    expect(find.byTooltip('no folder above this rule'), findsOneWidget);
   }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }

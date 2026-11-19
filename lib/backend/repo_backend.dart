@@ -88,6 +88,37 @@ abstract interface class RepoBackend {
   Future<void> move(String from, String to);
   Future<void> create(String path, List<String> lines);
 
+  // Ignore files ------------------------------------------------------------------------------
+
+  /// The first load of the Ignore panes: the tracked `.gitignore` files, plus the project
+  /// `.gitignore` when it exists even untracked (project first, then path order), and the text of
+  /// [selected] (else the project file, else the first). A [selected] file not in the list is
+  /// added. Reads only that one file, and never asks git which rule ignores a path.
+  Future<IgnoreSnapshot> loadIgnorePanes({IgnoreFileRef? selected});
+
+  /// The nested `.gitignore` files that are not tracked yet, after the first load: the second,
+  /// slower discovery step. The project file is not here (the first load already returned it).
+  Future<List<IgnoreFileRef>> untrackedIgnoreFiles();
+
+  /// A file's text, exactly as on disk; empty when it does not exist.
+  Future<String> readIgnoreFile(IgnoreFileRef file);
+
+  /// Append [patterns] to the file's `# Purrage` section with one read and one write. The answer
+  /// is aligned with [patterns]: a rule already in the file, or earlier in the same list, is a
+  /// [IgnoreAppend.duplicate].
+  Future<List<IgnoreAppend>> appendIgnoreLines(IgnoreFileRef file, List<String> patterns);
+
+  /// Replace line [number] (1-based) with [replacement], or remove it when that is null. False,
+  /// and nothing written, when the line is no longer [expected].
+  Future<bool> replaceIgnoreLine(IgnoreFileRef file, int number, String expected, String? replacement);
+
+  /// Insert [text] as line [number] (1-based), keeping the file's line endings and its final
+  /// newline. Refuses a number outside `1..lineCount+1`.
+  Future<void> insertIgnoreLine(IgnoreFileRef file, int number, String text);
+
+  /// Create the file with the `# Purrage` section when it is not there; nothing when it is.
+  Future<void> createIgnoreFile(IgnoreFileRef file);
+
   // Jobs --------------------------------------------------------------------------------------
 
   /// Start claude / openspec / backlog without blocking; returns the job id. Its end comes as a
