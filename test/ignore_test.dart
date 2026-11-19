@@ -298,7 +298,7 @@ void main() {
     final result = await choice!.apply();
     expect(result.error, isNull, reason: result.error);
     expect(await File('${repo.path}/.gitignore').readAsString(), contains('/x.log'));
-  });
+  }, skip: relayIgnoreSkip);
 
   test('a folder row offers a .gitignore inside it, which ignores what is below it', () async {
     final (_, add, repo) = await localRepo();

@@ -89,5 +89,5 @@ void main() {
 
     expect(await local.appendIgnoreLines(exclude, ['*.log']), [IgnoreAppend.added]);
     expect(await remote.readIgnoreFile(exclude), contains('*.log'));
-  }, timeout: const Timeout(Duration(seconds: 30)));
+  }, timeout: const Timeout(Duration(seconds: 30)), skip: relayIgnoreSkip);
 }

@@ -30,6 +30,14 @@ String requireBackendPlugin() {
   return backendDir;
 }
 
+/// Why the relay backend cannot answer the ignore-file calls, or null when it can. The
+/// `nvimos.gitignore` module landed in this checkout but not in nvimos/relay, and CI runs the
+/// relay from its main branch: skip the tests that need it until the module is pushed there.
+String? get relayIgnoreSkip {
+  final module = '${TestNvim.backendDir}/lua/nvimos/gitignore.lua';
+  return File(module).existsSync() ? null : 'the relay checkout has no $module';
+}
+
 /// A headless Neovim listening on a free TCP port, with the backend plugin loaded.
 class TestNvim {
   TestNvim._(this.process, this.port, this.dir);
