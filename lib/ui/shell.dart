@@ -542,18 +542,25 @@ class _ShellState extends State<Shell> {
     return _mode == Mode.help ? _help() : const ConnectScreen();
   }
 
+  /// Every mode stays built (its state and scroll survive a switch), but only the shown one is in the
+  /// semantics tree. Without the ExcludeSemantics the hidden modes kept sending semantics updates for
+  /// nodes the Windows accessibility tree never got ("Failed to update ui::AXTree, error: N will not be
+  /// in the tree and is not the new root", in bursts while a hidden mode refreshed).
   Widget _modes() => IndexedStack(
     index: _mode.index,
     children: [
-      PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
-      ChangesView(key: _changesKey, onRail: _focusRail),
-      AddIgnoreView(key: _addKey, state: _add!, onRail: _focusRail),
-      const ModePlaceholder(Mode.history),
-      TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
-      DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
-      SettingsView(key: _settingsKey, state: _settings!, onRail: _focusRail),
-      LogView(log: _log!),
-      _help(),
+      for (final (i, child) in <Widget>[
+        PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
+        ChangesView(key: _changesKey, onRail: _focusRail),
+        AddIgnoreView(key: _addKey, state: _add!, onRail: _focusRail),
+        const ModePlaceholder(Mode.history),
+        TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
+        DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
+        SettingsView(key: _settingsKey, state: _settings!, onRail: _focusRail),
+        LogView(log: _log!),
+        _help(),
+      ].indexed)
+        ExcludeSemantics(excluding: i != _mode.index, child: child),
     ],
   );
 }
