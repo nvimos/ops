@@ -12,8 +12,16 @@ import 'session.dart';
 class SettingsState extends ChangeNotifier {
   SettingsState(this.session, {this.onDepth, Editors? editors, TerminalLauncher? terminals})
     : _editors = editors ?? session.editors,
-      _terminals = terminals ?? session.terminals {
-    detect();
+      _terminals = terminals ?? session.terminals;
+
+  bool _detected = false;
+
+  /// The first time the mode opens: look for the editors and terminals (it starts processes, so not
+  /// before anyone looks at Settings).
+  Future<void> ensureDetected() async {
+    if (_detected) return;
+    _detected = true;
+    await detect();
   }
 
   final Session session;
