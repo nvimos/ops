@@ -42,6 +42,7 @@ class RepoEntry {
 /// It needs no Neovim: the start dirs are one optional hint source.
 class ReposState extends ChangeNotifier {
   ReposState(this.session, {this.launch = launchNeovim, RepoBrowser? browser, ProjectHints? hints})
+    // ignore: prefer_initializing_formals
     : _hints = hints,
       _browserOverride = browser {
     session.addListener(_onSession);

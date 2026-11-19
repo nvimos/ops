@@ -257,3 +257,30 @@ class ClearButton extends StatelessWidget {
           ),
   );
 }
+
+/// A small icon button with its tooltip and the pointing hand: the row actions of a list. The
+/// icon is the whole target; a disabled one ([onPressed] null) keeps the plain cursor.
+class IconAction extends StatelessWidget {
+  const IconAction({super.key, required this.icon, required this.tooltip, required this.onPressed, this.color = C.muted});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: MouseRegion(
+      cursor: onPressed == null ? MouseCursor.defer : SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: SelectionContainer.disabled(child: Icon(icon, size: 15, color: onPressed == null ? C.faint : color)),
+        ),
+      ),
+    ),
+  );
+}
