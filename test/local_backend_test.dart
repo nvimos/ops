@@ -40,6 +40,46 @@ void main() {
     expect(diff.files.single.path, 'a.txt');
   });
 
+  test('stage, unstage and discard leave the expected rows', () async {
+    final temp = await TempRepo.make();
+    await temp.write('a.txt', 'a\n');
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+
+    await backend.stage('a.txt');
+    var status = await backend.status();
+    expect(status.files.single.path, 'a.txt');
+    expect(status.files.single.staged, isTrue);
+
+    await backend.unstage('a.txt');
+    status = await backend.status();
+    expect(status.files.single.untracked, isTrue);
+
+    await backend.discard('a.txt');
+    status = await backend.status();
+    expect(status.files, isEmpty);
+    expect(File('${temp.path}/a.txt').existsSync(), isFalse);
+  });
+
+  test('discard restores a tracked file and stages a deletion', () async {
+    final temp = await TempRepo.make();
+    await temp.write('a.txt', 'one\n');
+    await temp.git(['add', 'a.txt']);
+    await temp.git(['commit', '-m', 'a']);
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+
+    await temp.write('a.txt', 'two\n');
+    await backend.discard('a.txt');
+    expect(await File('${temp.path}/a.txt').readAsString(), 'one\n');
+
+    await File('${temp.path}/a.txt').delete();
+    await backend.stage('a.txt');
+    final status = await backend.status();
+    expect(status.files.single.path, 'a.txt');
+    expect(status.files.single.staged, isTrue);
+  });
+
   test('read-only queries answer from the repository', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'one\ntwo\n');
@@ -122,12 +162,11 @@ void main() {
     expect(await backend.pluginRoot(), isNull);
   });
 
-  test('actions that change the repository throw until TASK-163', () async {
+  test('remaining actions throw until their tasks', () async {
     final temp = await TempRepo.make();
     final backend = await LocalBackend.open(temp.path);
     addTearDown(backend.close);
 
-    await expectLater(backend.stage('a.txt'), throwsUnimplementedError);
     await expectLater(backend.commit('message'), throwsUnimplementedError);
     await expectLater(backend.checkout('main'), throwsUnimplementedError);
   });
