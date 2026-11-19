@@ -233,8 +233,9 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
   - `make pdf-on` (`tool/pdf.ps1`) writes the git-ignored `pubspec_overrides.yaml`, which points
     `ops_pdf` at `packages/ops_pdf_on` (pdfrx), and runs `pub get`; `make pdf-off` removes it,
     `make pdf-status` says which one is active
-  - `make release` turns PDF on and leaves it on; build with PDF on now and then to check it still
-    compiles
+  - PDF is off locally, and `make release` turns it off before it builds (2026-11-19: the PDF
+    build is not tested yet, and an untested one was shipped once); build with PDF on now and then
+    to check it still compiles
   - while PDF is on, `pubspec.lock` shows as modified; commit the lock from the off state
   - `analysis_options.yaml` excludes `packages/ops_pdf_on` (its pdfrx import only resolves when on)
 - `BUILD_CONCURRENCY ?= 4` in the Makefile is exported as `CMAKE_BUILD_PARALLEL_LEVEL` for the

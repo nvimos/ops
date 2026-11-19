@@ -46,7 +46,7 @@ bin-local: single ## build the one-file exe and copy it to ~/.local/bin/ops.exe 
 	Copy-Item -Force 'dist/ops-windows-x64-$(VERSION)-single.exe' "$$env:USERPROFILE/.local/bin/ops.exe"
 	@'installed {0}\.local\bin\ops.exe' -f $$env:USERPROFILE
 
-release: pdf-on build ## zip and single exe from one build, uploaded as GitHub release v<VERSION> (nvimos/ops)
+release: pdf-off build ## zip and single exe from one build without PDF, uploaded as GitHub release v<VERSION> (nvimos/ops)
 	pwsh -NoProfile -File tool/dist.ps1 -Zip -Single -Version '$(VERSION)'
 	gh release create 'v$(VERSION)' dist/ops-windows-x64-$(VERSION).zip dist/ops-windows-x64-$(VERSION)-single.exe --repo nvimos/ops --title 'ops $(VERSION)' --generate-notes
 
@@ -74,7 +74,7 @@ measure: ## time Tasks checkbox clicks in a 300-task repo with a headless Neovim
 
 ##@ other
 
-pdf-on: ## draw PDF pages in the preview (pdfrx + PDFium: a slow first build); make release turns it on
+pdf-on: ## draw PDF pages in the preview (pdfrx + PDFium: a slow first build); for testing PDF locally
 	pwsh -NoProfile -File tool/pdf.ps1 -Mode on -Flutter "$(FLUTTER)"
 
 pdf-off: ## the default: no PDF library, so a quick build; a PDF shows its facts and the Open button only
