@@ -349,6 +349,13 @@ class Session extends ChangeNotifier {
     if (b != null) await b.close();
   }
 
+  /// Close the connection (and stop the repository watcher of a local one); resolves when the
+  /// backend is closed, so a test can delete its folder after it.
+  Future<void> disconnect() async {
+    await _drop();
+    _notify();
+  }
+
   /// The cwd moved without a repo change (no git event for that): keep [repo] current.
   void movedTo(String cwd) {
     repo = RepoInfo({'cwd': cwd, 'root': repo?.root, 'head': repo?.head});
