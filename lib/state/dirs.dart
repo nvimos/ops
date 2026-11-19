@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import '../backend/backend.dart';
+import '../backend/repo_backend.dart';
 import '../backend/models.dart';
 import 'nvim_launcher.dart';
 import 'session.dart';

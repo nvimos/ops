@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import '../backend/backend.dart';
+import '../backend/repo_backend.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
 import 'list_pair.dart';
@@ -35,7 +35,7 @@ class PrState extends ChangeNotifier {
   /// the file tree. Empty when the merge is clean or the check fails.
   List<String> conflictFiles = const [];
 
-  Future<List<String>> _conflictsIfMerged(Backend b, String base, String head) async {
+  Future<List<String>> _conflictsIfMerged(RepoBackend b, String base, String head) async {
     try {
       return await b.mergePreflight(base, head);
     } catch (_) {
@@ -196,7 +196,7 @@ class PrState extends ChangeNotifier {
     var result = '';
     final err = await session.run((x) async => result = await x.rebase(b, h));
     await refresh();
-    return (error: err, upToDate: result == Backend.upToDate);
+    return (error: err, upToDate: result == RepoBackend.upToDate);
   }
 
   void pickBase(String rev) => pick(base: rev);
@@ -394,7 +394,7 @@ class PrState extends ChangeNotifier {
     final rev = isOld ? (n == null ? diff!.mergeBase : '${n.sha}~1') : (n?.sha ?? head!);
     final path = isOld ? f.oldPath : f.path;
     final live = !isOld && n == null && session.repo?.head == head;
-    return session.run((b) => live ? b.open(path, line) : b.show(rev, path, line));
+    return session.runEditor((e) => live ? e.open(path, line) : e.show(rev, path, line));
   }
 
   /// o: the current hunk's first changed line (or the file's first hunk) in Neovim.

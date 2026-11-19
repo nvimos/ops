@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import '../backend/backend.dart';
+import '../backend/repo_backend.dart';
 import '../backend/models.dart';
 import '../state/session.dart';
 import 'archive.dart';
@@ -153,7 +153,7 @@ class Workspace extends ChangeNotifier {
   }
 
   /// Null with a backend that has no tracking.lua yet (planning in the repo root, no filter).
-  Future<Tracking?> _tracking(Backend b) async {
+  Future<Tracking?> _tracking(RepoBackend b) async {
     try {
       return await b.tracking();
     } catch (_) {

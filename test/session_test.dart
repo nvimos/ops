@@ -23,7 +23,7 @@ void main() {
     expect(s.conn, Conn.connected);
     expect(s.repo!.head, 'main');
 
-    await s.backend!.open('a.txt', 3);
+    await s.editor!.open('a.txt', 3);
     await until(() => s.cursor?.row == 3 && s.cursor!.name.endsWith('a.txt'));
 
     final port = nvim.port;
