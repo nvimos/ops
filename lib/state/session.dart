@@ -7,10 +7,12 @@ import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../backend/repo_backend.dart';
 import '../rpc/client.dart';
+import 'action_queue.dart';
 import 'diff_prefs.dart';
 import 'merge_conflict.dart';
 import 'nvim_launcher.dart';
 import 'prefs.dart';
+import 'status_store.dart';
 
 export 'diff_prefs.dart';
 
@@ -51,6 +53,14 @@ class Session extends ChangeNotifier {
 
   /// The merges with conflicts: the open one is shown in Changes and Pull request alike.
   late final conflicts = ConflictController(run, diffPrefs);
+
+  /// The repository's status, shared by the modes that list files; made when first used.
+  StatusStore get store => _store ??= StatusStore(this);
+  StatusStore? _store;
+
+  /// The actions on that status, one at a time.
+  ActionQueue get actions => _actions ??= ActionQueue(this, store);
+  ActionQueue? _actions;
 
   /// Bumps when git state may have changed (hint from the backend); views re-query.
   final gitChanged = ValueNotifier<int>(0);
@@ -312,6 +322,7 @@ class Session extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _drop();
+    _store?.dispose();
     gitChanged.dispose();
     diffPrefs.dispose();
     changedPaths.dispose();
