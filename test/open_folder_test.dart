@@ -16,6 +16,7 @@ void main() {
     final repo = await makeRepo();
     final s = Session();
     addTearDown(s.dispose);
+    addTearDown(s.disconnect); // runs first: the watcher lets go of the folder before it is deleted
 
     await s.openFolder(repo.path);
 
@@ -41,6 +42,7 @@ void main() {
     final dir = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_plain_'));
     final s = Session();
     addTearDown(s.dispose);
+    addTearDown(s.disconnect); // runs first: the watcher lets go of the folder before it is deleted
 
     await s.openFolder('${dir.path}/missing');
 
@@ -55,6 +57,7 @@ void main() {
     await nvim.connect().then((r) => r.close());
     final s = Session(port: nvim.port);
     addTearDown(s.dispose);
+    addTearDown(s.disconnect); // runs first: the watcher lets go of the folder before it is deleted
 
     await s.connect();
     expect(s.kind, BackendKind.nvim);
@@ -93,6 +96,7 @@ void main() {
       ..addRecent(const Recent(BackendKind.local, 'C:/work/app'));
     final s = Session(port: 1, prefs: p);
     addTearDown(s.dispose);
+    addTearDown(s.disconnect); // runs first: the watcher lets go of the folder before it is deleted
     await t.pumpWidget(SessionScope(session: s, child: MaterialApp(theme: buildTheme(), home: const Scaffold(body: ConnectScreen()))));
     await t.pump();
 
