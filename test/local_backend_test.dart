@@ -138,7 +138,7 @@ void main() {
     expect(await File('${temp.path}/b.txt').readAsString(), 'b\n');
   });
 
-  test('checkout with stash carries the changes to the new branch', () async {
+  test('checkout with stash leaves the changes in a stash (as the relay does), without a decision it refuses', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'a\n');
     await temp.git(['add', 'a.txt']);
@@ -148,9 +148,13 @@ void main() {
     addTearDown(backend.close);
 
     await temp.write('a.txt', 'dirty\n');
+    await expectLater(backend.checkout('feature'), throwsA(isA<GitException>()));
+    expect(await backend.repo.currentBranch(), 'main');
+
     await backend.checkout('feature', how: CheckoutHow.stash);
     expect(await backend.repo.currentBranch(), 'feature');
-    expect(await File('${temp.path}/a.txt').readAsString(), 'dirty\n');
+    expect(await File('${temp.path}/a.txt').readAsString(), 'a\n');
+    expect((await temp.git(['stash', 'list'])).stdout.toString(), contains('before switching to feature'));
   });
 
   test('checkout with force discards worktree changes', () async {
@@ -272,12 +276,12 @@ void main() {
     expect(await backend.pluginRoot(), isNull);
   });
 
-  test('remaining actions throw until their tasks', () async {
+  test('the conflict flow stays with Neovim: no preflight conflicts, no merge worktree', () async {
     final temp = await TempRepo.make();
     final backend = await LocalBackend.open(temp.path);
     addTearDown(backend.close);
 
-    await expectLater(backend.mergePreflight('main', 'main'), throwsUnimplementedError);
+    expect(await backend.mergePreflight('main', 'main'), isEmpty, reason: 'merge itself aborts and reports');
     await expectLater(backend.mergeStart('main', 'main'), throwsUnimplementedError);
   });
 }
