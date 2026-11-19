@@ -5,8 +5,9 @@ import 'package:material_ui/material_ui.dart';
 import 'theme.dart';
 
 /// What the mouse wheel does over a list pane: scroll it (the default), or, after a middle click
-/// on the pane, step through its items like Up / Down ([onStep] gets -[step] or [step]). The next
-/// middle click switches back. Shift + the wheel steps whatever the mode.
+/// on the pane, step through its items one at a time like Up / Down ([onStep] gets -1 or 1). The
+/// next middle click switches back. Shift + the wheel steps [step] items whatever the mode, as in
+/// Purrage: the plain wheel is the small move, Shift the big one.
 /// Shift+Insert, with the pointer over the pane, toggles like the middle click (a local-setup exception). While it steps, a thin accent line at the pane's bottom edge says so, and
 /// [builder] gets `steps` true so the list can stop scrolling itself.
 class WheelMode extends StatefulWidget {
@@ -14,7 +15,7 @@ class WheelMode extends StatefulWidget {
 
   final ValueChanged<int> onStep;
 
-  /// Items one notch moves; Settings' `wheelStep` (2 to 1000), 1 by default.
+  /// Items one Shift + wheel notch moves; Settings' `wheelStep` (2 to 1000), 1 by default.
   final int step;
 
   final Widget Function(BuildContext context, bool steps) builder;
@@ -64,7 +65,8 @@ class WheelModeState extends State<WheelMode> {
     if (e is! PointerScrollEvent || !(steps || _shift)) return;
     final dy = e.scrollDelta.dy != 0 ? e.scrollDelta.dy : e.scrollDelta.dx;
     if (dy == 0) return;
-    GestureBinding.instance.pointerSignalResolver.register(e, (_) => widget.onStep(dy > 0 ? widget.step : -widget.step));
+    final rows = _shift ? widget.step : 1;
+    GestureBinding.instance.pointerSignalResolver.register(e, (_) => widget.onStep(dy > 0 ? rows : -rows));
   }
 
   void _down(PointerDownEvent e) {

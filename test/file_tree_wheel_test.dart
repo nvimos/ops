@@ -17,6 +17,7 @@ void main() {
             selected: 'f0.txt',
             onSelect: (_) {},
             onStep: steps.add,
+            wheelStep: 5,
           ),
         ),
       ),
@@ -35,30 +36,37 @@ void main() {
     await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, -500)));
     await t.pump();
 
-    // Shift + wheel steps, down and up, and does not scroll.
+    // Shift + wheel steps the wheel step, down and up, and does not scroll.
     await t.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
     await t.pump();
     await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, 120)));
     await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, -120)));
     await t.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
     await t.pump();
-    expect(steps, [1, -1]);
+    expect(steps, [5, -5]);
     expect(offset(), 0);
 
-    // A middle click switches to stepping; another switches back to scrolling.
+    // A middle click switches to stepping one file a notch; Shift still steps the wheel step.
     await middle.down(at);
     await middle.up();
     await t.pump();
     await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, 120)));
     await t.pump();
-    expect(steps, [1, -1, 1]);
+    expect(steps, [5, -5, 1]);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await t.pump();
+    await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, 120)));
+    await t.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await t.pump();
+    expect(steps, [5, -5, 1, 5]);
     expect(offset(), 0);
+    // Another middle click switches back to scrolling.
     await middle.down(at);
     await middle.up();
     await t.pump();
     await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, 120)));
     await t.pump();
-    expect(steps.length, 3);
+    expect(steps.length, 4);
     expect(offset(), greaterThan(0));
     await mouse.removePointer();
   });

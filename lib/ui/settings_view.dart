@@ -111,7 +111,7 @@ class SettingsViewState extends State<SettingsView> {
       const _Section('CONFIRM', 'Whether Delete asks before it acts.'),
       _Choice(label: 'Ask first', hint: 'a dialog names what goes', on: st.confirmDelete, onTap: () => st.setConfirmDelete(true)),
       _Choice(label: 'At once', hint: 'no question', on: !st.confirmDelete, onTap: () => st.setConfirmDelete(false)),
-      const _Section('WHEEL', 'Rows one Shift + wheel notch, or one step of the wheel mode, moves a list.'),
+      const _Section('WHEEL', 'Rows one Shift + wheel notch moves a list.'),
       _NumberField(
         value: st.wheelStep,
         unit: 'rows',

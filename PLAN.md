@@ -125,7 +125,7 @@ Global
 | `/`                | filter the list (Tasks, Repos)                          |
 | `.`                | widen or narrow the detail panel (Tasks)                |
 | `Shift`+wheel      | over a list: the cursor moves Settings' wheel step (5 rows by default) |
-| middle click       | over a list: the wheel steps the cursor by that step (like Up / Down) or scrolls |
+| middle click       | over a list: the wheel steps the cursor one row (like Up / Down) or scrolls |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
 
 Any list (files, commits, branches, dirs, tasks)
@@ -282,8 +282,9 @@ _not strictly normative_ — what the port settled, so it is not decided again b
   mouse must not light up
 - the side pane is one view at a time, remembered, with a remembered width — two independent toggles
   (rules *and* preview open at once) were tried and dropped
-- Add and Ignore's list steps with the wheel like every list: the step is Settings' `wheelStep`
-  (5 rows), not one (Purrage's default)
+- Add and Ignore's list steps with the wheel like every list, as in Purrage: Shift + wheel moves
+  Settings' `wheelStep` (5 rows), the plain wheel the small move (a scroll, or one row in the wheel
+  mode)
 - the Ignore dialog writes only inside the repository: the folder's `.gitignore` (for a folder row,
   one inside it, whose rule is `*`), the project `.gitignore`, and `.git/info/exclude`
   - the global ignore file is real git (`core.excludesFile`) but is not offered: on this machine it
@@ -1110,7 +1111,8 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
       it), and a middle click again switches back (on the user's setup the middle button arrives as
       Shift+Insert, so that key over the pane toggles too: a local exception marked in
       `wheel_mode.dart`)
-    - Shift + the wheel steps in either mode
+    - the wheel mode steps one entry a notch; Shift + the wheel steps Settings' wheel step (5) in
+      either mode
     - the task list does the same, stepping the current task (`WheelMode`, `ui/wheel_mode.dart`)
     - so do the file lists (Changes: STAGED and CHANGES; Pull request: FILES CHANGED) and the
       commit list: the wheel steps the selected file or commit, staying inside the list (`FileTree.onStep`)
@@ -1230,6 +1232,8 @@ keyboard J/K/Enter/Esc/C and /.
   (conflicts, staged, changed, untracked); Changes stays the diff and hunk mode
 - rows follow Purrage's Changes list: the change's letter, the folder right-aligned in monospace
   `muted` with its trailing slash, the row's buttons, then the base name
+  - a folder too long for its column (a wide side pane) loses its start, not its end:
+    `…ui/widgets/`, so the part next to the base name stays (`fitTail`, `path_cells.dart`)
   - the buttons sit in a fixed 42 px slot and are always there — add (`+`) or untrack (`−`), and for
     an untracked row the eye that ignores it (`I`, the literal path into the project `.gitignore`) — so
     the name column is the same on every row; there are no hover-only buttons
@@ -1258,8 +1262,9 @@ keyboard J/K/Enter/Esc/C and /.
 - both modes sit on one status store and one action queue (`Session.store`, `Session.actions`), so
   an action in one shows in the other; each keeps only its cursor, selection and filter
 - plain, Ctrl and Shift selection with the mouse; Shift+arrows, Space and Ctrl+A with the keys
-- the list steps with Shift + the wheel, or the wheel after a middle click, by Settings' wheel step
-  (`wheelStep`, 5 rows by default) like every other list; the wheel scrolls it otherwise
+- the list steps with Shift + the wheel by Settings' wheel step (`wheelStep`, 5 rows by default),
+  and with the wheel after a middle click by one row, like every other list; the wheel scrolls it
+  otherwise
 - the Ignore dialog (`i`, the row menu's `Ignore…`) is Purrage's dialog
   - it opens for every highlighted row, tracked ones too: ignoring a tracked file writes the rule
     and nothing else (untracking it is `u`)
@@ -1326,7 +1331,7 @@ keyboard J/K/Enter/Esc/C and /.
 - DELETE: `To the trash` (default) or `For good` — what the Delete action of Add and Ignore does
 - CONFIRM: `Ask first` or `At once` (default, as in Purrage); the question names what goes and
   follows the trash choice
-- WHEEL: rows one Shift + wheel notch, or one step of a wheel mode, moves a list
+- WHEEL: rows one Shift + wheel notch moves a list
   - 2 to 1000, 5 until chosen; a number out of the range is said under the field and not saved
 - PREVIEW: whether the Add and Ignore preview draws a PDF's first pages (off: a note and an Open
   button)
