@@ -9,6 +9,14 @@ import 'support/fake_system.dart';
 
 void main() {
   group('LocalJobs', () {
+    test('stdin is written to the process', () async {
+      final process = _FakeProcess();
+      final jobs = LocalJobs('C:/repo', start: (exe, args, {cwd}) async => process);
+      await jobs.start('claude', const [], stdin: 'a prompt');
+      expect(process.stdin, 'a prompt');
+      await process.finish(0);
+    });
+
     test('start emits a running job and finish a stopped one', () async {
       final process = _FakeProcess();
       final events = <Job>[];
@@ -179,6 +187,7 @@ class _FakeProcess implements LocalProcess {
   final _exit = Completer<int>();
   bool killed = false;
   bool _closed = false;
+  String? stdin;
 
   void addStdout(String text) => _out.add(text);
 
@@ -206,4 +215,7 @@ class _FakeProcess implements LocalProcess {
     killed = true;
     unawaited(finish(-1));
   }
+
+  @override
+  void writeStdin(String text) => stdin = text;
 }

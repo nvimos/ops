@@ -22,6 +22,9 @@ abstract interface class LocalProcess {
 
   /// Terminate the process. A process that already finished ignores this.
   void kill();
+
+  /// Write [text] to the process's stdin and close it.
+  void writeStdin(String text);
 }
 
 /// Starts a process for [LocalJobs]. The seam that keeps tests off the real
@@ -104,6 +107,7 @@ class LocalJobs {
     List<String> args, {
     String? cwd,
     String? label,
+    String? stdin,
   }) async {
     if (!allowed.contains(cmd)) {
       throw ArgumentError('nvimos: $cmd is not allowed as a job');
@@ -124,6 +128,7 @@ class LocalJobs {
     }
 
     _processes[id] = process;
+    if (stdin != null) process.writeStdin(stdin);
     onEvent?.call(job.public());
     unawaited(_watch(job, process));
     return id;
@@ -241,4 +246,10 @@ class _SystemLocalProcess implements LocalProcess {
 
   @override
   void kill() => _process.kill();
+
+  @override
+  void writeStdin(String text) {
+    _process.stdin.write(text);
+    _process.stdin.close();
+  }
 }
