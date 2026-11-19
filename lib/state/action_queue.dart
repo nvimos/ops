@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../backend/repo_backend.dart';
 import '../timing/ui_timing.dart';
 import 'action_failure.dart';
@@ -41,6 +43,9 @@ class ActionQueue {
 
   /// The last 200 action reports, oldest first: what the Log shows.
   final List<ActionResult> reports = [];
+
+  /// Bumps when a report is added, so the Log can follow.
+  final reportsChanged = ValueNotifier<int>(0);
 
   /// An action is waiting or running.
   bool get busy => store.pending > 0;
@@ -91,6 +96,7 @@ class ActionQueue {
       );
       reports.add(result);
       if (reports.length > 200) reports.removeAt(0);
+      reportsChanged.value++;
       return result;
     });
     _tail = turn.then((_) {}, onError: (_) {});
