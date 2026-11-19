@@ -7,6 +7,8 @@ import '../state/repos.dart';
 import 'error_view.dart';
 import 'key_sequence.dart';
 import 'nav_keys.dart';
+import 'path_cells.dart';
+import 'text_width.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -98,6 +100,38 @@ class DirsViewState extends State<DirsView> {
   Future<void> _terminal(String path) async => _say(await st.openTerminal(path));
 
   Future<void> _folder(String path) async => _say(await st.openInFileManager(path));
+
+  /// Manage, from the row's menu: make it the Active Directory and go on to the project, as Purrage's
+  /// "Manage" opened the repository in Changes.
+  Future<void> _manage(String path) async {
+    await _pick(path);
+    if (mounted) widget.onOpen?.call();
+  }
+
+  /// A right click on a row: offer what can be done to it, as Purrage's Directories list did.
+  Future<void> _menu(RepoEntry entry, Offset at) async {
+    final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final choice = await showMenu<RepoMenu>(
+      context: context,
+      position: RelativeRect.fromRect(at & Size.zero, Offset.zero & overlay.size),
+      items: repoMenuItems(stale: entry.stale),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case RepoMenu.manage:
+        _manage(entry.path);
+      case RepoMenu.open:
+        _folder(entry.path);
+      case RepoMenu.terminal:
+        _terminal(entry.path);
+      case RepoMenu.crawl:
+        st.scanFrom(entry.path);
+      case RepoMenu.remove:
+        st.remove(entry.path);
+      case null:
+        break;
+    }
+  }
 
   void _say(String? err) {
     if (mounted) showActionError(context, err);
@@ -195,13 +229,47 @@ class DirsViewState extends State<DirsView> {
       cursor: st.cursor,
       active: st.active,
       onTap: _tap,
-      onRemove: st.remove,
-      onCrawl: st.scanFrom,
-      onTerminal: _terminal,
-      onFolder: _folder,
+      onMenu: _menu,
     );
   }
 }
+
+/// What a repository's right-click menu offers, as in Purrage.
+enum RepoMenu { manage, open, terminal, crawl, remove }
+
+/// The menu: "Manage" makes it the Active Directory and opens the project, "Open" shows the folder as
+/// Settings says, "Terminal" starts a terminal there, "Crawl from here" walks from it. A stale hint
+/// only offers "Remove".
+List<PopupMenuEntry<RepoMenu>> repoMenuItems({required bool stale}) => stale
+    ? [
+        const PopupMenuItem(
+          value: RepoMenu.remove,
+          height: 32,
+          child: Tooltip(message: 'Remove this hint from the list', child: Text('Remove')),
+        ),
+      ]
+    : [
+        const PopupMenuItem(
+          value: RepoMenu.manage,
+          height: 32,
+          child: Tooltip(message: 'Make it the Active Directory and open the project', child: Text('Manage')),
+        ),
+        const PopupMenuItem(
+          value: RepoMenu.open,
+          height: 32,
+          child: Tooltip(message: 'Open this folder: in the editor or the file manager, as Settings says', child: Text('Open')),
+        ),
+        const PopupMenuItem(
+          value: RepoMenu.terminal,
+          height: 32,
+          child: Tooltip(message: 'Open a terminal in this folder', child: Text('Terminal')),
+        ),
+        const PopupMenuItem(
+          value: RepoMenu.crawl,
+          height: 32,
+          child: Tooltip(message: 'Look for repositories from this folder', child: Text('Crawl from here')),
+        ),
+      ];
 
 class _DirsFilter extends StatelessWidget {
   const _DirsFilter({required this.controller, required this.focus, required this.onChanged, required this.onSubmitted});
@@ -325,21 +393,15 @@ class _DrivesState extends State<_Drives> {
 }
 
 class _RepoList extends StatelessWidget {
-  const _RepoList({
-    required this.entries,
-    required this.cursor,
-    required this.active,
-    required this.onTap,
-    required this.onRemove,
-    required this.onCrawl,
-    required this.onTerminal,
-    required this.onFolder,
-  });
+  const _RepoList({required this.entries, required this.cursor, required this.active, required this.onTap, required this.onMenu});
 
   final List<RepoEntry> entries;
   final int cursor;
   final String? active;
-  final ValueChanged<String> onTap, onRemove, onCrawl, onTerminal, onFolder;
+  final ValueChanged<String> onTap;
+
+  /// A right click on a row, with the row and where it happened.
+  final void Function(RepoEntry entry, Offset at) onMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -351,10 +413,7 @@ class _RepoList extends StatelessWidget {
         selected: i == cursor,
         active: entries[i].path.toLowerCase() == a,
         onTap: () => onTap(entries[i].path),
-        onRemove: () => onRemove(entries[i].path),
-        onCrawl: () => onCrawl(entries[i].path),
-        onTerminal: () => onTerminal(entries[i].path),
-        onFolder: () => onFolder(entries[i].path),
+        onMenu: (at) => onMenu(entries[i], at),
       ),
     );
   }
@@ -370,7 +429,17 @@ const _sourceLabels = {
   'found': '',
 };
 
-/// A repository in the list: the open one is marked, a stale hint is greyed with Remove.
+/// The room a row's label takes: the widest of them, so the folder and name columns before it stay
+/// the same width on every row.
+final double _labelWidth = [
+  'no longer a repository',
+  'Active Directory',
+  ..._sourceLabels.values.where((s) => s.isNotEmpty),
+].map((s) => textWidth(s, T.tiny)).fold(0, (a, b) => a > b ? a : b);
+
+/// A repository in the list: the folder right-aligned, the name in the folder amber, as in Purrage. The
+/// Active Directory keeps the amber name and is marked by the accent bar, the accent tint and its label;
+/// a stale hint is greyed. There are no row buttons: a right click opens the row's menu.
 class DirRow extends StatelessWidget {
   const DirRow({
     super.key,
@@ -378,71 +447,68 @@ class DirRow extends StatelessWidget {
     required this.selected,
     required this.active,
     required this.onTap,
-    required this.onRemove,
-    required this.onCrawl,
-    required this.onTerminal,
-    required this.onFolder,
+    required this.onMenu,
   });
 
   final RepoEntry entry;
   final bool selected, active;
-  final VoidCallback onTap, onRemove, onCrawl, onTerminal, onFolder;
+  final VoidCallback onTap;
+
+  /// A right click, with where it happened.
+  final ValueChanged<Offset> onMenu;
 
   @override
   Widget build(BuildContext context) {
-    final color = entry.stale ? C.faint : (active ? C.accent : C.text);
+    final (folder, name) = splitPath(entry.path);
+    final marked = active || selected;
     return HoverRow(
-      selected: selected,
+      selected: selected || active,
+      selectedColor: active ? C.current : C.surface2,
+      bar: marked ? C.accent : Colors.transparent,
       onTap: entry.stale ? null : onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      onContextMenu: onMenu,
+      padding: const EdgeInsets.fromLTRB(11, 7, 14, 7),
       child: Row(
         children: [
-          Icon(active ? Icons.folder_special : Icons.folder_outlined, size: 15, color: entry.stale ? C.faint : (active ? C.accent : C.muted)),
+          Icon(
+            active ? Icons.folder_special : Icons.folder_outlined,
+            size: 15,
+            color: entry.stale ? C.faint : (active ? C.accent : C.muted),
+          ),
           const SizedBox(width: 10),
-          Expanded(child: Text(entry.path, style: T.body.copyWith(color: color), overflow: TextOverflow.ellipsis)),
-          if (entry.stale) const Text('no longer a repository', style: T.tiny),
-          if (active) const Text('Active Directory', style: T.tiny) else _Source(entry.source),
-          _RowActions(entry: entry, onRemove: onRemove, onCrawl: onCrawl, onTerminal: onTerminal, onFolder: onFolder),
+          Expanded(flex: 2, child: PathFolder(folder)),
+          const SizedBox(width: 8),
+          Expanded(flex: 3, child: PathName(name, color: entry.stale ? C.faint : C.folder)),
+          const SizedBox(width: 8),
+          SizedBox(width: _labelWidth, child: _RowLabel(entry: entry, active: active)),
         ],
       ),
     );
   }
 }
 
-class _Source extends StatelessWidget {
-  const _Source(this.source);
-
-  final String source;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = _sourceLabels[source] ?? '';
-    return label.isEmpty ? const SizedBox.shrink() : Text(label, style: T.tiny);
-  }
-}
-
-/// Remove (a stale hint) and crawl from here, shown while the mouse is over the row.
-class _RowActions extends StatelessWidget {
-  const _RowActions({required this.entry, required this.onRemove, required this.onCrawl, required this.onTerminal, required this.onFolder});
+/// The end of a row, right-aligned in a fixed slot: what the hint is, "Active Directory", or that the
+/// folder is gone.
+class _RowLabel extends StatelessWidget {
+  const _RowLabel({required this.entry, required this.active});
 
   final RepoEntry entry;
-  final VoidCallback onRemove, onCrawl, onTerminal, onFolder;
+  final bool active;
+
+  String get _text => entry.stale
+      ? 'no longer a repository'
+      : active
+      ? 'Active Directory'
+      : (_sourceLabels[entry.source] ?? '');
 
   @override
-  Widget build(BuildContext context) {
-    if (!RowHover.of(context)) return const SizedBox.shrink();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (entry.stale) IconAction(icon: Icons.close, tooltip: 'Remove this hint', onPressed: onRemove),
-        if (!entry.stale) ...[
-          IconAction(icon: Icons.terminal, tooltip: 'Open a terminal in this folder', onPressed: onTerminal),
-          IconAction(icon: Icons.folder_open_outlined, tooltip: 'Open this folder outside the app', onPressed: onFolder),
-          IconAction(icon: Icons.travel_explore, tooltip: 'Crawl from this folder', onPressed: onCrawl),
-        ],
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Text(
+    _text,
+    textAlign: TextAlign.right,
+    overflow: TextOverflow.ellipsis,
+    maxLines: 1,
+    style: active ? T.tiny.copyWith(color: C.accent) : T.tiny,
+  );
 }
 
 class _NewNeovimSwitch extends StatelessWidget {

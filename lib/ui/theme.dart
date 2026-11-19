@@ -21,6 +21,12 @@ class C {
   static const yellow = Color(0xFFE6B450);
   static const purple = Color(0xFFA78BFA);
 
+  /// Directory base names: Windows Explorer's folder amber, muted for a dark sheet (as in Purrage).
+  static const folder = Color(0xFFE8C46B);
+
+  /// The active row (Repos: the Active Directory): the accent at 15 %, the same tint as an "on" icon.
+  static const current = Color(0x266C8CFF);
+
   static const addBg = Color(0xFF173626);
   static const delBg = Color(0xFF3A171D);
 }

@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nvimos_poc/local/project_hints.dart';
@@ -64,36 +63,36 @@ void main() {
     await mount(t);
     expect(find.text('Repos'), findsOneWidget);
     expect(find.text('C:/fake'), findsOneWidget, reason: 'where the crawl walks from');
-    expect(find.text('C:/fake/a'), findsOneWidget);
-    expect(find.text('C:/fake/b'), findsOneWidget);
+    // Each path is two columns: the folder 'C:/fake/' (the same on both rows) and the base name.
+    expect(find.text('C:/fake/'), findsNWidgets(2));
+    expect(find.text('a'), findsOneWidget);
+    expect(find.text('b'), findsOneWidget);
+    expect(t.widget<Text>(find.text('b')).style!.color, C.folder, reason: 'a directory name takes the folder amber');
 
-    await t.tap(find.text('C:/fake/b'));
+    await t.tap(find.text('b'));
     await t.pump();
     expect(state.picked, ['C:/fake/b']);
   });
 
   testWidgets('a stale hint is greyed, cannot be picked, and Remove takes it away', (t) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     await mount(t);
-    expect(find.text('C:/gone'), findsOneWidget);
+    // The path is two columns: the folder 'C:/' and the base name 'gone'.
+    expect(find.text('gone'), findsOneWidget);
     expect(find.text('no longer a repository'), findsOneWidget);
-    expect(t.widget<Text>(find.text('C:/gone')).style!.color, C.faint);
+    expect(t.widget<Text>(find.text('gone')).style!.color, C.faint);
 
-    await t.tap(find.text('C:/gone'));
+    await t.tap(find.text('gone'));
     await t.pump();
     expect(state.picked, isEmpty);
 
-    final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    addTearDown(mouse.removePointer);
-    await mouse.moveTo(t.getCenter(find.text('C:/gone')));
-    await t.pump();
-    await t.tap(find.byTooltip('Remove this hint'));
-    await t.pump();
-    expect(find.text('C:/gone'), findsNothing);
+    // Remove lives in the row's menu now.
+    await t.tapAt(t.getCenter(find.text('gone')), buttons: kSecondaryButton);
+    await t.pumpAndSettle();
+    await t.tap(find.text('Remove'));
+    await t.pumpAndSettle();
+    expect(find.text('gone'), findsNothing);
     expect(prefs.recentProjects(), isEmpty);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 
   testWidgets('no Neovim switch without an editor', (t) async {
     await mount(t);
