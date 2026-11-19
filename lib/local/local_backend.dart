@@ -312,7 +312,8 @@ class LocalBackend implements RepoBackend {
     ],
   };
 
-  Never _todo() => throw UnimplementedError('local actions land in TASK-163');
+  /// The conflict flow (a merge finished in a worktree of its own) stays with the Neovim backend.
+  Never _todo() => throw UnimplementedError('resolving merge conflicts needs the Neovim backend');
 
   @override
   Future<void> stage(String path) => repo.track([path]);
@@ -406,31 +407,31 @@ class LocalBackend implements RepoBackend {
   }
 
   @override
+  /// As the relay does: uncommitted changes to tracked files refuse the switch unless [how] says
+  /// what to do with them; `stash` leaves them in a stash (put back only when the checkout
+  /// fails), `force` throws them away.
   Future<void> checkout(String branch, {CheckoutHow? how}) async {
     if (how == CheckoutHow.force) {
       await _git(['checkout', '-q', '-f', branch]);
       return;
     }
-    if (how == CheckoutHow.stash) {
-      final dirty = (await _git(['status', '--porcelain', '--untracked-files=no'])).stdout.trim().isNotEmpty;
-      if (!dirty) {
-        await _git(['checkout', '-q', branch]);
-        return;
-      }
-      await _git(['stash', 'push', '-q', '-m', 'nvimos: before checkout']);
-      try {
-        await _git(['checkout', '-q', branch]);
-        final popped = await _git(['stash', 'pop', '-q'], ok: {0, 1});
-        if (popped.exitCode != 0) {
-          throw GitException('nvimos: checkout done; local changes are in the stash (git stash pop failed)');
-        }
-      } on Object {
-        await _git(['stash', 'pop', '-q'], ok: {0, 1});
-        rethrow;
-      }
+    final dirty = (await _git(['status', '--porcelain', '--untracked-files=no'])).stdout.trim().isNotEmpty;
+    if (how == null) {
+      if (dirty) throw GitException('nvimos: commit or discard your changes before switching branches');
+      await _git(['checkout', '-q', branch]);
       return;
     }
-    await _git(['checkout', '-q', branch]);
+    if (!dirty) {
+      await _git(['checkout', '-q', branch]);
+      return;
+    }
+    await _git(['stash', 'push', '-q', '-m', 'nvimos: before switching to $branch']);
+    try {
+      await _git(['checkout', '-q', branch]);
+    } on Object {
+      await _git(['stash', 'pop', '-q'], ok: {0, 1});
+      rethrow;
+    }
   }
 
   @override
@@ -470,7 +471,8 @@ class LocalBackend implements RepoBackend {
   }
 
   @override
-  Future<List<String>> mergePreflight(String base, String head) async => _todo();
+  Future<List<String>> mergePreflight(String base, String head) async =>
+      const []; // no conflict flow here: a conflicting merge is aborted and reported by [merge]
 
   @override
   Future<MergeStart> mergeStart(String base, String head) async => _todo();
