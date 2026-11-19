@@ -190,7 +190,7 @@ Add and Ignore
 | `i`                | ignore: choose the scope, the rule and the ignore file  |
 | `I`                | ignore at once: a plain rule in the root `.gitignore`   |
 | `x`, `Delete`      | move the highlighted files to the trash (asks first)    |
-| `p`                | show / hide the ignore rules around the cursor row      |
+| `p` / `v`          | show / hide the ignore rules / the preview of the files |
 | `Space`            | highlight / un-highlight the cursor row                 |
 | `Shift+Up/Down`    | extend the highlight                                    |
 | `Ctrl+A`           | highlight every row                                     |

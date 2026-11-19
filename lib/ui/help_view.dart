@@ -83,7 +83,7 @@ const keyTable = [
     [
       ('t  u', 'add or untrack the highlighted'),
       ('i  I', 'ignore: dialog, or at once'),
-      ('x  p  r', 'trash (asks), rules pane, reload'),
+      ('x  p  v  r', 'trash (asks), rules, preview, reload'),
       ('Space  Ctrl+A', 'highlight the row, every row'),
     ],
   ),
