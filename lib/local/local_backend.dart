@@ -273,7 +273,7 @@ class LocalBackend implements RepoBackend {
       'index': staged || conflicted ? row.code[0] : (untracked ? '?' : ' '),
       'worktree': changed || conflicted ? row.code[1] : (untracked ? '?' : ' '),
       'staged': staged,
-      'unstaged': changed || untracked,
+      'unstaged': changed,
       'untracked': untracked,
       'conflicted': conflicted,
     };
