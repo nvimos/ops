@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -152,8 +151,6 @@ void main() {
   });
 
   testWidgets('the pane shows the ignore files of the cursor row and moves with the cursor', (t) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     final session = Session();
     addTearDown(session.dispose);
     session.store.status = Status({
@@ -200,5 +197,5 @@ void main() {
     await t.pump();
     expect(find.byTooltip('Move the rule one folder up'), findsOneWidget);
     expect(find.byTooltip('Delete this rule'), findsOneWidget);
-  });
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
 }
