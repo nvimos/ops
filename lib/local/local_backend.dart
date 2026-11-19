@@ -375,16 +375,64 @@ class LocalBackend implements RepoBackend {
   }
 
   @override
-  Future<void> checkout(String branch, {CheckoutHow? how}) async => _todo();
+  Future<void> checkout(String branch, {CheckoutHow? how}) async {
+    if (how == CheckoutHow.force) {
+      await _git(['checkout', '-q', '-f', branch]);
+      return;
+    }
+    if (how == CheckoutHow.stash) {
+      final dirty = (await _git(['status', '--porcelain', '--untracked-files=no'])).stdout.trim().isNotEmpty;
+      if (!dirty) {
+        await _git(['checkout', '-q', branch]);
+        return;
+      }
+      await _git(['stash', 'push', '-q', '-m', 'nvimos: before checkout']);
+      try {
+        await _git(['checkout', '-q', branch]);
+      } on Object {
+        await _git(['stash', 'pop', '-q'], ok: {0, 1});
+        rethrow;
+      }
+      return;
+    }
+    await _git(['checkout', '-q', branch]);
+  }
 
   @override
-  Future<String> merge(String base, String head) async => _todo();
+  Future<String> merge(String base, String head) async {
+    if (await repo.currentBranch() != base) {
+      throw GitException('nvimos: $base is not the checked-out branch; merge works only on it');
+    }
+    try {
+      await _git(['merge', '--no-ff', '-m', "Merge branch '$head' into $base", head]);
+    } on GitException {
+      await _git(['merge', '--abort'], ok: {0, 128});
+      throw GitException('nvimos: the merge conflicts; finish it in the conflict view or the Neovim backend');
+    }
+    return (await _git(['rev-parse', 'HEAD'])).stdout.trim();
+  }
 
   @override
-  Future<String> rebase(String base, String head) async => _todo();
+  Future<String> rebase(String base, String head) async {
+    if (await repo.currentBranch() != head) {
+      throw GitException('nvimos: $head is not the checked-out branch; rebase works only on it');
+    }
+    final behind = (await _git(['rev-list', '--count', '$head..$base'])).stdout.trim();
+    if (behind == '0') return RepoBackend.upToDate;
+    try {
+      await _git(['rebase', base]);
+    } on GitException {
+      await _git(['rebase', '--abort'], ok: {0, 128});
+      throw GitException('nvimos: the rebase conflicts; finish it in the Neovim backend');
+    }
+    return (await _git(['rev-parse', 'HEAD'])).stdout.trim();
+  }
 
   @override
-  Future<String> commit(String message) async => _todo();
+  Future<String> commit(String message) async {
+    await _git(['commit', '-q', '-F', '-'], stdin: message);
+    return (await _git(['rev-parse', 'HEAD'])).stdout.trim();
+  }
 
   @override
   Future<List<String>> mergePreflight(String base, String head) async => _todo();
