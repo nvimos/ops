@@ -37,6 +37,9 @@ class TempRepo {
     await repo.git(['config', 'user.email', 'test@example.com']);
     await repo.git(['config', 'user.name', 'test']);
     await repo.git(['config', 'core.fsmonitor', 'false']);
+    // No newline translation: a checkout must give back the bytes the test wrote, also on a
+    // Windows runner whose global config says core.autocrlf=true.
+    await repo.git(['config', 'core.autocrlf', 'false']);
     if (withGitignore) {
       await repo.write('.gitignore', 'build/\n');
       await repo.git(['add', '.gitignore']);
@@ -55,6 +58,7 @@ class TempRepo {
     await repo.git(['config', 'user.email', 'test@example.com']);
     await repo.git(['config', 'user.name', 'test']);
     await repo.git(['config', 'core.fsmonitor', 'false']);
+    await repo.git(['config', 'core.autocrlf', 'false']);
     return repo;
   }
 
