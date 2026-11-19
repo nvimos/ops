@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:material_ui/material_ui.dart';
 
 /// What a mode's right-hand pane shows.
@@ -50,7 +51,7 @@ class SidePane extends StatelessWidget {
         final shown = width.clamp(sidePaneMinWidth, math.max(sidePaneMinWidth, room * sidePaneMaxShare)).toDouble();
         return Row(
           children: [
-            _LeftEdge(onDrag: (dx) => onWidth(shown - dx), onDone: onDone, onReset: onReset),
+            _LeftEdge(width: shown, onWidth: onWidth, onDone: onDone, onReset: onReset),
             SizedBox(width: shown, child: pane),
           ],
         );
@@ -60,21 +61,44 @@ class SidePane extends StatelessWidget {
 }
 
 /// The draggable divider: a thin line with a wider hit area, and the resize cursor.
-class _LeftEdge extends StatelessWidget {
-  const _LeftEdge({required this.onDrag, required this.onDone, required this.onReset});
+///
+/// The edge stays under the pointer: a drag remembers the width and the pointer's x where it began,
+/// and every update sets the width from how far the pointer is from there. Summing deltas onto the
+/// last built width lost all but one delta per frame (several pointer events arrive between
+/// builds), so the edge trailed the mouse like a lever.
+class _LeftEdge extends StatefulWidget {
+  const _LeftEdge({required this.width, required this.onWidth, required this.onDone, required this.onReset});
 
-  /// The edge moved by [dx] to the right.
-  final ValueChanged<double> onDrag;
+  /// The pane's width as shown now.
+  final double width;
+  final ValueChanged<double> onWidth;
   final VoidCallback onDone, onReset;
+
+  @override
+  State<_LeftEdge> createState() => _LeftEdgeState();
+}
+
+class _LeftEdgeState extends State<_LeftEdge> {
+  double _startX = 0, _startWidth = 0;
+
+  void _start(DragStartDetails d) {
+    _startX = d.globalPosition.dx;
+    _startWidth = widget.width;
+  }
+
+  /// The edge is on the pane's left, so moving right makes the pane narrower.
+  void _update(DragUpdateDetails d) => widget.onWidth(_startWidth - (d.globalPosition.dx - _startX));
 
   @override
   Widget build(BuildContext context) => MouseRegion(
     cursor: SystemMouseCursors.resizeColumn,
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onHorizontalDragUpdate: (d) => onDrag(d.delta.dx),
-      onHorizontalDragEnd: (_) => onDone(),
-      onDoubleTap: onReset,
+      dragStartBehavior: DragStartBehavior.down,
+      onHorizontalDragStart: _start,
+      onHorizontalDragUpdate: _update,
+      onHorizontalDragEnd: (_) => widget.onDone(),
+      onDoubleTap: widget.onReset,
       child: const SizedBox(width: 7, child: Center(child: VerticalDivider(width: 1))),
     ),
   );

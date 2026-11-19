@@ -1,4 +1,4 @@
-import 'package:flutter/gestures.dart' show kSecondaryButton;
+import 'package:flutter/gestures.dart' show PointerDeviceKind, kSecondaryButton;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -252,6 +252,26 @@ void main() {
     expect(t.getSize(find.byType(IgnorePane)).width, greaterThan(before), reason: 'dragged left, the pane grows');
     expect(identical(t.widget(find.byType(IgnorePane)), pane), isTrue, reason: 'the pane is not rebuilt');
     expect(identical(t.widget(find.byType(TextField)), filter), isTrue, reason: 'the list column is not rebuilt');
+  });
+
+  testWidgets('the pane edge stays under the pointer, also with several moves in one frame', (t) async {
+    await mount(t);
+    final before = t.getSize(find.byType(IgnorePane)).width;
+    final edge = find.descendant(
+      of: find.byType(SidePane),
+      matching: find.byWidgetPredicate((w) => w is GestureDetector && w.onHorizontalDragUpdate != null),
+    );
+    final g = await t.startGesture(t.getCenter(edge), kind: PointerDeviceKind.mouse);
+    for (var i = 0; i < 6; i++) {
+      await g.moveBy(const Offset(-10, 0)); // no pump between: the events of one frame
+    }
+    await t.pump();
+    expect(t.getSize(find.byType(IgnorePane)).width, before + 60, reason: 'every move counts');
+    await g.moveBy(const Offset(25, 0));
+    await t.pump();
+    expect(t.getSize(find.byType(IgnorePane)).width, before + 35);
+    await g.up();
+    await t.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets('under 600 px the pane starts hidden; p opens it for the session and a resize keeps it', (t) async {

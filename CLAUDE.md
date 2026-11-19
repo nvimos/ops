@@ -317,6 +317,20 @@ says the rule, why, and the trap it came from.
     sidebar toggle reads as snappy when it is instant
 - Per-item work in loops over hundreds of items stays trivial: a `RegExp` built per call, or a
   re-parse inside a sort comparator, costs whole frames.
+- Drag to resize (a pane edge, a splitter): the edge stays exactly under the pointer, as if grabbed.
+  - anchor the drag: on drag start keep the size and the pointer's global x; on each update set
+    size = start size ± (pointer x − start x). Don't add `details.delta` to the size the last
+    build showed
+  - why: several pointer events arrive between two frames; each one added to the same stale size,
+    so all but the last delta of a frame were lost and the edge trailed the mouse like a lever
+    (Add and Ignore's side pane, 2026-11-19, `lib/ui/side_pane.dart`)
+  - start the drag at pointer down (`dragStartBehavior: DragStartBehavior.down`) so the slop is
+    not swallowed; clamp only what is shown, not the anchor, so the edge picks the pointer up again
+    after it went past a limit
+  - the size goes through a narrow listenable (`ValueNotifier`) that only the pane listens to; the
+    neighbours are relaid, never rebuilt
+  - a test sends several moves without a pump between them and expects the size to change by
+    exactly their sum
 - Measure: a stopwatch from the input event to the next painted frame
   (`addPostFrameCallback` after `scheduleFrame`), recorded per interaction, says where the time
   goes. "It waits for a double click" was a rebuild of every page; the measurement tells them apart.
