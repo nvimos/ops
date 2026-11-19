@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import '../backend/models.dart';
 import '../backend/repo_backend.dart';
@@ -283,13 +284,40 @@ class LocalBackend implements RepoBackend {
   Never _todo() => throw UnimplementedError('local actions land in TASK-163');
 
   @override
-  Future<void> stage(String path) async => _todo();
+  Future<void> stage(String path) => repo.track([path]);
 
   @override
-  Future<void> unstage(String path) async => _todo();
+  Future<void> unstage(String path) async {
+    try {
+      await _git(['restore', '--staged', '--', path]);
+    } on GitException {
+      // A repository with no commit yet has no HEAD to restore from.
+      await _git(['rm', '--cached', '-q', '--', path]);
+    }
+  }
 
   @override
-  Future<void> discard(String path) async => _todo();
+  Future<void> discard(String path) async {
+    final rows = await repo.status();
+    StatusRow? row;
+    for (final r in rows) {
+      if (r.path == path) {
+        row = r;
+        break;
+      }
+    }
+    if (row != null && row.section == Section.untracked) {
+      final full = Directory(pathIn(root, path));
+      if (await full.exists()) {
+        await full.delete(recursive: true);
+      } else {
+        final file = File(pathIn(root, path));
+        if (await file.exists()) await file.delete();
+      }
+      return;
+    }
+    await _git(['restore', '--', path]);
+  }
 
   @override
   Future<void> stageHunk(String path, Hunk h) async => _todo();
