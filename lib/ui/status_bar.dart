@@ -1,10 +1,13 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../backend/models.dart';
+import '../state/hot_reload.dart';
 import '../state/prefs.dart' show BackendKind;
 import '../state/session.dart';
 import 'debug_bar.dart';
+import 'error_view.dart';
 import 'theme.dart';
+import 'widgets.dart';
 
 /// Active Directory, current branch, Neovim's current file and cursor (live), connection state.
 class StatusBar extends StatelessWidget {
@@ -29,12 +32,45 @@ class StatusBar extends StatelessWidget {
           if (head != null) _Item(icon: Icons.call_split, text: head, tip: 'Current branch'),
           Expanded(child: cur == null ? const SizedBox() : _Cursor(cursor: cur, root: s.repo?.root)),
           _Connection(conn: s.conn, address: s.kind == BackendKind.local ? 'local' : s.address),
+          if (const HotReload().available) ...[
+            const SizedBox(width: 10),
+            HotButtons(
+              onReload: () => _hot(context, const HotReload().reload),
+              onRestart: () => _hot(context, const HotReload().restart),
+            ),
+          ],
           const SizedBox(width: 10),
           const _DebugToggle(),
         ],
       ),
     );
   }
+
+  static Future<void> _hot(BuildContext context, Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      if (context.mounted) showActionError(context, '$e');
+    }
+  }
+}
+
+/// Hot reload and hot restart: for the debug run (`make run`, `make live`) only;
+/// the caller leaves them out of a release build.
+class HotButtons extends StatelessWidget {
+  const HotButtons({super.key, required this.onReload, required this.onRestart});
+
+  final VoidCallback onReload;
+  final VoidCallback onRestart;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      IconAction(icon: Icons.bolt, tooltip: 'Hot reload: the changed code, the state kept', onPressed: onReload),
+      IconAction(icon: Icons.restart_alt, tooltip: 'Hot restart: start the app again', onPressed: onRestart),
+    ],
+  );
 }
 
 class _Item extends StatelessWidget {
