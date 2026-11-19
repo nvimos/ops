@@ -114,8 +114,8 @@ class LocalBackend implements RepoBackend {
   }
 
   /// Run git in [root]; throw [GitException] for an exit code outside [ok].
-  Future<ProcessOutput> _git(List<String> args, {Set<int> ok = const {0}}) async {
-    final result = await _runner.run('git', args, cwd: root, encoding: utf8);
+  Future<ProcessOutput> _git(List<String> args, {Set<int> ok = const {0}, String? stdin}) async {
+    final result = await _runner.run('git', args, cwd: root, stdin: stdin, encoding: utf8);
     if (!ok.contains(result.exitCode)) {
       throw GitException(
         'git ${args.first} failed (exit ${result.exitCode}):\n${result.stderr}',
@@ -351,13 +351,59 @@ class LocalBackend implements RepoBackend {
   }
 
   @override
-  Future<void> stageHunk(String path, Hunk h) async => _todo();
+  Future<void> stageHunk(String path, Hunk h) async {
+    final file = await diffFile(path, staged: false);
+    if (file == null) throw GitException('no unstaged diff for $path');
+    if (file.status == 'added') return stage(path);
+    await _applyPatch(_hunkPatch(file, h), cached: true);
+  }
 
   @override
-  Future<void> unstageHunk(String path, Hunk h) async => _todo();
+  Future<void> unstageHunk(String path, Hunk h) async {
+    final file = await diffFile(path, staged: true);
+    if (file == null) throw GitException('no staged diff for $path');
+    await _applyPatch(_hunkPatch(file, h), cached: true, reverse: true);
+  }
 
   @override
-  Future<void> discardHunk(String path, Hunk h) async => _todo();
+  Future<void> discardHunk(String path, Hunk h) async {
+    final file = await diffFile(path, staged: false);
+    if (file == null) throw GitException('no unstaged diff for $path');
+    if (file.status == 'added') return discard(path);
+    await _applyPatch(_hunkPatch(file, h), reverse: true);
+  }
+
+  /// One hunk as a patch `git apply` can take, with the file's own headers.
+  String _hunkPatch(DiffFile file, Hunk h) {
+    final oldPath = file.oldPath.isEmpty ? file.path : file.oldPath;
+    final from = file.status == 'added' ? '/dev/null' : 'a/$oldPath';
+    final to = file.status == 'deleted' ? '/dev/null' : 'b/${file.path}';
+    final buf = StringBuffer()
+      ..writeln('diff --git a/$oldPath b/${file.path}')
+      ..writeln('--- $from')
+      ..writeln('+++ $to')
+      ..writeln(h.header);
+    for (final line in h.lines) {
+      buf.write(switch (line.kind) {
+        LineKind.context => ' ',
+        LineKind.add => '+',
+        LineKind.del => '-',
+      });
+      buf.writeln(line.text);
+      if (line.noEol) buf.writeln('\\ No newline at end of file');
+    }
+    return buf.toString();
+  }
+
+  Future<void> _applyPatch(String patch, {bool cached = false, bool reverse = false}) async {
+    await _git([
+      'apply',
+      if (cached) '--cached',
+      if (reverse) '--reverse',
+      '--whitespace=nowarn',
+      '-',
+    ], stdin: patch);
+  }
 
   @override
   Future<void> checkout(String branch, {CheckoutHow? how}) async => _todo();

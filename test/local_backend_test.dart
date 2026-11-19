@@ -80,6 +80,38 @@ void main() {
     expect(status.files.single.staged, isTrue);
   });
 
+  test('stage, unstage and discard one hunk', () async {
+    final temp = await TempRepo.make();
+    final lines = List.generate(20, (i) => 'line ${i + 1}');
+    await temp.write('a.txt', '${lines.join('\n')}\n');
+    await temp.git(['add', 'a.txt']);
+    await temp.git(['commit', '-m', 'base']);
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+
+    lines[1] = 'changed early';
+    lines[18] = 'changed late';
+    await temp.write('a.txt', '${lines.join('\n')}\n');
+
+    final unstaged = await backend.diffFile('a.txt', staged: false);
+    expect(unstaged, isNotNull);
+    expect(unstaged!.hunks.length, 2);
+
+    await backend.stageHunk('a.txt', unstaged.hunks.first);
+    final staged = await backend.diffFile('a.txt', staged: true);
+    expect(staged, isNotNull);
+    expect(staged!.hunks.length, 1);
+
+    await backend.unstageHunk('a.txt', staged.hunks.first);
+    final again = await backend.diffFile('a.txt', staged: false);
+    expect(again!.hunks.length, 2);
+
+    await backend.discardHunk('a.txt', again.hunks.last);
+    final text = await File('${temp.path}/a.txt').readAsString();
+    expect(text, contains('changed early'));
+    expect(text, contains('line 19'));
+  });
+
   test('read-only queries answer from the repository', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'one\ntwo\n');
