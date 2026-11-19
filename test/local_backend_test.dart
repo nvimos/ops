@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nvimos_poc/backend/repo_backend.dart';
 import 'package:nvimos_poc/local/local_backend.dart';
 import 'package:nvimos_poc/local/system.dart';
 
@@ -112,6 +113,44 @@ void main() {
     expect(text, contains('line 19'));
   });
 
+  test('commit, checkout and a clean merge', () async {
+    final temp = await TempRepo.make();
+    await temp.write('a.txt', 'a\n');
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+
+    await backend.stage('a.txt');
+    final sha = await backend.commit('add a');
+    expect(sha, hasLength(40));
+    expect((await backend.status()).files, isEmpty);
+
+    await temp.git(['branch', 'feature']);
+    await temp.git(['checkout', '-q', 'feature']);
+    await temp.write('b.txt', 'b\n');
+    await temp.git(['add', 'b.txt']);
+    await temp.git(['commit', '-q', '-m', 'add b']);
+    await temp.git(['checkout', '-q', 'main']);
+
+    final merged = await backend.merge('main', 'feature');
+    expect(merged, hasLength(40));
+    expect(await File('${temp.path}/b.txt').readAsString(), 'b\n');
+  });
+
+  test('checkout with force discards worktree changes', () async {
+    final temp = await TempRepo.make();
+    await temp.write('a.txt', 'a\n');
+    await temp.git(['add', 'a.txt']);
+    await temp.git(['commit', '-q', '-m', 'a']);
+    await temp.git(['branch', 'feature']);
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+
+    await temp.write('a.txt', 'dirty\n');
+    await backend.checkout('feature', how: CheckoutHow.force);
+    expect(await File('${temp.path}/a.txt').readAsString(), 'a\n');
+    expect(await backend.repo.currentBranch(), 'feature');
+  });
+
   test('read-only queries answer from the repository', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'one\ntwo\n');
@@ -199,8 +238,8 @@ void main() {
     final backend = await LocalBackend.open(temp.path);
     addTearDown(backend.close);
 
-    await expectLater(backend.commit('message'), throwsUnimplementedError);
-    await expectLater(backend.checkout('main'), throwsUnimplementedError);
+    await expectLater(backend.mergePreflight('main', 'main'), throwsUnimplementedError);
+    await expectLater(backend.mergeStart('main', 'main'), throwsUnimplementedError);
   });
 }
 
