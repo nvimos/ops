@@ -6,8 +6,20 @@
 
 A Flutter desktop app for Windows. Linux, Android and Macos versions will be implemented later.
 
-All editor and git state comes from the backend plugin, relay (`nvimos/relay`, checkout `~/es/nvimos-poc-backend`),
-see _that_ PLAN.md for the protocol.
+Ops works on a local repository with no editor, through `lib/local` (`RepoBackend`). The Neovim
+backend (relay, `nvimos/relay`) is optional and is used for the live editor and for a checkout on
+another machine or in WSL. See that repository's PLAN.md for the protocol.
+
+## Current modes (2026-11-19)
+
+- **Pull request** — two local branches as a review.
+- **Changes** — the working tree against HEAD, with files, hunks and commit.
+- **Add and Ignore** — the file-first list: add, untrack, ignore and delete.
+- **Tasks** — Backlog.md and OpenSpec as the planning database.
+- **Repos** — the repositories found around the current folder; start-dirs are hints.
+- **Settings**, **Log**, **Help**.
+
+`ops.exe <directory>` opens a local repository; a `host:port` argument connects to Neovim.
 
 ## Main functionality
 
@@ -21,7 +33,7 @@ see _that_ PLAN.md for the protocol.
 - The Tasks mode imitates the commercial app Linear, doing more or less the same thing,
   but using the markdown files of openspec and backlog.md as a database of sorts
 
-- The Directories mode picks the Active Directory, the repo the other modes work on.
+- The Repos mode picks the Active Directory, the repo the other modes work on.
 
 ## Original app description
 
