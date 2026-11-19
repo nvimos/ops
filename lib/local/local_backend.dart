@@ -389,6 +389,10 @@ class LocalBackend implements RepoBackend {
       await _git(['stash', 'push', '-q', '-m', 'nvimos: before checkout']);
       try {
         await _git(['checkout', '-q', branch]);
+        final popped = await _git(['stash', 'pop', '-q'], ok: {0, 1});
+        if (popped.exitCode != 0) {
+          throw GitException('nvimos: checkout done; local changes are in the stash (git stash pop failed)');
+        }
       } on Object {
         await _git(['stash', 'pop', '-q'], ok: {0, 1});
         rethrow;
