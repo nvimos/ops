@@ -137,11 +137,15 @@ class ReposState extends ChangeNotifier {
       browser.onReport = (r) {
         before?.call(r);
         lastReport = r;
+        onScan?.call(r);
         notifyListeners();
       };
       load();
     }
   }
+
+  /// Told about every finished walk (the Log mode keeps them).
+  void Function(ScanReport report)? onScan;
 
   /// What the last walk did (where from, how far, how long), for the line under the title.
   ScanReport? lastReport;

@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../state/add_ignore.dart';
+import '../state/log_state.dart';
 import '../state/repos.dart';
 import '../state/pr.dart';
 import '../state/session.dart';
@@ -13,6 +14,7 @@ import 'connect.dart';
 import 'dirs_view.dart';
 import 'error_view.dart';
 import 'key_sequence.dart';
+import 'log_view.dart';
 import 'nav_keys.dart';
 import 'help_view.dart';
 import 'debug_bar.dart';
@@ -40,6 +42,7 @@ class _ShellState extends State<Shell> {
   Workspace? _ws;
   ReposState? _dirs;
   AddIgnoreState? _add;
+  LogState? _log;
 
   /// The session's backend generation the mode states above were made for.
   int _epoch = 0;
@@ -100,6 +103,7 @@ class _ShellState extends State<Shell> {
     _ws?.dispose();
     _dirs?.dispose();
     _add?.dispose();
+    _log?.dispose();
     super.dispose();
   }
 
@@ -440,13 +444,13 @@ class _ShellState extends State<Shell> {
     if (s.epoch == _epoch) return;
     _epoch = s.epoch;
     // disposed after this frame: the views of the old states are still in the tree until it ends
-    final old = <ChangeNotifier?>[_pr, _ws, _dirs, _add];
+    final old = <ChangeNotifier?>[_pr, _ws, _dirs, _add, _log];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       for (final o in old) {
         o?.dispose();
       }
     });
-    _pr = _ws = _dirs = _add = null;
+    _pr = _ws = _dirs = _add = _log = null;
     _openedProject = false;
   }
 
@@ -461,6 +465,8 @@ class _ShellState extends State<Shell> {
       _ws ??= Workspace(s);
       _dirs ??= ReposState(s);
       _add ??= AddIgnoreState(s);
+      _log ??= LogState(s);
+      _dirs!.onScan = _log!.addScan;
       if (s.openProjectOnConnect && !_openedProject) {
         _openedProject = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -535,7 +541,7 @@ class _ShellState extends State<Shell> {
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
       DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
       const ModePlaceholder(Mode.settings),
-      const ModePlaceholder(Mode.log),
+      LogView(log: _log!),
       _help(),
     ],
   );
