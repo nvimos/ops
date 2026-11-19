@@ -2,10 +2,44 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/local/local_backend.dart';
+import 'package:nvimos_poc/local/system.dart';
 
+import 'support/fake_system.dart';
 import 'support/local_temp_repo.dart';
 
 void main() {
+  test('a fake runner answers log and diff', () async {
+    final temp = await TempRepo.make();
+    final runner = FakeRunner((call) {
+      if (call.args.first == 'log') {
+        return const ProcessOutput(0, stdout: 'abc123\u001fabc\u001fA\u001f1700000000\u001fa commit\u001e');
+      }
+      if (call.args.first == 'merge-base') return const ProcessOutput(0, stdout: 'base123\n');
+      if (call.args.first == 'diff') {
+        return const ProcessOutput(
+          0,
+          stdout: 'diff --git a/a.txt b/a.txt\n'
+              '--- a/a.txt\n'
+              '+++ b/a.txt\n'
+              '@@ -1 +1 @@\n'
+              '-old\n'
+              '+new\n',
+        );
+      }
+      return const ProcessOutput(1, stderr: 'unexpected');
+    });
+    final backend = await LocalBackend.open(temp.path, runner: runner);
+    addTearDown(backend.close);
+
+    final commits = await backend.log('main', 'head');
+    expect(commits.single.sha, 'abc123');
+    expect(commits.single.subject, 'a commit');
+
+    final diff = await backend.diff('main', 'head');
+    expect(diff.mergeBase, 'base123');
+    expect(diff.files.single.path, 'a.txt');
+  });
+
   test('read-only queries answer from the repository', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'one\ntwo\n');
