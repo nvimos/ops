@@ -39,7 +39,7 @@ describes the app as it now is and must be after the change.
 
 ## 4. Idea files
 
-- If a change shifts a main idea in `~/es/nvimos-meta/poc-nvim-backend/flutter*.md`, update that
+- If a change shifts a main idea in `~/ws/nvimos-meta/poc-nvim-backend/flutter*.md`, update that
   file too, but keep it vague: no buttons, no keys, no sizes. The plan wins where they disagree.
 
 ## 5. Report

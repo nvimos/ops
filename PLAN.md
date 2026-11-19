@@ -73,6 +73,10 @@ An agent may follow it or implement something better.
   - an interactive item shows the pointer cursor (the pointing hand) and has a tooltip saying what it
     does, including a hidden button like the sign of a diff block
   - one exception: the file rows of the file lists keep the plain cursor
+  - no double clicks: a click acts on the release, never held back to see whether a second follows
+    (Purrage's double click to open went; Open is in the row menu)
+    - the one exception: a double click on a resizable pane's edge resets its width (a click there
+      does nothing, so nothing waits)
 
 - Keyboard inputs for navigation, switching modes, toggling or selecting items
   - use imagination if needed or follow vim/neovim conventions
@@ -105,7 +109,7 @@ Global
 |                    | its list of branches open (any mode, Help too; not while|
 |                    | typing in a field)                                      |
 | `gi` (rail focused)| the first input of the mode shown: Pull request base,   |
-|                    | Changes branch switcher, Tasks and Directories filter,  |
+|                    | Changes branch switcher, Tasks and Repos filter,  |
 |                    | Help search                                             |
 | `b`                | show / hide the debug bar                               |
 | `Ctrl+Arrow`       | jump to the pane in that direction (PR: head picker,    |
@@ -116,12 +120,12 @@ Global
 |                    | Windows or HTML page. PR: base, head, files, commits,   |
 |                    | diff. Changes: branch switcher, STAGED, CHANGES, commit |
 |                    | message, diff.                                          |
-|                    | Tasks and Directories: filter, list. The mode rail is one|
+|                    | Tasks and Repos: filter, list. The mode rail is one     |
 |                    | stop in front of the first (not each mode in it)        |
-| `/`                | filter the list (Tasks, Directories)                    |
+| `/`                | filter the list (Tasks, Repos)                          |
 | `.`                | widen or narrow the detail panel (Tasks)                |
-| `Shift`+wheel      | over the Facets or the task list: previous / next item  |
-| middle click       | over the Facets or the task list: the wheel steps items (like Up / Down) or scrolls |
+| `Shift`+wheel      | over a list: the cursor moves Settings' wheel step (5 rows by default) |
+| middle click       | over a list: the wheel steps the cursor by that step (like Up / Down) or scrolls |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
 
 Any list (files, commits, branches, dirs, tasks)
@@ -131,7 +135,7 @@ Any list (files, commits, branches, dirs, tasks)
 | `j` / `k`, `Down` / `Up` | next / previous item; in a diff, scroll 3 lines   |
 | `S-Up` / `S-Down`, `K` / `J` | in a diff, scroll 10 lines                     |
 | `{` / `}` (Shift+[ / Shift+]) | three items up / down in a list (PR, Changes, |
-|                    | Tasks, Directories); no hop to another pane             |
+|                    | Tasks, Repos); no hop to another pane                   |
 | `h` / `l`, `Left` / `Right` | from a list to the diff / back (PR, Changes)    |
 | `Down` past the last item | the pane visually below the list; `Up` past the    |
 |                    | first item: the pane above (PR: head picker, FILES,     |
@@ -189,14 +193,24 @@ Add and Ignore
 |--------------------|---------------------------------------------------------|
 | `t` / `u`          | add (stage) / untrack the highlighted files             |
 | `i`                | ignore: choose the scope, the rule and the ignore file  |
-| `I`                | ignore at once: a plain rule in the root `.gitignore`   |
-| `x`, `Delete`      | move the highlighted files to the trash (asks first)    |
-| `p` / `v`          | show / hide the ignore rules / the preview of the files |
+| `I`                | ignore at once: a plain rule in the project `.gitignore` |
+| `x`, `Delete`      | delete the highlighted files: the trash or for good, as Settings says (a question only if Settings asks) |
+| `p` / `v`          | the one side pane: the ignore rules / the preview of the files (the same key again hides it; the view is remembered) |
 | `Space`            | highlight / un-highlight the cursor row                 |
 | `Shift+Up/Down`    | extend the highlight                                    |
 | `Ctrl+A`           | highlight every row                                     |
 | `r`                | reload the list                                         |
 | `gi`, `/`          | focus the filter field                                  |
+| `1 2 3` / `f x d`  | Ignore dialog: scope this file / extension / folder     |
+| `j` / `k`          | Ignore dialog: the file the rule goes into              |
+| `Enter` / `Esc`    | Ignore dialog: write the rule / close without writing   |
+| `Tab`              | Ignore panes: the `.gitignore` list, then the lines     |
+| `j` / `k`          | Ignore panes: pick a file / move the line cursor        |
+| `h` / `l`          | Ignore panes: between the file list and the lines       |
+| `Ctrl+Arrow`       | Ignore panes: jump between the panes                    |
+| `Enter`            | Ignore panes: open the file, or the line, in the editor |
+| `Delete`           | Ignore panes: delete the line (Undo in the notice)      |
+| `Shift+wheel`      | Ignore panes: scroll the lines                          |
 
 Repos
 
@@ -249,6 +263,39 @@ Initial one shot vibe code decisions (this section will disappear, it serves as 
 | Connection  | TCP 127.0.0.1:6666 (`nvim --listen` or `:NvimosServe`); Dart can't open named pipes |
 | Git         | the app runs no git itself; everything goes through the backend's `git.*`          |
 | Editing     | Primarily in Neovim if it's open as a non-headless instance |
+| Reference   | Purrage (`C:/Users/jazzo/ws/Purrage`) is the app Ops ports Add and Ignore and Repos from: its views, its `Prefs` and its `PLAN.md` are the reference when the two disagree about those modes |
+
+### Porting Purrage (2026-11-19)
+
+_not strictly normative_ — what the port settled, so it is not decided again by accident.
+
+- The two ported modes keep Purrage's look where the user asked for it, and the app's own look
+  elsewhere: folder/name columns and the folder amber from Purrage; the app's type scale, tints and
+  icons
+- no hover-only row buttons in either mode: Add and Ignore's buttons are always there, Repos has
+  none, and every row action lives in the right-click menu (`HoverRow.onContextMenu` → `showMenu`,
+  32 px items with a tooltip each)
+  - exception, by the user (2026-11-19): the lines of the Ignore panes keep their hover buttons
+    (Dirname, Delete) and also get a right-click menu (`ops-ignore-pane`)
+- hover is input-modality-aware (Zed's GPUI rule): a key press suppresses the hover look, and the
+  hover-only controls, until the pointer moves or a button goes down; a row scrolled under a resting
+  mouse must not light up
+- the side pane is one view at a time, remembered, with a remembered width — two independent toggles
+  (rules *and* preview open at once) were tried and dropped
+- Add and Ignore's list steps with the wheel like every list: the step is Settings' `wheelStep`
+  (5 rows), not one (Purrage's default)
+- the Ignore dialog writes only inside the repository: the folder's `.gitignore` (for a folder row,
+  one inside it, whose rule is `*`), the project `.gitignore`, and `.git/info/exclude`
+  - the global ignore file is real git (`core.excludesFile`) but is not offered: on this machine it
+    is a `.txt` outside the repository, and the user does not want the dialog writing it
+  - "root" means the repository root everywhere in the code and paths, but the dialog says *project*
+    for the rule file at that root (`IgnoreTargetKind.projectGitignore`)
+- Settings: Purrage's eight settings all exist here, and the delete pair (trash or for good, and
+  whether to ask) is Purrage's default: the trash, and no question
+- what the local backend lists: `git status --porcelain --untracked-files=all`, so untracked files
+  come one by one and a folder row only arrives from the Neovim backend
+  - a test repository with an empty `src/gen/` shows `?? src/` (git collapses it); to get
+    `?? src/gen/` a test tracks a file in `src/` first
 
 ## Architecture
 
@@ -270,10 +317,21 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
     - checks the backend API version on connect
     - `attach`, `getText`, `open`, `show`
     - `git.*`: branches, log, diff, status, stage/unstage/discard (file and hunk), checkout, commit
+    - `gitignore.*`: load the panes, untracked discovery, read, append, replace, insert, create
     - `files.*`: list, read, set lines, move, create, run a CLI
     - `jobs.*`: start and cancel
     - turns `nvimos` notifications into typed events, checks `seq` per domain, resyncs on a gap
-  - `models.dart`: typed views of the plugin's maps (cursor, branches, commits, diffs, status, jobs)
+  - `models.dart`: typed views of the plugin's maps (cursor, branches, commits, diffs, status,
+    jobs, `IgnoreFileRef`, `IgnoreSnapshot`, `IgnoreAppend`)
+
+- `local/`
+  - `repo.dart`, `git_repo.dart`, `local_backend.dart`: the local backend's git and file seams;
+    `LocalBackend` implements the ignore-file API by translating repo-relative refs under its root
+    and delegating to `Repo`; `Repo` keeps the file reads/writes and `git ls-files` discovery
+  - `ignore_rules.dart`, `ignore_edits.dart`: pure ignore-rule building and line logic (Dirname,
+    Flip, the line a write landed on, the rows a write moved), unit-tested on their own
+  - `hidden_write.dart`: writes a dot file that Windows keeps hidden; `trash.dart` sends files to
+    the OS trash; `files.dart` is the local Tasks-mode file seam
 
 - `state/`: `ChangeNotifier`s, no framework
   - `session.dart`: the connection, Start Neovim, and the live state every view shares:
@@ -284,9 +342,15 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `diff_prefs.dart`: the diff layout, wrapping, hunk headers and scroll steps, shared by Pull request
     and Changes; wrapping and hunk headers are kept between runs, the layout is not
   - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json` (last-seen times, branch
-    links, true / false view choices)
+    links, true / false view choices, and everything the Settings mode keeps: the editor command, the
+    terminal, the folder opener, the crawl depth, the wheel step, delete to the trash and its
+    question, the side pane's view and width)
+  - `settings.dart`: the Settings mode's state: detection of editors and terminals, the choices above,
+    the Test button
   - `commit_template.dart`: git's commented instructions and file list for the commit message modal
-  - `dirs.dart`: Directories state: the start dirs, the filter, the Active Directory
+  - `add_ignore.dart`, `ignore_choice.dart`, `ignore_pane.dart`: the Add and Ignore mode over the
+    shared status: its rows, the Ignore dialog's choice and the Ignore panes
+  - `dirs.dart`: Repos state: the hints, the crawl, the filter, the Active Directory
   - `list_pair.dart`: the sizes, folding and dominant list of two lists in one column
   - a git hint from the backend makes each state re-query what it shows
 
@@ -308,13 +372,22 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
 - `ui/`
   - `shell.dart`: the window, mode rail, status bar
   - `connect.dart`, `pr_view.dart`, `changes_view.dart`, `tasks/`: the views below (aka Modes)
-  - `diff_view.dart`, `file_tree.dart`, `widgets.dart`, `theme.dart`: shared pieces
+  - `diff_view.dart`, `file_tree.dart`, `widgets.dart`, `theme.dart`: shared pieces; `HoverRow`
+    declares its pointer handlers and assembles its content and decoration from named pieces
   - `syntax.dart`: syntax colors of the diff's code (highlight.js through the `re_highlight` package)
   - `confirm_dialog.dart`, `checkout_dialog.dart`, `commit_message_dialog.dart`, `error_view.dart`:
     the question modals, the large commit message modal, and the error pane, snackbars and the Done
     note
   - `list_pair_view.dart`: two lists in one column (STAGED over CHANGES, FILES over COMMITS)
-  - `dirs_view.dart`: the Directories mode
+  - `dirs_view.dart`: the Repos mode (was Directories)
+  - `add_ignore_view.dart`: the Add and Ignore mode, the whole-file triage list
+  - `path_cells.dart`: the two columns of a path row, `PathFolder` and `PathName`
+  - `ignore_dialog.dart`: the Ignore dialog of Add and Ignore (Purrage's), over `state/ignore_choice.dart`
+  - `side_pane.dart`: the right-hand pane of Add and Ignore: its view (`SideView`), a draggable left
+    edge and the width the caller remembers
+  - `settings_view.dart`: the Settings mode (see below)
+  - `nvim_logo.dart`: Neovim's mark drawn in code, for the status bar's backend indicator
+  - `input_modality.dart`: which device (pointer or keyboard) drove the UI last; hover follows it
   - `nav_keys.dart`: the one mapping of arrows, hjkl and WASD to directions
   - `key_sequence.dart`: two-key commands with counts (`gg`, `]f`, `2gi`)
   - `reveal.dart`: keeps a list's selected row in view from the real render positions
@@ -325,7 +398,8 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `mode_rail.dart`, `help_view.dart`, `status_bar.dart`: the rail, the Help mode, the status bar
 
 - `test/`: unit tests per state and parser; `test/support/nvim.dart` runs a headless Neovim
-  with the backend for the RPC and backend tests.
+  with the backend for the RPC and backend tests; the ignore backend contract runs against
+  `LocalBackend` and a fake remote backend, and the relay's `nvimos.gitignore` has its own Lua tests
 
 ## The UI
 
@@ -363,11 +437,14 @@ mode area, which shrinks upward.
 - the rail is as high as the mode area; the two bars span the whole width
 - Pull request and Changes have the left pane (resizable), the main pane and, while reviewing, the
   review panel; Changes' left pane holds Staged, Changed and the commit message instead
-- Tasks, Directories and Help fill the mode area with one pane
+- Tasks, Repos and Help fill the mode area with one pane
 - the bug button at the right end of the status bar shows and hides the debug bar
+- the status bar shows the backend in front of the connection dot
+  - a little desktop for the local backend, Neovim's mark for Neovim; faint while not connected
+  - the tooltip reads "Backend is local" or "Backend is nvim"
 <!-- }}} -->
 
-- Search and filter fields (Tasks, Directories, branch pickers, command palette, Help) have an x at
+- Search and filter fields (Tasks, Repos, branch pickers, command palette, Help) have an x at
   the right edge while they hold text; a click clears the field (`ClearButton` in `ui/widgets.dart`)
   - Alt+X in such a field does the same, and refreshes what it filters, so the filtering resets
   - Left in a filter moves the text cursor; at the leftmost edge, or in an empty field, it goes to
@@ -386,11 +463,13 @@ mode area, which shrinks upward.
   <!-- {{{ initial view -->
   - shown in place of the current mode whenever the app is not connected, at startup and after Neovim goes away
   - the mode rail on the left and the status bar stay visible
-  - the address comes from the first command-line argument, else `NVIMOS_ADDR`, else `127.0.0.1:6666`
-  - when the first argument is an existing directory instead, the app starts Neovim there (console,
-    on a free loopback port) and connects to it; the project then opens in the first mode with
-    something to do, as double-clicking the Active Directory does in Directories
-  - the app tries to connect once on startup without waiting for a click
+  - the local backend is the default (2026-11-19): with no argument and no `NVIMOS_ADDR`, the app
+    opens the last folder it opened locally that still exists, else the working directory, without
+    Neovim; it never starts a Neovim on its own
+  - an address as the first argument, or `NVIMOS_ADDR`, connects to that Neovim instead
+  - an existing directory as the first argument opens that folder locally; the project then opens
+    in the first mode with something to do, as clicking the Active Directory once more does in Repos
+  - a folder that is not a repository ends here, with the error, the recents and the address field
   - an address field with a Retry button; Enter in the field also connects
   - a new address drops the current connection and connects there
   - while connecting (or while a Neovim start waits to connect) the button reads "Cancel";
@@ -463,6 +542,10 @@ _not strictly normative_
     errors, danger, between Firebrick and Maroon), `yellow` `#E6B450` (modified, in progress, connecting, the debug bar's text),
     `purple` `#A78BFA` (renamed, needs test)
   - `found` `#66FFB84D` (ARGB), a translucent amber: the background of search matches
+  - `folder` `#E8C46B`: a directory's base name, Windows Explorer's folder amber muted for the dark
+    sheet (Repos, Add and Ignore), with its trailing slash
+  - `current` `#266C8CFF` (ARGB), the accent at 15 %: the active row's tint (Repos: the Active
+    Directory)
   - the file list's change counts (Changes, Pull request): `+N` and `−N` in two columns each, the
     sign and the number as separate items. The number has the plain colour (`addSign` `#8FD3A8` for
     additions, `red` for deletions); the sign is 40% that colour over 60% the background `bg`. A
@@ -486,7 +569,8 @@ _not strictly normative_
   - pane header 40 px (`PaneHeader`: 12 px sides, 1 px bottom border, title in `T.title`);
     the Tasks toolbar is 44 px
   - status bar 24 px, 10 px sides, 1 px top border; debug bar three lines of 11 px text plus 14 px
-  - mode rail 48 px collapsed and 180 expanded (120 ms to change); entries 44 px high; icons 20 px
+  - mode rail 48 px collapsed and 180 expanded; the width snaps at once, the labels fade in over
+    90 ms; entries 44 px high; icons 20 px
   - view bar (Pull request, Changes) 34 px, 12 px sides, 1 px bottom border; buttons 26 px, icons 15
   - list rows: `HoverRow` pads 12 on the sides and 6 above and below; file rows 5 above and below,
     folder rows 6 and 3; Tasks rows are exactly 36 px (`TaskRows.rowHeight`, 14 px sides); the
@@ -522,9 +606,22 @@ _not strictly normative_
   - section headers: `T.section` titles in the Tasks facets (14 px sides, 16 above, 6 below) and
     above lists; the active list's title is accent; group headers in a list are `body` semibold
     on `surface` with the status icon and a `tiny` count
-  - list rows: transparent at rest, `hover` under the mouse, `surface2` when selected; in the Tasks
-    facets the selected row's text turns accent while that list has the keys, the other rows'
-    text is a literal `#C8CBD3`
+  - list rows: transparent at rest, `hover` under the mouse, `surface2` when selected; a current row
+    (the Active Directory) keeps its own tint (`C.current`) and a 3 px accent bar on its left edge,
+    and the rows without the bar pass a transparent one (`HoverRow.bar`), so the content stays lined
+    up; in the Tasks facets the selected row's text turns accent while that list has the keys, the
+    other rows' text is a literal `#C8CBD3`
+  - hover is input-modality-aware (`ui/input_modality.dart`), the rule Zed's GPUI names and browsers
+    keep by deferring `:hover` while a scroll runs: a hover look belongs to the pointer, so a key
+    press hides it — and the hover-only controls inside the row with it — until the pointer moves or
+    a button goes down; a row that slides under a resting mouse while the keys scroll stays plain
+    instead of reading as the focused one
+  - right-click menus: Material popups (`showMenu`), 32 px items with a tooltip each; the row under
+    the mouse is targeted first, or the whole highlight when the row is part of it (see Add and
+    Ignore and Repos)
+  - side panes (Add and Ignore): a 1 px line inside a 7 px drag area with the resize cursor; at least
+    240 px, at most 60 % of the window, 360 px until dragged; a double click on the edge goes back to
+    360; the width and the shown view are kept in `Prefs`
   - tooltips: `surface2`, radius 4, 12 px text, after 500 ms
   - snackbars: no `SnackBarTheme`, so they have Material's default look and not the app's colours;
     errors stay 6 s, the auto-status note 3 s (longer while the mouse is on it)
@@ -671,7 +768,7 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
   - hovering an icon or label shows a brief explanation of the mode,
     like an HTML `title` tooltip.
 - one icon per mode, top to bottom (Alt+1 … Alt+9): Pull request, Changes, Add and Ignore, History, Tasks, Repos, Settings, Log, Help
-  - History, Settings and Log show a short "not built yet" note until their views arrive
+  - History and Log show a short "not built yet" note until their views arrive
 - Help lists every key the app has; it works without a connection too
   - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
     so every key fits on one screen; the groups keep their order and the columns even out in height
@@ -705,9 +802,9 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
 - visible at all times, also while not connected; a mode picked then shows once the app connects
 - modes stay alive in the background, so switching back keeps their selection and scroll position
 - no repo name and no current branch here; the current branch is in the status bar.
-- Directories mode, a folder icon
+- Repos mode, a folder icon
   - its icon comes after all other mode icons, not anchored to the bottom of the rail
-  - see "Directories mode" below
+  - see "Repos mode" below
 <!-- }}} -->
 
 ### Debug bar
@@ -1023,7 +1120,7 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
       goes back to the list; Tab visits the elements in order and on to the rail; Esc closes it
   - one special case for the user's layout: the key where D is on QWERTY is Right whatever letter
     it types (found by its scan code); no other key is matched by position
-  - the arrow keys, h j k l and W A S D do the same (Tasks and Directories have no panes: only
+  - the arrow keys, h j k l and W A S D do the same (Tasks and Repos have no panes: only
     w / s there); the commands that had `s` and `a` moved: stage is Space in Changes, status is `t`
     and the project scope Shift+A in Tasks
   - the file and commit lists scroll to keep the selected row in view
@@ -1131,22 +1228,127 @@ keyboard J/K/Enter/Esc/C and /.
 <!-- {{{ -->
 - the whole-file triage list from Purrage: one row per changed or untracked path, in sections
   (conflicts, staged, changed, untracked); Changes stays the diff and hunk mode
+- rows follow Purrage's Changes list: the change's letter, the folder right-aligned in monospace
+  `muted` with its trailing slash, the row's buttons, then the base name
+  - the buttons sit in a fixed 42 px slot and are always there — add (`+`) or untrack (`−`), and for
+    an untracked row the eye that ignores it (`I`, the literal path into the project `.gitignore`) — so
+    the name column is the same on every row; there are no hover-only buttons
+  - a directory's base name is amber (`C.folder`) and keeps its trailing slash, so it reads as a
+    folder
+  - a section heading reads `Staged (3)` in `T.section`, at the bottom of its 28 px strip
+- a right click opens the row's menu, after targeting that row (or the highlight, when the row is in
+  it), as in Purrage: `Open` (the file in the editor Settings names), `Ignore…` (the dialog), `Delete`
+  (`x`; to the trash or for good, as Settings says); every row button and menu item has a tooltip and
+  the pointer
+- delete follows Settings: the trash by default, for good when that is chosen, and the question
+  first only when Settings asks for one (`confirmDelete`, off by default) — the dialog's title and
+  wording follow the choice (`Move to the trash?` / `Delete for good?`)
+- the right-hand pane is Purrage's: one view at a time (`p` the ignore panes, `v` the preview), open
+  at start on the view last used, remembered in `Prefs` (`sideView`)
+  - a visible switch above it picks the ignore panes or the preview; the same key again hides the
+    pane, the other key switches it; the close button on the switch hides it
+  - its left edge drags (7 px, the resize cursor) between 240 px and 60 % of the window; 360 px
+    until dragged, a double click on the edge goes back to it, and the width is remembered
+    (`sidePaneWidth`)
+  - under 600 px of window width it starts hidden; `p` or the switch still opens it for the session,
+    and a later resize does not undo that choice
+  - the preview reads the highlighted files once per change of the highlight, and only while it is
+    the shown view (`renderPdf` from Settings decides whether PDF pages are drawn)
+  - neither view reads while the switch hides it: they mark themselves stale and load when shown
 - both modes sit on one status store and one action queue (`Session.store`, `Session.actions`), so
   an action in one shows in the other; each keeps only its cursor, selection and filter
 - plain, Ctrl and Shift selection with the mouse; Shift+arrows, Space and Ctrl+A with the keys
-- row buttons (add, untrack, ignore, delete) show on hover; every button has a tooltip and the pointer
-- the Ignore dialog (`i`) chooses the scope of the rule (file, extension, folder) and its file
-  (the folder's `.gitignore`, the root one, `.git/info/exclude`, the global one), previews the rules
-  and the rows they cover, and names paths git already ignores
-- the Ignore pane (`p`) lists the ignore files around the cursor row, marks the rule that matches,
-  and deletes a rule or moves it one folder up; it looks a path up once the cursor rests
-- needs a local repository for ignore and delete (the rules engine works on the files)
+- the list steps with Shift + the wheel, or the wheel after a middle click, by Settings' wheel step
+  (`wheelStep`, 5 rows by default) like every other list; the wheel scrolls it otherwise
+- the Ignore dialog (`i`, the row menu's `Ignore…`) is Purrage's dialog
+  - it opens for every highlighted row, tracked ones too: ignoring a tracked file writes the rule
+    and nothing else (untracking it is `u`)
+  - Scope: chips *this file*, *this extension*, *this folder* (`1 2 3` or `f x d`)
+  - Where: the folder's `.gitignore` (for a folder row, one inside it, whose rule `*` ignores what is
+    below it), the project `.gitignore`, or `.git/info/exclude`, each with its path and a check while
+    chosen (`j` / `k`); a target whose file is not there yet says so and is created by the write; the
+    default is the narrowest `.gitignore` that exists, else the project one
+  - the targets come from the backend's pane load plus its untracked discovery, so an existing
+    untracked nested `.gitignore` is not called missing
+  - the preview: `3 files → 1 rule`, each rule once, and the rows the scope makes no rule for
+  - Enter writes, Esc cancels; the Ignore button is off while nothing would be written
+  - after a write the ignore panes select that file and centre the first new rule, without an
+    animated scroll; a duplicate selects the file and does not scroll
+- the Ignore panes (`p`) are Purrage's two panes, without the match lookup
+  - left: every `.gitignore` of the project, the root one as `project .gitignore`, named by its
+    folder otherwise; 35 % of the pane, at least 80 px
+  - right: every line of the selected file as it is — rules, comments and blank lines, no numbers;
+    one line each, cut with an ellipsis, at one fixed height from the text style
+  - the list starts on the project file when it exists, else the first file, keeps the user's pick
+    for the session, and never follows the cursor row; the files that govern the cursor row's folder
+    are marked (a trial), without moving the selection
+  - a line cursor: `j` / `k` move it, `Delete` deletes the line, `Enter` opens the file at it; the
+    list and the lines are two Tab stops, `l` / `h` and Ctrl+arrow move between the panes
+  - a line's right-click menu: Delete, Dirname, Flip, Open; the hover buttons stay (Dirname, Delete),
+    the one exception to "no hover-only row buttons"
+  - Dirname takes a positive rule one folder up (refusals: "dirname only works on positive rules",
+    "please edit negation rules manually", "please edit wildcard rules manually", "no folder above
+    this rule"), removes the line when the parent rule is already there; Flip toggles the leading
+    `!` ("flip only works on rules")
+  - an edit acts at once; the notice says what changed and has Undo, one at a time; a removed line
+    comes back through `insertIgnoreLine`, and Undo refuses when the file changed meanwhile
+  - the notice also counts the rows that left or came back ("2 files now ignored", "1 file back in
+    the list"), from the status before and after, without an extra git call
+  - Open in editor opens the file (or the line) through `EditorSession`; New here creates a
+    `.gitignore` in the cursor row's folder through the backend (inside a directory row, at the root
+    for a root file)
+  - the files are read once on open (one `loadIgnorePanes`, then `untrackedIgnoreFiles`); again only
+    when the status lists a changed `.gitignore` path or after the app's own write; picking another
+    file reads only that file; a cursor move reads nothing
+  - a project without any `.gitignore` says "No .gitignore files" and offers Create project
+    `.gitignore`
+- ignore-file I/O goes through `RepoBackend` with repo-relative names (`IgnoreFileRef`), so a
+  Neovim in a VM or over SSH works; no local absolute path, and no `ensureRepo()` on that path
+- the global ignore file (`core.excludesFile`, `~/.config/git/ignore`) is not offered anywhere: git
+  reads it, but this app does not write rules into a file outside the repository
+<!-- }}} -->
+
+#### Settings mode
+
+<!-- {{{ -->
+- what Purrage's Settings had, plus what this app added; every choice is saved at once in
+  `%APPDATA%/nvimos/state.json` and applies without a restart, since it is read where it is used
+- EDITOR: the editors found on this machine in detection order
+  - a click on a row makes that editor the command (the row in use stays unclickable, as clicking it
+    would change nothing); a saved command leads, marked as the one in use
+  - the field takes a command with `{file}` and `{line}`; Save keeps it, "Use the detected one"
+    clears it so the first detected editor leads again
+  - Test opens `PLAN.md` — the open repository's, else the app's — in the editor in use, and a
+    failure shows as the usual action notice
+  - the header's refresh looks for editors and terminals again
+- TERMINAL: the terminal a repository's menu starts; the first found until one is picked
+- FOLDERS: what a repository folder opens in: the file manager (default) or the editor
+- DELETE: `To the trash` (default) or `For good` — what the Delete action of Add and Ignore does
+- CONFIRM: `Ask first` or `At once` (default, as in Purrage); the question names what goes and
+  follows the trash choice
+- WHEEL: rows one Shift + wheel notch, or one step of a wheel mode, moves a list
+  - 2 to 1000, 5 until chosen; a number out of the range is said under the field and not saved
+- PREVIEW: whether the Add and Ignore preview draws a PDF's first pages (off: a note and an Open
+  button)
+- CRAWL: how many levels below its start folder the crawl looks for repositories, 1 to 12 (default 5,
+  see Repos); it applies to the next crawl
 <!-- }}} -->
 
 #### Repos mode (was Directories)
 
 <!-- {{{ -->
 - works only while connected; disconnected, the view says so
+- rows follow Purrage's Directories list: the folder icon, the folder right-aligned in monospace
+  `muted` with its trailing slash, then the base name
+  - a name is amber (`C.folder`); a stale hint's is faint
+  - the Active Directory keeps the amber name and is marked by a 3 px accent bar, the accent tint
+    (`C.current`) and its "Active Directory" label in the accent
+  - the label sits in a fixed slot as wide as the longest one ("no longer a repository"), so the
+    folder's right edge and the name's left edge line up on every row
+  - a row has no buttons: everything is in its right-click menu
+- a right click opens the row's menu, as in Purrage: `Manage` (make it the Active Directory and open
+  the project), `Open` (the folder in the editor or the file manager, as Settings says), `Terminal`,
+  and `Crawl from here`; a stale hint offers only `Remove`
 - lists the start dirs of the genja-startdirs plugin,
   in the same order as its Telescope picker (`:Telescope mydirs`, by frecency)
   - without genja-startdirs: the dirs of Neovim's recent files (`v:oldfiles`), most recent first
@@ -1185,10 +1387,24 @@ products and their vision, of how things work, with utmost humility and gratitud
   - Changes stage and unstage of whole files: the file moves to the other list at once;
     the status after git answers keeps it there or puts it back, and the error shows
   - hunk staging waits for git: the other hunks' line numbers shift
+- an interaction costs what it changes on screen, not what the app holds (2026-11-19)
+  - a cursor move (arrows, J/K, a click on a row) moves the highlight: the rows of Add and Ignore,
+    Changes and Tasks are built once per change of what they show, not per key
+  - a mode switch rebuilds only the mode stack: the mode views stay the same instances until
+    their inputs change, so the hidden modes do no work
+  - the rail snaps its width; only its labels fade in
+  - dragging the edge of the Add and Ignore side pane lays the list and the pane out at the new
+    width but rebuilds neither of them
+- Settings are read where they are used, not copied at startup: a choice applies at once to the next
+  delete, the next wheel notch and the pane, and a restart starts on the saved choices
 - UI timing instrumentation, on in debug and profile builds, off in release; `NVIMOS_TIMING=1` / `0` overrides
   - hooked where actions already pass, not in click handlers:
     every backend call (`rpc <module>.<fn>`), the state actions (`tasks.edit`, `changes.stage`, ...)
     with their phases (`/optimistic`, `/paint`, `/git`, `/saved`), and every pointer down to the next frame
+  - mode switches: `shell.setMode` (to the new mode on screen) and `shell.railClick` (`/tap`:
+    mouse down to the handler, so a gesture that waits shows; `/paint`)
+  - `addIgnore.move`: an arrow key to the frame with the new cursor
+  - `addIgnore.resizeSide`: a drag step on the side pane's edge to the frame at the new width
   - per action: count, p50, p95, max in ms
   - written to `%APPDATA%/nvimos/ui-timing.json` every minute and on quit: the last 30 sessions and totals
 

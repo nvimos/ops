@@ -2,7 +2,7 @@
 
 Flutter Windows app, GitHub `nvimos/ops`, exe `ops.exe`; `PLAN.md` is the spec.
 Backend plugin: relay (`nvimos/relay`), checkout `../nvimos-poc-backend`.
-The original idea files (`~/es/nvimos-meta/poc-nvim-backend/flutter*.md`) hold main ideas only;
+The original idea files (`~/ws/nvimos-meta/poc-nvim-backend/flutter*.md`) hold main ideas only;
 the plan wins where they disagree. Keep them vague (no buttons, no keys) when updating them.
 
 ## Running tests
@@ -96,6 +96,15 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   `Expanded(flex: 2)`), the base name left-aligned (`PathName`, `Expanded(flex: 3)`), so the names
   line up (`lib/ui/path_cells.dart`). Directory names take Windows Explorer's folder amber
   (`C.folder`). Tests find a path by its base name, not the whole path.
+- Hover is input-modality-aware (`lib/ui/input_modality.dart`): a key press hides every hover look,
+  and the hover-only controls inside a row, until the mouse moves or a button goes down, so keyboard
+  scrolling never lights up the row that slid under a resting mouse. A new hover effect reads the flag
+  the way `HoverRow` does; don't drive hover from `MouseRegion.onEnter` alone.
+- The ported Purrage modes carry no hover-only row buttons. Add and Ignore keeps its buttons always
+  visible (`+`/`−`, the eye for an untracked row); delete and every other row action live in the row's
+  right-click menu (`showMenu`), as in Purrage.
+  - exception, by the user (2026-11-19): the lines of the Ignore panes keep their hover buttons
+    (Dirname, delete) and also get a right-click menu (OpenSpec change `ops-ignore-pane`)
 - The shell keeps every mode built in an `IndexedStack`, each wrapped in
   `ExcludeSemantics(excluding: <not shown>)`. Hidden modes that refreshed sent semantics updates the
   Windows accessibility bridge rejected (`Failed to update ui::AXTree, error: 144 will not be in the
@@ -112,8 +121,30 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 - Measure before optimizing: `UiTiming.instance` (`lib/timing/ui_timing.dart`) has `span`,
   `sync`, `time`; give a new state action a span named `<area>.<action>`. Plain tests see the
   samples in `UiTiming.instance.samples` / `summary()`.
-- Watch per-item work in loops over hundreds of files: a getter that builds a `RegExp` or
-  re-parses (as `Task.number` did) inside a sort costs whole frames.
+- Proportional work: an interaction costs in proportion to what it changes on screen, not to the
+  size of the app or the data. Moving a cursor moves a highlight: it does not rebuild lists, re-sort
+  files, rebuild hidden modes or lay out the window. Before adding a `setState`, a
+  `notifyListeners`, an animation or a derived getter, ask what it sets off downstream and keep that
+  cascade to the part that changed. Four bugs of one kind (2026-11-19), all felt as lag:
+  - rail width animation: an `AnimatedContainer` beside the mode area relaid every mode in the
+    `IndexedStack` (hidden ones too) on every frame of the slide
+  - mode switch: the shell's `setState` made new instances of all nine views, so each one rebuilt
+    its whole subtree on a rail click (a few hundred ms in debug, felt like a double-click wait)
+  - Add and Ignore: the `rows` getter rebuilt and sorted every file on each read, about a dozen
+    reads per arrow key
+  - Changes and Tasks: the same per read (`staged` / `unstaged`, `rows()`), several times per key
+  - Add and Ignore pane edge: each drag event was a `setState` on the whole view, rebuilding the
+    list and the preview; now only `SidePane` listens to the width (`ValueNotifier`)
+- How this project applies the general rules (_For future Flutter projects_, at the end)
+  - derived lists are keyed on the identity of their input: the status store replaces `Status`
+    and never edits one (`AddIgnoreState.rows`, `ChangesState.staged`); `TaskBrowser.rows()` has
+    no single input, so it is dropped on every notice of the browser or the workspace except a
+    cursor or selection move
+  - the shell hands the same mode view instances down until their inputs change (`_modeViews`)
+  - the rail snaps its width and fades only its labels
+  - per-item work stays trivial: `Task.number` once built a `RegExp` per call inside a sort
+  - checked with a `UiTiming` span (`<area>.<action>`, `markPainted()` for the frame on screen) and
+    a test that a cursor move keeps the derived data (`identical`)
 
 ## Keys
 
@@ -242,3 +273,50 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
 17. Tasks: archive into spec, spec browser with "changes that touched this".
 18. Tasks: legacy viewer with Promote to task; milestones.
 19. README: how to run (`nvim --listen 127.0.0.1:6666`, `flutter run -d windows`).
+
+## For future Flutter projects
+
+Learnings meant to carry over to other Flutter apps; nothing here depends on this project. Each
+says the rule, why, and the trap it came from.
+
+### Responsiveness: proportional work
+
+- The principle: an interaction costs in proportion to what it changes on screen, not to the size of
+  the app or the data behind it. Moving a cursor moves a highlight; it does not rebuild lists,
+  re-sort data, rebuild what is hidden or lay out the window. Lag in a desktop app is almost always
+  a cascade: one small change that, through rebuilds, notifiers and getters, makes work
+  proportional to everything.
+- Before adding a `setState`, a `notifyListeners`, an animation or a derived getter, trace what it
+  sets off downstream: which widgets rebuild, what they read, what that recomputes. Keep the
+  cascade to the part that changed.
+- Know the three trees: widgets are cheap, short-lived descriptions; elements and `State` persist;
+  render objects lay out and paint. "Rebuild" means running `build` methods and reconciling, not
+  recreating state. It is CPU on the UI thread, several times dearer in debug builds.
+- Widgets compare by identity: a new instance at the same place counts as changed, even with the
+  same fields, and Flutter rebuilds its whole subtree. The identical instance (cached or `const`) is
+  skipped at once.
+  - so a parent's `setState` should not hand fresh instances to expensive children; keep them
+    while their inputs are the same, and let each subtree rebuild from its own listeners
+  - watch for this above `IndexedStack`, tab views and anything that keeps hidden pages alive: they
+    rebuild and lay out what nobody sees
+- Derived data is computed once per change of its inputs, not once per read.
+  - a getter that filters or sorts looks cheap at the call site and gets read many times per frame
+    (the handler, the build, scroll-into-view, side panes); cache it
+  - key the cache on the identity of an immutable input (a store that replaces its snapshot object
+    instead of editing it makes this trivial and safe); without one, drop the cache on every notice
+    that can change it, and let a notice that only moves the cursor or selection keep it
+  - a test pins it: after a cursor move the derived list is `identical` to the one before
+- Notifiers: a cursor move and a data change are different notices. Listeners that recompute data
+  should not run on cursor moves; separate the notifiers or mark the notice.
+- `ListenableBuilder` / `ValueListenableBuilder`: listen to the narrowest listenable, wrap the
+  smallest subtree that shows it.
+- Animate paint, not layout.
+  - an animated size (`AnimatedContainer` width, `AnimatedSize`) relays its neighbours every frame;
+    next to a large subtree that is a full layout per frame and the animation crawls
+  - snap the size, animate only opacity, colour or a transform, inside a `RepaintBoundary`; a
+    sidebar toggle reads as snappy when it is instant
+- Per-item work in loops over hundreds of items stays trivial: a `RegExp` built per call, or a
+  re-parse inside a sort comparator, costs whole frames.
+- Measure: a stopwatch from the input event to the next painted frame
+  (`addPostFrameCallback` after `scheduleFrame`), recorded per interaction, says where the time
+  goes. "It waits for a double click" was a rebuild of every page; the measurement tells them apart.
