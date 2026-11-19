@@ -30,6 +30,14 @@ class DiffPrefs extends ChangeNotifier {
 
   void toggleLayout() => setLayout(layout == DiffLayout.unified ? DiffLayout.sideBySide : DiffLayout.unified);
 
+  /// The next view: unified, side by side, then the merge view while a merge with conflicts is open
+  /// ([conflict]), then unified again.
+  void cycleLayout({required bool conflict}) => setLayout(switch (layout) {
+    DiffLayout.unified => DiffLayout.sideBySide,
+    DiffLayout.sideBySide => conflict ? DiffLayout.conflict : DiffLayout.unified,
+    DiffLayout.conflict => DiffLayout.unified,
+  });
+
   void setLayout(DiffLayout l) {
     layout = l;
     notifyListeners();

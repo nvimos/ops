@@ -75,6 +75,7 @@ class _ShellState extends State<Shell> {
   late final _railKeys = KeySequence({'gi': _focusFirstInput});
   late final _prKeys = KeySequence({
     'v': () => _pr?.toggleLayout(),
+    'Z': () => _pr?.cycleLayout(), // the next view: unified, side by side, merge
     'i': () => _pr?.baseFocus.requestFocus(), // input: the base picker
     'gi': () => _pr?.baseFocus.requestFocus(), // go input: the base picker
     '2gi': () => _pr?.headFocus.requestFocus(), // the head picker
@@ -142,7 +143,6 @@ class _ShellState extends State<Shell> {
 
   void _toggleRail() => setState(() => _expanded = !_expanded);
 
-  void _setLayout(DiffLayout l) => SessionScope.read(context).diffPrefs.setLayout(l);
 
   /// Switch modes and give the keyboard to the new one (Tasks and Directories have their own keys).
   /// Shows [m]. The keyboard goes to the mode's own pane, or with [onRail] to its item in the mode
@@ -521,14 +521,11 @@ class _ShellState extends State<Shell> {
           builder: (context, _) => ModeRail(
             mode: _mode,
             expanded: _expanded,
-            layout: _pr == null ? null : SessionScope.read(context).diffPrefs.layout,
-            conflictOpen: SessionScope.read(context).conflicts.current != null,
             cursor: _railFocus.hasFocus && _railCursor > 0 ? Mode.values[_railCursor - 1] : null,
             toggleCursor: _railFocus.hasFocus && _railCursor == 0,
             onSelect: _setMode,
             onStep: _stepMode,
             onToggle: _toggleRail,
-            onLayout: _setLayout,
           ),
         ),
       ),

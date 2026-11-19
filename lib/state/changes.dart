@@ -55,6 +55,8 @@ class ChangesState extends ChangeNotifier {
   bool get wrap => session.diffPrefs.wrap;
 
   void toggleLayout() => session.diffPrefs.toggleLayout();
+  void cycleLayout() => session.diffPrefs.cycleLayout(conflict: conflicts.current != null);
+  void setLayout(DiffLayout l) => session.diffPrefs.setLayout(l);
   void toggleWrap() => session.diffPrefs.toggleWrap();
   bool get hunkHeaders => session.diffPrefs.hunkHeaders;
   void toggleHunkHeaders() => session.diffPrefs.toggleHunkHeaders();

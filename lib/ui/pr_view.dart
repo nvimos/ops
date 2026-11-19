@@ -18,6 +18,7 @@ import 'resizable_pane.dart';
 import 'reveal.dart';
 import 'tasks/review_panel.dart';
 import 'theme.dart';
+import 'view_bar.dart';
 import 'wheel_mode.dart';
 import 'widgets.dart';
 
@@ -73,6 +74,7 @@ class _PrViewState extends State<PrView> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (t != null) _ReviewBanner(task: t, onOpenTask: widget.onOpenTask, onDone: widget.onStopReview),
+            ViewBar(layout: _pr.layout, mergeOpen: _pr.conflicts.current != null, onLayout: _pr.setLayout),
             Expanded(child: _columns(t)),
           ],
         );

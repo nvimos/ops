@@ -436,6 +436,8 @@ class PrState extends ChangeNotifier {
 
   void toggleLayout() => session.diffPrefs.toggleLayout();
 
+  void cycleLayout() => session.diffPrefs.cycleLayout(conflict: conflicts.current != null);
+
   void setLayout(DiffLayout l) => session.diffPrefs.setLayout(l);
 
   void toggleWrap() => session.diffPrefs.toggleWrap();

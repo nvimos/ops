@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../state/diff_prefs.dart';
 import 'theme.dart';
 
 enum Mode { pullRequest, changes, addIgnore, history, tasks, repos, settings, log, help }
@@ -52,50 +51,35 @@ class RailEntry {
     required this.tip,
     required this.selected,
     required this.onTap,
-    this.sub = false,
-    this.marked = false,
     this.cursor = false,
   });
 
   final IconData icon;
   final String label, tip;
-  final bool selected, sub;
-
-  /// Part of the current mode's group (the mode and its two views): lit with the mode's line. A
-  /// sub entry that is also [selected] is the current view and is indented further than the other.
-  final bool marked;
+  final bool selected;
 
   /// The rail has the keyboard and its cursor is on this entry.
   final bool cursor;
   final VoidCallback onTap;
 }
 
-/// The left rail: the expand/collapse toggle, one entry per mode, and under Pull request or
-/// Changes (while shown) the unified and side-by-side views. Collapsed: icons only, the tooltip names the
-/// mode; expanded: labels, the tooltip explains the mode.
+/// The left rail: the expand/collapse toggle and one entry per mode. Collapsed: icons only, the
+/// tooltip names the mode; expanded: labels, the tooltip explains the mode. The diff views of Pull
+/// request and Changes are in the view bar above their panes (view_bar.dart).
 class ModeRail extends StatelessWidget {
   const ModeRail({
     super.key,
     required this.mode,
     required this.expanded,
-    required this.layout,
-    this.conflictOpen = false,
     this.cursor,
     this.toggleCursor = false,
     required this.onSelect,
     this.onStep,
     required this.onToggle,
-    required this.onLayout,
   });
 
   final Mode mode;
-
-  /// A merge with conflicts is open: only then the Conflict layout is in the rail.
-  final bool conflictOpen;
   final bool expanded;
-
-  /// The diff layout shared by Pull request and Changes; null: not connected.
-  final DiffLayout? layout;
 
   /// The mode under the cursor while the rail has the keyboard; null otherwise.
   final Mode? cursor;
@@ -107,7 +91,6 @@ class ModeRail extends StatelessWidget {
   /// The mouse wheel over the rail: -1 the previous mode, 1 the next (like Alt+[ and Alt+]).
   final ValueChanged<int>? onStep;
   final VoidCallback onToggle;
-  final ValueChanged<DiffLayout> onLayout;
 
   static const double expandedWidth = 180, collapsedWidth = 48;
 
@@ -120,7 +103,7 @@ class ModeRail extends StatelessWidget {
       cursor: toggleCursor,
       onTap: onToggle,
     ),
-    for (final m in Mode.values) ...[
+    for (final m in Mode.values)
       RailEntry(
         icon: m.icon,
         label: m.label,
@@ -128,28 +111,6 @@ class ModeRail extends StatelessWidget {
         selected: m == mode,
         cursor: m == cursor,
         onTap: () => onSelect(m),
-      ),
-      if (m == mode && _hasLayouts(m) && layout != null) ..._layouts(),
-    ],
-  ];
-
-  /// The modes that show diffs.
-  static bool _hasLayouts(Mode m) => m == Mode.pullRequest || m == Mode.changes;
-
-  List<RailEntry> _layouts() => [
-    for (final (l, icon, label) in [
-      (DiffLayout.unified, Icons.subject, 'Unified'),
-      (DiffLayout.sideBySide, Icons.compare, 'Side by side'),
-      if (conflictOpen || layout == DiffLayout.conflict) (DiffLayout.conflict, Icons.call_merge, 'Conflict'),
-    ])
-      RailEntry(
-        icon: icon,
-        label: label,
-        tip: l == DiffLayout.conflict ? 'Merge conflict view (no key)' : '$label diff (v)',
-        selected: layout == l,
-        onTap: () => onLayout(l),
-        sub: true,
-        marked: true,
       ),
   ];
 
@@ -187,16 +148,9 @@ class RailItem extends StatelessWidget {
   final RailEntry entry;
   final bool expanded;
 
-  /// The views' indent is 10% less than the plain steps below (moved to the left).
-  static const _pullLeft = 0.9;
+  /// Where the icon starts.
+  static const double _indent = 13;
 
-  /// Where the icon starts. A mode sits at 13; its views are indented under it, and the current
-  /// view is indented further.
-  double _indent(RailEntry e) {
-    if (!e.sub) return 13;
-    final (view, current) = expanded ? (28.0, 38.0) : (20.0, 28.0);
-    return (e.selected ? current : view) * _pullLeft;
-  }
 
   /// While the rail animates from narrow to wide, the row is laid out at its final width and the
   /// rail clips it, so nothing overflows and the labels don't squash on the way.
@@ -210,26 +164,25 @@ class RailItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final e = entry;
     final color = e.selected || e.cursor ? C.text : C.muted;
-    final lit = e.selected || e.marked;
-    final left = _indent(e);
+    const left = _indent;
     return Tooltip(
       message: e.tip,
       child: InkWell(
         onTap: e.onTap,
         child: Container(
-          height: e.sub ? 32 : 44,
-          padding: EdgeInsets.only(left: left),
+          height: 44,
+          padding: const EdgeInsets.only(left: left),
           decoration: BoxDecoration(
             color: e.cursor ? C.surface2 : null,
-            border: Border(left: BorderSide(color: lit ? C.accent : Colors.transparent, width: 2)),
+            border: Border(left: BorderSide(color: e.selected ? C.accent : Colors.transparent, width: 2)),
           ),
           child: _fixedWidth(
             left,
             Row(
               children: [
-                Icon(e.icon, size: e.sub ? 16 : 20, color: color),
+                Icon(e.icon, size: 20, color: color),
                 if (expanded) const SizedBox(width: 10),
-                if (expanded) Expanded(child: _Label(e.label, sub: e.sub, color: color)),
+                if (expanded) Expanded(child: _Label(e.label, color: color)),
               ],
             ),
           ),
@@ -240,13 +193,11 @@ class RailItem extends StatelessWidget {
 }
 
 class _Label extends StatelessWidget {
-  const _Label(this.text, {required this.sub, required this.color});
+  const _Label(this.text, {required this.color});
 
   final String text;
-  final bool sub;
   final Color color;
 
   @override
-  Widget build(BuildContext context) =>
-      Text(text, overflow: TextOverflow.ellipsis, style: (sub ? T.small : T.body).copyWith(color: color));
+  Widget build(BuildContext context) => Text(text, overflow: TextOverflow.ellipsis, style: T.body.copyWith(color: color));
 }

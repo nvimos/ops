@@ -21,6 +21,7 @@ import 'pr_view.dart' show RevPicker;
 import 'list_pair_view.dart';
 import 'resizable_pane.dart';
 import 'theme.dart';
+import 'view_bar.dart';
 import 'widgets.dart';
 
 /// Working tree vs HEAD: staged and unstaged files, the selected diff with hunk buttons, and a
@@ -61,6 +62,7 @@ class ChangesViewState extends State<ChangesView> {
     'cc': _messageFocus.requestFocus,
     'o': _openCurrent,
     'v': () => st.toggleLayout(),
+    'Z': () => st.cycleLayout(), // the next view: unified, side by side, merge
     'zw': () => st.toggleWrap(),
     'zh': () => st.toggleHunkHeaders(),
     'zR': () => st.expandAllDirs(),
@@ -331,10 +333,18 @@ class ChangesViewState extends State<ChangesView> {
     onKeyEvent: _onKey,
     child: ListenableBuilder(
       listenable: st,
-      builder: (context, _) => Row(
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ResizablePane(autoWidth: _autoWidth(), minWidth: _minSidebar, child: _sidebar()),
-          Expanded(child: _main()),
+          ViewBar(layout: st.layout, mergeOpen: st.conflicts.current != null, onLayout: st.setLayout),
+          Expanded(
+            child: Row(
+              children: [
+                ResizablePane(autoWidth: _autoWidth(), minWidth: _minSidebar, child: _sidebar()),
+                Expanded(child: _main()),
+              ],
+            ),
+          ),
         ],
       ),
     ),

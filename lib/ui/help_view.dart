@@ -46,6 +46,7 @@ const keyTable = [
       ('zc  zo', "fold or unfold the file's folder"),
       ('zR  zM', 'expand or collapse all folders (PR, Changes)'),
       ('v', 'unified or side-by-side (PR, Changes)'),
+      ('Z', 'next view: unified, side-by-side, merge (PR, Changes; the view bar has a button for each)'),
       ('zw', 'toggle text wrapping'),
       ('zh', 'toggle hunk headers'),
       ('Enter', 'on a commit: show only that commit'),
