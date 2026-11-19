@@ -28,6 +28,9 @@ class Session extends ChangeNotifier {
 
   final Prefs _prefs;
 
+  /// The user's small settings (recent folders, view choices).
+  Prefs get prefs => _prefs;
+
   String _host;
   int _port;
   Conn conn = Conn.disconnected;

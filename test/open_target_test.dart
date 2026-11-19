@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/backend/models.dart';
-import 'package:nvimos_poc/state/dirs.dart';
+import 'package:nvimos_poc/state/repos.dart';
 
 void main() {
   Branches branches(List<String> names, {String current = 'main'}) => Branches({

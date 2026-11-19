@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
-import '../state/dirs.dart';
+import '../state/repos.dart';
 import '../state/pr.dart';
 import '../state/session.dart';
 import '../tasks/model.dart';
@@ -35,7 +35,7 @@ class _ShellState extends State<Shell> {
   bool _expanded = false;
   PrState? _pr;
   Workspace? _ws;
-  DirsState? _dirs;
+  ReposState? _dirs;
 
   /// The session's backend generation the mode states above were made for.
   int _epoch = 0;
@@ -442,7 +442,7 @@ class _ShellState extends State<Shell> {
     if (s.conn == Conn.connected) {
       _pr ??= PrState(s);
       _ws ??= Workspace(s);
-      _dirs ??= DirsState(s);
+      _dirs ??= ReposState(s);
       if (s.openProjectOnConnect && !_openedProject) {
         _openedProject = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -450,7 +450,7 @@ class _ShellState extends State<Shell> {
         });
       }
     } else {
-      _dirs ??= DirsState(s);
+      _dirs ??= ReposState(s);
     }
     return Focus(
       focusNode: _focus,

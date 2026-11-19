@@ -62,10 +62,11 @@ class ProjectHints {
       add(path, 'recent');
     }
 
-    final checked = <ProjectHint>[];
-    for (final hint in out) {
-      checked.add(ProjectHint(hint.path, hint.source, stale: !await _isRepo(hint.path)));
-    }
+    // all folders are asked at once: one round trip to the disk, not one per hint
+    final live = await Future.wait([for (final hint in out) _isRepo(hint.path)]);
+    final checked = [
+      for (var i = 0; i < out.length; i++) ProjectHint(out[i].path, out[i].source, stale: !live[i]),
+    ];
 
     int rank(ProjectHint h) => switch (h.source) {
       'connected' || 'active' => 0,
@@ -85,11 +86,9 @@ class ProjectHints {
   String startDirectory() =>
       connectedCwd ?? prefs.lastProjectFolder() ?? home ?? Platform.environment['USERPROFILE'] ?? Platform.environment['HOME'] ?? '.';
 
-  static Future<bool> _isRepo(String path) async {
-    final dir = Directory(path);
-    if (!await dir.exists()) return false;
-    return await FileSystemEntity.type('$path/.git') != FileSystemEntityType.notFound;
-  }
+  /// A folder with a `.git` (a missing folder has none): one look at the disk.
+  static Future<bool> _isRepo(String path) async =>
+      await FileSystemEntity.type('$path/.git') != FileSystemEntityType.notFound;
 
   @override
   String toString() => 'ProjectHints(${prefs.recentProjects().length} recent)';

@@ -53,12 +53,14 @@ void main() {
       await t.pump();
     }
 
-    await settle();
+    for (var i = 0; i < 4; i++) {
+      await settle(); // the hints (the start dirs, a check of each folder) and the first crawl, round by round
+    }
     await alt(LogicalKeyboardKey.digit4);
     expect(shown(), Mode.directories.index);
 
     // The filter has the keyboard: type, then Enter (the text field's "done" action).
-    await t.enterText(find.byType(TextField), 'nvim');
+    await t.enterText(find.byType(TextField), 'cfg_'); // only the folder made here: the open repository is a hint too
     await t.pump();
 
     // Left in the filter moves the text cursor; at the leftmost edge it goes to the rail.
@@ -74,7 +76,7 @@ void main() {
     await t.sendKeyEvent(LogicalKeyboardKey.escape); // back into the mode: its filter again
     await t.pump();
     expect(FocusManager.instance.primaryFocus?.debugLabel, 'dirs filter');
-    expect(field.text, 'nvim');
+    expect(field.text, 'cfg_');
     await t.testTextInput.receiveAction(TextInputAction.done);
     await t.pump();
     await t.runAsync(() => until(() => norm(s.repo?.cwd ?? '') == norm(target.path)));
