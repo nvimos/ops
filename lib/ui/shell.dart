@@ -36,6 +36,9 @@ class _ShellState extends State<Shell> {
   PrState? _pr;
   Workspace? _ws;
   DirsState? _dirs;
+
+  /// The session's backend generation the mode states above were made for.
+  int _epoch = 0;
   final _focus = FocusNode(debugLabel: 'shell');
 
   /// The task whose branch the Pull request view is reviewing (its Verify list shows beside it).
@@ -414,11 +417,28 @@ class _ShellState extends State<Shell> {
     ];
   }
 
+  /// A different backend (or none) than the one the mode states were made for: they hold its rows,
+  /// branches and tasks, so they are dropped and made again for the new one.
+  void _resetForNewBackend(Session s) {
+    if (s.epoch == _epoch) return;
+    _epoch = s.epoch;
+    // disposed after this frame: the views of the old states are still in the tree until it ends
+    final old = [_pr, _ws, _dirs];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final o in old) {
+        o?.dispose();
+      }
+    });
+    _pr = _ws = _dirs = null;
+    _openedProject = false;
+  }
+
   // Layout -------------------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
     final s = SessionScope.of(context);
+    _resetForNewBackend(s);
     if (s.conn == Conn.connected) {
       _pr ??= PrState(s);
       _ws ??= Workspace(s);

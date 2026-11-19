@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../backend/backend.dart';
 import '../backend/models.dart';
 import '../backend/repo_backend.dart';
+import '../local/local_backend.dart';
 import '../rpc/client.dart';
 import 'action_queue.dart';
 import 'diff_prefs.dart';
@@ -106,6 +107,9 @@ class Session extends ChangeNotifier {
       _sub = b.events.listen(_onEvent);
       _cursorSub = b.cursors.listen(_onCursor);
       b.done.then((_) => _lost());
+      kind = BackendKind.nvim;
+      epoch++;
+      _prefs.addRecent(Recent(BackendKind.nvim, this.address));
       gitChanged.value++;
     } catch (e) {
       b?.close();
@@ -115,6 +119,63 @@ class Session extends ChangeNotifier {
     }
     _notify();
   }
+
+  /// Open the repository in [dir] with the local backend: no Neovim, no editor. The repository
+  /// watcher raises the git hints. On failure [error] says why. [openProject]: show the opening
+  /// mode once connected (a folder named on the command line).
+  Future<void> openFolder(String dir, {bool openProject = false}) async {
+    await _drop();
+    conn = Conn.connecting;
+    error = notice = null;
+    final mine = ++_attempt;
+    _notify();
+    LocalBackend? b;
+    try {
+      b = await LocalBackend.open(dir);
+      final branches = await b.branches();
+      if (mine != _attempt) return await b.close();
+      backend = b;
+      editor = null;
+      conn = Conn.connected;
+      cursor = null;
+      repo = RepoInfo({'cwd': b.root, 'root': b.root, 'head': branches.current});
+      _sub = b.events.listen(_onEvent);
+      b.done.then((_) => _lost());
+      b.watch();
+      kind = BackendKind.local;
+      epoch++;
+      openProjectOnConnect = openProject;
+      _prefs.addRecent(Recent(BackendKind.local, b.root));
+      gitChanged.value++;
+    } catch (e) {
+      b?.close();
+      if (mine != _attempt) return;
+      conn = Conn.disconnected;
+      error = 'cannot open $dir: ${e is NvimError ? e.short : _shortError(e)}';
+    }
+    _notify();
+  }
+
+  /// Open a remembered entry with the backend it remembers.
+  Future<void> openRecent(Recent r) => switch (r.kind) {
+    BackendKind.local => openFolder(r.target),
+    BackendKind.nvim => connect(address: r.target),
+  };
+
+  /// The folders and addresses opened before, newest first.
+  List<Recent> get recents => _prefs.recents();
+
+  /// Drop [r] from the recent list.
+  void forget(Recent r) {
+    _prefs.removeRecent(r);
+    _notify();
+  }
+
+  /// Which backend the open connection uses.
+  BackendKind kind = BackendKind.nvim;
+
+  /// Bumps whenever the backend changes or goes away: what a mode built for the old one is stale.
+  int epoch = 0;
 
   /// How long a connection attempt may take before it counts as failed.
   Duration connectTimeout = const Duration(seconds: 8);
@@ -260,7 +321,7 @@ class Session extends ChangeNotifier {
   Future<void> _lost() async {
     if (backend == null) return;
     await _drop();
-    error = 'Neovim went away';
+    error = kind == BackendKind.nvim ? 'Neovim went away' : 'the repository went away';
     _notify();
   }
 
@@ -274,6 +335,14 @@ class Session extends ChangeNotifier {
     editor = null;
     conn = Conn.disconnected;
     cursor = null;
+    if (b != null) {
+      epoch++;
+      if (!_disposed) {
+        _store?.reset();
+        jobs.value = {};
+        changedPaths.value = {};
+      }
+    }
     if (b != null) await b.close();
   }
 

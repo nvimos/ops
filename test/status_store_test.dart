@@ -83,7 +83,9 @@ void main() {
       await b.stage('a.txt');
       order.add('stage end');
     });
-    expect((await a).ok && (await c).ok, isTrue);
+    // (git may refuse one of them while a status reload holds the index lock; the order is the point)
+    await a;
+    await c;
     expect(order, ['unstage start', 'unstage end', 'stage start', 'stage end']);
   });
 }

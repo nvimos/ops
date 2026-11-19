@@ -84,6 +84,16 @@ class StatusStore extends ChangeNotifier {
     return replaced.isEmpty && removed.isEmpty ? null : Undo._(replaced, removed);
   }
 
+  /// The backend went away or was swapped: nothing it said is true any more.
+  void reset() {
+    _gen++;
+    status = null;
+    branches = null;
+    error = null;
+    pending = 0;
+    notifyListeners();
+  }
+
   /// Put back the rows [undo] replaced or removed, and only those that still show the prediction.
   void undo(Undo? undo) {
     final st = status;

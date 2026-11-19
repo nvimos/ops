@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../state/nvim_launcher.dart';
+import '../state/prefs.dart';
 import '../state/session.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -15,6 +16,7 @@ class ConnectScreen extends StatefulWidget {
 
 class _ConnectScreenState extends State<ConnectScreen> {
   late final TextEditingController _addr;
+  final _folder = TextEditingController();
 
   /// Ways to start a Neovim the app can connect to.
   static const _howTo =
@@ -31,7 +33,13 @@ class _ConnectScreenState extends State<ConnectScreen> {
   @override
   void dispose() {
     _addr.dispose();
+    _folder.dispose();
     super.dispose();
+  }
+
+  void _openFolder() {
+    final dir = _folder.text.trim();
+    if (dir.isNotEmpty) SessionScope.read(context).openFolder(dir);
   }
 
   void _connect() => SessionScope.read(context).connect(address: _addr.text.trim());
@@ -62,6 +70,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              RecentList(recents: s.recents, onOpen: s.openRecent, onForget: s.forget, enabled: s.conn != Conn.connecting),
+              OpenFolderRow(controller: _folder, onOpen: _openFolder, busy: s.conn == Conn.connecting),
+              const SizedBox(height: 24),
               const Text('Connect to Neovim', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               const Text('Start Neovim with the nvimos plugin listening, then retry.', style: T.small),
@@ -227,5 +238,101 @@ class CodeBox extends StatelessWidget {
       border: Border.all(color: C.border),
     ),
     child: SelectableText(text, style: T.code),
+  );
+}
+
+/// The folders and addresses opened before, newest first; a click opens one with the backend it
+/// was opened with. The cross forgets an entry.
+class RecentList extends StatelessWidget {
+  const RecentList({
+    super.key,
+    required this.recents,
+    required this.onOpen,
+    required this.onForget,
+    required this.enabled,
+  });
+
+  final List<Recent> recents;
+  final ValueChanged<Recent> onOpen, onForget;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (recents.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Recent', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          for (final r in recents)
+            RecentRow(recent: r, onOpen: enabled ? () => onOpen(r) : null, onForget: () => onForget(r)),
+        ],
+      ),
+    );
+  }
+}
+
+class RecentRow extends StatelessWidget {
+  const RecentRow({super.key, required this.recent, required this.onOpen, required this.onForget});
+
+  final Recent recent;
+  final VoidCallback? onOpen;
+  final VoidCallback onForget;
+
+  bool get _folder => recent.kind == BackendKind.local;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: _folder ? 'open this folder (no Neovim)' : 'connect to this Neovim',
+    child: HoverRow(
+      onTap: onOpen,
+      child: Row(
+        children: [
+          Icon(_folder ? Icons.folder_outlined : Icons.lan_outlined, size: 14, color: C.muted),
+          const SizedBox(width: 8),
+          Expanded(child: Text(recent.target, style: T.body, overflow: TextOverflow.ellipsis)),
+          const SizedBox(width: 8),
+          Pill(_folder ? 'folder' : 'Neovim'),
+          const SizedBox(width: 4),
+          Tooltip(
+            message: 'forget this entry',
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: onForget,
+                child: const Padding(padding: EdgeInsets.all(2), child: Icon(Icons.close, size: 14, color: C.muted)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// A folder to open with the local backend: type or paste its path; Enter opens it too.
+class OpenFolderRow extends StatelessWidget {
+  const OpenFolderRow({super.key, required this.controller, required this.onOpen, required this.busy});
+
+  final TextEditingController controller;
+  final VoidCallback onOpen;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: TextField(
+          controller: controller,
+          style: T.body,
+          decoration: const InputDecoration(hintText: 'Folder of a git repository'),
+          onSubmitted: (_) => onOpen(),
+        ),
+      ),
+      const SizedBox(width: 8),
+      SmallButton('Open folder', primary: true, icon: Icons.folder_open, onPressed: busy ? null : onOpen),
+    ],
   );
 }
