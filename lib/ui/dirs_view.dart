@@ -10,9 +10,10 @@ import 'nav_keys.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
-/// The Directories mode: the start dirs (genja-startdirs' order, else recent files' dirs), a
-/// filter, and the Active Directory. Picking moves the connected Neovim there (`:cd`), or starts a
-/// new Neovim there when "New Neovim per directory" is on.
+/// The Repos mode: the repositories the crawl finds, ordered by the hints (the open one, the start
+/// dirs of a connected Neovim, the recent folders; stale ones greyed, with Remove), a filter, and the
+/// Active Directory. Picking opens a repository locally, or with Neovim moves it there (`:cd`) or
+/// starts a new Neovim when "New Neovim per directory" is on.
 ///
 /// Page: owns keys and event handlers; [ReposState] does the work.
 class DirsView extends StatefulWidget {
@@ -42,7 +43,8 @@ class DirsViewState extends State<DirsView> {
     'gg': () => st.move(-_far),
     'G': () => st.move(_far),
     'gi': focusFilter, // go input: the filter field, as in the other modes
-    'n': st.toggleNewNeovim,
+    'n': () => st.session.hasEditor ? st.toggleNewNeovim() : null,
+    'r': st.load,
   });
 
   ReposState get st => widget.state;
@@ -168,7 +170,7 @@ class DirsViewState extends State<DirsView> {
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _DirsHeader(source: st.dirs?.source, newNeovim: st.newNeovim, onToggle: st.toggleNewNeovim, onReload: st.load),
+          _ReposHeader(state: st, showNeovimSwitch: st.session.hasEditor),
           _DirsFilter(controller: _filter, focus: _filterFocus, onChanged: _filtered, onSubmitted: _submitFilter),
           Expanded(child: _body()),
         ],
@@ -180,38 +182,15 @@ class DirsViewState extends State<DirsView> {
     if (st.error != null) return ErrorPane(st.error!, onRetry: st.load);
     if (st.entries.isEmpty) return Empty(st.loading || st.browser.scanning ? 'Looking for repositories…' : 'No repositories found.');
     if (st.shown.isEmpty) return const Empty('No directory matches.');
-    return _DirList(dirs: st.shown, cursor: st.cursor, active: st.active, onTap: _tap);
+    return _RepoList(
+      entries: st.shownEntries,
+      cursor: st.cursor,
+      active: st.active,
+      onTap: _tap,
+      onRemove: st.remove,
+      onCrawl: st.scanFrom,
+    );
   }
-}
-
-// Organisms ---------------------------------------------------------------------------------------
-
-class _DirsHeader extends StatelessWidget {
-  const _DirsHeader({required this.source, required this.newNeovim, required this.onToggle, required this.onReload});
-
-  final String? source;
-  final bool newNeovim;
-  final VoidCallback onToggle, onReload;
-
-  @override
-  Widget build(BuildContext context) => PaneHeader(
-    title: Row(
-      children: [
-        const Text('Directories'),
-        const SizedBox(width: 8),
-        if (source != null) Text(source == 'startdirs' ? 'from genja-startdirs' : 'from recent files', style: T.tiny),
-      ],
-    ),
-    trailing: [
-      _NewNeovimSwitch(on: newNeovim, onToggle: onToggle),
-      IconButton(
-        tooltip: 'Reload the list',
-        iconSize: 16,
-        onPressed: onReload,
-        icon: const Icon(Icons.refresh, color: C.muted),
-      ),
-    ],
-  );
 }
 
 class _DirsFilter extends StatelessWidget {
@@ -246,24 +225,122 @@ class _DirsFilter extends StatelessWidget {
   );
 }
 
-class _DirList extends StatelessWidget {
-  const _DirList({required this.dirs, required this.cursor, required this.active, required this.onTap});
 
-  final List<String> dirs;
+// Organisms ---------------------------------------------------------------------------------------
+
+/// The title, what the crawl is doing, and the crawl's controls: up a folder, drives, look again.
+class _ReposHeader extends StatelessWidget {
+  const _ReposHeader({required this.state, required this.showNeovimSwitch});
+
+  final ReposState state;
+  final bool showNeovimSwitch;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      PaneHeader(
+        title: Row(children: [const Text('Repos'), const SizedBox(width: 8), if (state.browser.scanning) const Spinner()]),
+        trailing: [
+          if (showNeovimSwitch) _NewNeovimSwitch(on: state.newNeovim, onToggle: state.toggleNewNeovim),
+          IconAction(icon: Icons.arrow_upward, tooltip: 'Crawl from the parent folder', onPressed: state.scanUp),
+          IconAction(icon: Icons.refresh, tooltip: 'Look again: the hints and the crawl (r)', onPressed: state.load),
+        ],
+      ),
+      _CrawlLine(state: state),
+    ],
+  );
+}
+
+/// Where the crawl walks from, the drives to walk instead, and what the last walk did.
+class _CrawlLine extends StatelessWidget {
+  const _CrawlLine({required this.state});
+
+  final ReposState state;
+
+  String get _status {
+    final b = state.browser;
+    if (b.scanning) return 'looking… ${b.repos.length} found';
+    return state.lastReport?.summary ?? '';
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+    child: Row(
+      children: [
+        const Icon(Icons.travel_explore, size: 14, color: C.muted),
+        const SizedBox(width: 6),
+        Tooltip(
+          message: 'The crawl walks from here, ${state.browser.maxDepth} levels down',
+          child: Text(state.crawlFolder, style: T.small),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(_status, style: T.tiny, overflow: TextOverflow.ellipsis)),
+        _Drives(state: state),
+      ],
+    ),
+  );
+}
+
+/// One small button per drive (Windows): the crawl starts from its root.
+class _Drives extends StatefulWidget {
+  const _Drives({required this.state});
+
+  final ReposState state;
+
+  @override
+  State<_Drives> createState() => _DrivesState();
+}
+
+class _DrivesState extends State<_Drives> {
+  late final Future<List<String>> _drives = widget.state.drives();
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<String>>(
+    future: _drives,
+    builder: (context, snap) => Row(
+      children: [
+        for (final d in snap.data ?? const <String>[])
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Tooltip(
+              message: 'Crawl the whole drive $d',
+              child: SmallButton(d, onPressed: () => widget.state.scanFrom(d)),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+class _RepoList extends StatelessWidget {
+  const _RepoList({
+    required this.entries,
+    required this.cursor,
+    required this.active,
+    required this.onTap,
+    required this.onRemove,
+    required this.onCrawl,
+  });
+
+  final List<RepoEntry> entries;
   final int cursor;
   final String? active;
-  final ValueChanged<String> onTap;
+  final ValueChanged<String> onTap, onRemove, onCrawl;
 
   @override
   Widget build(BuildContext context) {
     final a = active?.toLowerCase();
     return ListView.builder(
-      itemCount: dirs.length,
+      itemCount: entries.length,
       itemBuilder: (context, i) => DirRow(
-        dir: dirs[i],
+        entry: entries[i],
         selected: i == cursor,
-        active: dirs[i].toLowerCase() == a,
-        onTap: () => onTap(dirs[i]),
+        active: entries[i].path.toLowerCase() == a,
+        onTap: () => onTap(entries[i].path),
+        onRemove: () => onRemove(entries[i].path),
+        onCrawl: () => onCrawl(entries[i].path),
       ),
     );
   }
@@ -271,30 +348,81 @@ class _DirList extends StatelessWidget {
 
 // Molecules and atoms -----------------------------------------------------------------------------
 
-/// A dir in the list; the Active Directory is marked.
-class DirRow extends StatelessWidget {
-  const DirRow({super.key, required this.dir, required this.selected, required this.active, required this.onTap});
+const _sourceLabels = {
+  'connected': 'open',
+  'active': 'open',
+  'startdirs': 'start dirs',
+  'recent': 'recent',
+  'found': '',
+};
 
-  final String dir;
+/// A repository in the list: the open one is marked, a stale hint is greyed with Remove.
+class DirRow extends StatelessWidget {
+  const DirRow({
+    super.key,
+    required this.entry,
+    required this.selected,
+    required this.active,
+    required this.onTap,
+    required this.onRemove,
+    required this.onCrawl,
+  });
+
+  final RepoEntry entry;
   final bool selected, active;
-  final VoidCallback onTap;
+  final VoidCallback onTap, onRemove, onCrawl;
 
   @override
-  Widget build(BuildContext context) => HoverRow(
-    selected: selected,
-    onTap: onTap,
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-    child: Row(
+  Widget build(BuildContext context) {
+    final color = entry.stale ? C.faint : (active ? C.accent : C.text);
+    return HoverRow(
+      selected: selected,
+      onTap: entry.stale ? null : onTap,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      child: Row(
+        children: [
+          Icon(active ? Icons.folder_special : Icons.folder_outlined, size: 15, color: entry.stale ? C.faint : (active ? C.accent : C.muted)),
+          const SizedBox(width: 10),
+          Expanded(child: Text(entry.path, style: T.body.copyWith(color: color), overflow: TextOverflow.ellipsis)),
+          if (entry.stale) const Text('no longer a repository', style: T.tiny),
+          if (active) const Text('Active Directory', style: T.tiny) else _Source(entry.source),
+          _RowActions(entry: entry, onRemove: onRemove, onCrawl: onCrawl),
+        ],
+      ),
+    );
+  }
+}
+
+class _Source extends StatelessWidget {
+  const _Source(this.source);
+
+  final String source;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _sourceLabels[source] ?? '';
+    return label.isEmpty ? const SizedBox.shrink() : Text(label, style: T.tiny);
+  }
+}
+
+/// Remove (a stale hint) and crawl from here, shown while the mouse is over the row.
+class _RowActions extends StatelessWidget {
+  const _RowActions({required this.entry, required this.onRemove, required this.onCrawl});
+
+  final RepoEntry entry;
+  final VoidCallback onRemove, onCrawl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!RowHover.of(context)) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(active ? Icons.folder_special : Icons.folder_outlined, size: 15, color: active ? C.accent : C.muted),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(dir, style: active ? T.body.copyWith(color: C.accent) : T.body, overflow: TextOverflow.ellipsis),
-        ),
-        if (active) const Text('Active Directory', style: T.tiny),
+        if (entry.stale) IconAction(icon: Icons.close, tooltip: 'Remove this hint', onPressed: onRemove),
+        if (!entry.stale) IconAction(icon: Icons.travel_explore, tooltip: 'Crawl from this folder', onPressed: onCrawl),
       ],
-    ),
-  );
+    );
+  }
 }
 
 class _NewNeovimSwitch extends StatelessWidget {
