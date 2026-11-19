@@ -82,7 +82,9 @@ const keyTable = [
     'Add and Ignore',
     [
       ('t  u', 'add (stage) or untrack the highlighted files'),
-      ('i  x', 'ignore (a rule in .gitignore) or delete (to the trash, asks first)'),
+      ('i  I', 'ignore: choose the rule and its file, or a plain rule at once'),
+      ('x', 'delete to the trash (asks first)'),
+      ('p', 'show or hide the ignore rules around the cursor row'),
       ('Space', 'highlight or un-highlight the cursor row'),
       ('Shift+{up}{down}', 'extend the highlight'),
       ('Ctrl+A', 'highlight every row'),

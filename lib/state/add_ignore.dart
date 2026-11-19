@@ -263,6 +263,22 @@ class AddIgnoreState extends ChangeNotifier {
     );
   }
 
+  /// Write [patterns] (built by the Ignore dialog) into [target]; the rows in [covered] leave the
+  /// list at once, a failure puts them back.
+  Future<ActionResult> ignoreWith(String target, List<String> patterns, {required List<String> covered}) {
+    final r = repo;
+    if (r == null) return Future.value(const ActionResult('ignore', 'ignore needs a local repository'));
+    if (patterns.isEmpty) return Future.value(const ActionResult('ignore', 'nothing to ignore'));
+    return actions.run(
+      'ignore',
+      (b) async => r.appendIgnoreLines(target, patterns),
+      predict: (files) => [for (final file in files) if (!covered.contains(file.path)) file],
+      origin: 'Add and Ignore.ignore -> LocalBackend.appendIgnoreLines',
+      command: '${target.split(RegExp(r'[\\/]')).last} += ${patterns.join(' ')}',
+      changed: covered.length,
+    );
+  }
+
   /// The rules git already uses for the selected rows, for the dialog preview.
   Future<Map<String, IgnoreMatch>> alreadyIgnored() async {
     final r = repo;
