@@ -423,7 +423,7 @@ class ChangesViewState extends State<ChangesView> {
       onToggleHunkHeaders: st.toggleHunkHeaders,
       staged: st.selectedStaged,
       hunk: st.hunk,
-      onLine: _openLine,
+      onLine: st.session.hasEditor ? _openLine : null,
       onMoveFile: _moveSelected,
       onDiscardFile: _discardSelected,
       onMoveHunk: _moveHunk,
@@ -629,7 +629,7 @@ class ChangesDiff extends StatelessWidget {
     super.key,
     required this.file,
     required this.staged,
-    required this.onLine,
+    this.onLine,
     required this.onMoveFile,
     required this.onDiscardFile,
     required this.onMoveHunk,
@@ -649,7 +649,7 @@ class ChangesDiff extends StatelessWidget {
   final VoidCallback? onToggleWrap, onToggleHunkHeaders;
   final bool staged;
   final int hunk;
-  final void Function(int line, bool isOld) onLine;
+  final void Function(int line, bool isOld)? onLine;
   final VoidCallback onMoveFile;
   final VoidCallback onDiscardFile;
   final ValueChanged<Hunk> onMoveHunk;

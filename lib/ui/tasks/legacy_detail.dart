@@ -23,7 +23,9 @@ class LegacyDetail extends StatelessWidget {
   final VoidCallback onClose;
   final PanelWiden? widen;
   final VoidCallback onPromote;
-  final VoidCallback onOpen;
+
+  /// Null without an editor: the button is not drawn.
+  final VoidCallback? onOpen;
 
   /// A task whose original notes hold this item already, if any.
   final String? promotedAs;
@@ -43,7 +45,7 @@ class LegacyDetail extends StatelessWidget {
       ),
       PanelFooter(
         children: [
-          SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen),
+          if (onOpen != null) SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen),
           const Spacer(),
           SmallButton(
             promotedAs == null ? 'Promote to task' : 'Promote again',

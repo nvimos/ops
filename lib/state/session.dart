@@ -46,6 +46,9 @@ class Session extends ChangeNotifier {
 
   /// The editor behind the backend; null when there is none (modes hide `open` / `show` then).
   EditorSession? editor;
+
+  /// There is an editor to open files in; the controls that need one are not drawn without it.
+  bool get hasEditor => editor != null;
   Cursor? cursor;
   RepoInfo? repo;
 

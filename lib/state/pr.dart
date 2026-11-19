@@ -389,7 +389,7 @@ class PrState extends ChangeNotifier {
   /// Returns the error text, or null.
   Future<String?> openInNeovim(int line, {required bool isOld}) {
     final f = selectedFile;
-    if (f == null || head == null) return Future.value(null);
+    if (f == null || head == null || !session.hasEditor) return Future.value(null);
     final n = narrowed;
     final rev = isOld ? (n == null ? diff!.mergeBase : '${n.sha}~1') : (n?.sha ?? head!);
     final path = isOld ? f.oldPath : f.path;

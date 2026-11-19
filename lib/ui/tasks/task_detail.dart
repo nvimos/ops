@@ -18,6 +18,9 @@ abstract class TaskActions {
   /// The detail panel's widen / narrow toggle.
   PanelWiden get widen;
   void openInNeovim(String path, int line);
+
+  /// There is a Neovim to open files in; the controls that open one are not drawn without it.
+  bool get hasEditor;
   Future<void> setStatus(Task t, String status);
   Future<void> setPriority(Task t, String priority);
   Future<void> toggleCheck(String path, Check c, {bool cycle = false});
@@ -48,7 +51,7 @@ class TaskDetail extends StatelessWidget {
           title: t.title,
           onClose: actions.close,
           widen: actions.widen,
-          actions: [OpenInNeovimButton(onTap: () => actions.openInNeovim(t.path, 1))],
+          actions: [if (actions.hasEditor) OpenInNeovimButton(onTap: () => actions.openInNeovim(t.path, 1))],
         ),
         Expanded(
           child: ListView(
@@ -108,8 +111,8 @@ class _TaskProps extends StatelessWidget {
           if (t.created.isNotEmpty) Prop('Created', Text(t.created, style: T.small)),
           Prop('File', LinkText(
               t.path,
-              tooltip: 'open in Neovim; Ctrl+click: in a new nvim-qt',
-              onTap: () => actions.openInNeovim(t.path, 1),
+              tooltip: actions.hasEditor ? 'open in Neovim; Ctrl+click: in a new nvim-qt' : null,
+              onTap: actions.hasEditor ? () => actions.openInNeovim(t.path, 1) : null,
             )),
         ],
       ),

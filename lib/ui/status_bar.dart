@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../backend/models.dart';
+import '../state/prefs.dart' show BackendKind;
 import '../state/session.dart';
 import 'debug_bar.dart';
 import 'theme.dart';
@@ -27,7 +28,7 @@ class StatusBar extends StatelessWidget {
           if (dir.isNotEmpty) _Item(icon: Icons.folder_outlined, text: dir, tip: 'Active Directory'),
           if (head != null) _Item(icon: Icons.call_split, text: head, tip: 'Current branch'),
           Expanded(child: cur == null ? const SizedBox() : _Cursor(cursor: cur, root: s.repo?.root)),
-          _Connection(conn: s.conn, address: s.address),
+          _Connection(conn: s.conn, address: s.kind == BackendKind.local ? 'local' : s.address),
           const SizedBox(width: 10),
           const _DebugToggle(),
         ],

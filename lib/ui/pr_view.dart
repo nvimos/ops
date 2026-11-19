@@ -109,7 +109,7 @@ class _PrViewState extends State<PrView> {
   Widget _columns(Task? t) => Row(
     children: [
       ResizablePane(autoWidth: _autoWidth(), minWidth: _minSidebar, child: _Sidebar(pr: _pr)),
-      Expanded(child: _PrMain(pr: _pr, onLine: _jump)),
+      Expanded(child: _PrMain(pr: _pr, onLine: _pr.session.hasEditor ? _jump : null)),
       if (t != null && widget.workspace != null) ...[
         const VerticalDivider(width: 1),
         SizedBox(
@@ -125,10 +125,10 @@ class _PrViewState extends State<PrView> {
 
 /// The diff of the selected file, or what to do first.
 class _PrMain extends StatelessWidget {
-  const _PrMain({required this.pr, required this.onLine});
+  const _PrMain({required this.pr, this.onLine});
 
   final PrState pr;
-  final OnDiffLine onLine;
+  final OnDiffLine? onLine;
 
   @override
   Widget build(BuildContext context) {
