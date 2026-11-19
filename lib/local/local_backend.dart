@@ -467,13 +467,65 @@ class LocalBackend implements RepoBackend {
   Future<List<FileText>> readFiles(List<String> paths) => files.readFiles(paths);
 
   @override
-  Future<void> setLines(String path, List<LineEdit> edits) async => _todo();
+  Future<void> setLines(String path, List<LineEdit> edits) async {
+    final file = File(await _trackingPath(path));
+    if (!await file.exists()) throw GitException('nvimos: no such file $path');
+    final text = await file.readAsString();
+    final hadFinalNewline = text.endsWith('\n');
+    final lines = const LineSplitter().convert(text);
+    final sorted = [...edits]..sort((a, b) => b.first.compareTo(a.first));
+    for (final edit in sorted) {
+      if (edit.expect != null) {
+        final now = lines.sublist(edit.first.clamp(0, lines.length), edit.last.clamp(0, lines.length));
+        if (!_sameLines(now, edit.expect!)) {
+          throw GitException('nvimos: $path changed since it was read; refresh and try again');
+        }
+      }
+      if (edit.first < 0 || edit.last > lines.length || edit.first > edit.last) {
+        throw GitException('nvimos: bad edit range for $path');
+      }
+      lines.replaceRange(edit.first, edit.last, edit.lines);
+    }
+    final out = lines.join('\n') + (hadFinalNewline ? '\n' : '');
+    await file.writeAsString(out);
+  }
 
   @override
-  Future<void> move(String from, String to) async => _todo();
+  Future<void> create(String path, List<String> lines) async {
+    final file = File(await _trackingPath(path));
+    if (await file.exists()) throw GitException('nvimos: $path already exists');
+    await file.parent.create(recursive: true);
+    await file.writeAsString('${lines.join('\n')}\n');
+  }
 
   @override
-  Future<void> create(String path, List<String> lines) async => _todo();
+  Future<void> move(String from, String to) async {
+    final src = await _trackingPath(from);
+    final dst = await _trackingPath(to);
+    if (!await FileSystemEntity.isFile(src) && !await Directory(src).exists()) {
+      throw GitException('nvimos: no such file or folder $from');
+    }
+    if (await FileSystemEntity.isFile(dst) || await Directory(dst).exists()) {
+      throw GitException('nvimos: $to already exists');
+    }
+    await Directory(dst).parent.create(recursive: true);
+    if (await FileSystemEntity.isDirectory(src)) {
+      await Directory(src).rename(dst);
+    } else {
+      await File(src).rename(dst);
+    }
+  }
+
+  Future<String> _trackingPath(String path) async =>
+      pathIn((await files.tracking()).root, path);
+
+  static bool _sameLines(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   // Jobs --------------------------------------------------------------------------------------
 
