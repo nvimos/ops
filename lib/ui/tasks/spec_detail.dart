@@ -27,7 +27,9 @@ class SpecDetail extends StatelessWidget {
   final VoidCallback onClose;
   final PanelWiden? widen;
   final void Function(Change c) onChange;
-  final VoidCallback onOpen;
+
+  /// Null without an editor: the button is not drawn.
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -48,7 +50,7 @@ class SpecDetail extends StatelessWidget {
           ],
         ),
       ),
-      PanelFooter(children: [SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen)]),
+      PanelFooter(children: [if (onOpen != null) SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen)]),
     ],
   );
 }

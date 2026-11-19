@@ -83,7 +83,7 @@ class _ChangeDetailState extends State<ChangeDetail> {
       Expanded(child: _raw ? _RawView(_tab.docOf(c)) : _body()),
       _ChangeFooter(
         raw: _raw,
-        onOpen: _open,
+        onOpen: widget.actions.hasEditor ? _open : null,
         onRaw: _toggleRaw,
         onArchive: !c.archived && widget.onArchive != null ? _archive : null,
       ),
@@ -151,14 +151,16 @@ class _ChangeFooter extends StatelessWidget {
   const _ChangeFooter({required this.raw, required this.onOpen, required this.onRaw, required this.onArchive});
 
   final bool raw;
-  final VoidCallback onOpen, onRaw;
-  final VoidCallback? onArchive;
+  final VoidCallback onRaw;
+  final VoidCallback? onOpen, onArchive;
 
   @override
   Widget build(BuildContext context) => PanelFooter(
     children: [
-      SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen),
-      const SizedBox(width: 8),
+      if (onOpen != null) ...[
+        SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen),
+        const SizedBox(width: 8),
+      ],
       SmallButton(raw ? 'Rendered' : 'View raw', onPressed: onRaw),
       const Spacer(),
       if (onArchive != null)

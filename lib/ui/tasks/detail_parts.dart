@@ -243,7 +243,9 @@ class LinkText extends StatelessWidget {
   const LinkText(this.text, {super.key, required this.onTap, this.tooltip});
 
   final String text;
-  final VoidCallback onTap;
+
+  /// Null: the text is not a link (nothing to open it with).
+  final VoidCallback? onTap;
   final String? tooltip;
 
   @override

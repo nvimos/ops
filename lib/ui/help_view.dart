@@ -30,7 +30,7 @@ const keyTable = [
       ('{ }', 'three items up or down in a list'),
       ('Ctrl+DU', 'half a page down or up'),
       ('Enter', 'open or pick the item'),
-      ('o', 'open the item in Neovim'),
+      ('o', 'open the item in Neovim (not in a local session)'),
       ('hl, ad, {left}{right}', 'navigate'),
       ('WASD', 'as the arrows (Tasks and Directories: only w and s, no panes)'),
     ],

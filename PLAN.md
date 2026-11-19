@@ -130,7 +130,7 @@ Any list (files, commits, branches, dirs, tasks)
 | `Enter`            | open or pick the item                                   |
 | `zo` / `zc`        | unfold / fold the selected file's folder (PR files)     |
 | `zR` / `zM`        | expand / collapse all folders                           |
-| `o`                | open the item in Neovim, like a click                   |
+| `o`                | open the item in Neovim (not in a local session)       |
 
 Pull request
 

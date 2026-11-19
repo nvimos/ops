@@ -527,7 +527,7 @@ class ChangesState extends ChangeNotifier {
   /// Open the selected file in Neovim at [line] (new side only; deletions have no line there).
   Future<String?> openLine(int line, {required bool isOld}) async {
     final path = selected;
-    if (isOld || path == null) return null;
+    if (isOld || path == null || !session.hasEditor) return null;
     return session.runEditor((e) => e.open(path, line));
   }
 

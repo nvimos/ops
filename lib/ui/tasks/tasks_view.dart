@@ -319,7 +319,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       for (final n in browser.navSources()) PaletteEntry(n.label, 'view', Icons.description_outlined, () => browser.go(n)),
       if (t != null) ...[
         for (final s in ws.statuses) PaletteEntry('Set status: $s', t.id, Icons.flag_outlined, () => setStatus(t, s)),
-        PaletteEntry('Open ${t.id} in Neovim', 'file', Icons.open_in_new, () => openInNeovim(t.path, 1)),
+        if (hasEditor) PaletteEntry('Open ${t.id} in Neovim', 'file', Icons.open_in_new, () => openInNeovim(t.path, 1)),
       ],
       for (final x in ws.tasks) PaletteEntry('${x.id}  ${x.title}', x.status, Icons.task_alt, () => openTask(x.id)),
       for (final c in ws.changes.where((c) => !c.archived))
@@ -343,7 +343,11 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   /// Open a file in the connected Neovim; with Ctrl held (Ctrl+click), in a new nvim-qt instead.
   @override
+  bool get hasEditor => session.hasEditor;
+
+  @override
   void openInNeovim(String path, int line) {
+    if (!hasEditor) return;
     if (HardwareKeyboard.instance.isControlPressed) {
       openInQt(ws.fullPath(path), line).then(_snack);
     } else {
@@ -649,7 +653,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       onClose: close,
       widen: widen,
       onChange: openChange,
-      onOpen: () => openInNeovim(sp.doc.path, r.start + 1),
+      onOpen: hasEditor ? () => openInNeovim(sp.doc.path, r.start + 1) : null,
     );
   }
 
@@ -658,7 +662,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     onClose: close,
     widen: widen,
     onPromote: () => promote(l),
-    onOpen: () => openInNeovim('legacy/${l.file}', l.line + 1),
+    onOpen: hasEditor ? () => openInNeovim('legacy/${l.file}', l.line + 1) : null,
     promotedAs: ws.promotedAs(l),
     onTask: openTask,
   );
