@@ -153,6 +153,7 @@ Pull request
 | `[f` / `]f`        | previous / next file                                    |
 | `]c` / `[c`        | next / previous hunk                                    |
 | `v`                | unified / side-by-side (also in Changes)                |
+| `Z`                | next view: unified, split, merge (also in Changes)      |
 | `zw`               | toggle line wrapping                                    |
 | `zh`               | toggle hunk headers                                     |
 | `Enter` on a commit| narrow to that commit; `Esc` returns to the full range  |
@@ -485,8 +486,8 @@ _not strictly normative_
   - pane header 40 px (`PaneHeader`: 12 px sides, 1 px bottom border, title in `T.title`);
     the Tasks toolbar is 44 px
   - status bar 24 px, 10 px sides, 1 px top border; debug bar three lines of 11 px text plus 14 px
-  - mode rail 48 px collapsed and 180 expanded (120 ms to change); entries 44 px high, the diff
-    views under a mode 32 px; icons 20 px, the views' icons 16
+  - mode rail 48 px collapsed and 180 expanded (120 ms to change); entries 44 px high; icons 20 px
+  - view bar (Pull request, Changes) 34 px, 12 px sides, 1 px bottom border; buttons 26 px, icons 15
   - list rows: `HoverRow` pads 12 on the sides and 6 above and below; file rows 5 above and below,
     folder rows 6 and 3; Tasks rows are exactly 36 px (`TaskRows.rowHeight`, 14 px sides); the
     palette's rows 34 px; menu items 32 px
@@ -692,10 +693,8 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
 - collapsed: icons only, hovering shows the mode name as a tooltip;
   expanded: hovering shows the brief explanation (see above)
 - the selected mode has an accent bar on its left edge and a brighter icon
-  - Pull request and Changes show their two views under the mode; the mode and both views carry the
-    same accent bar, 2 px wide
-  - the views are indented under their mode (to the right), and the current view is indented further
-    than the other one
+  - nothing opens under a mode, so the rail never moves; the diff views of Pull request and Changes
+    are in the view bar above their panes (see Pull request)
 - the mouse wheel over the rail steps to the previous or next mode, like Alt+[ and Alt+], round the ends
 - the rail is one stop in the Tab cycle, in front of the first pane (not each mode in it)
   - while it has the keyboard, a cursor starts on the current mode; Up / Down move it over the
@@ -894,8 +893,9 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
     - toggle line wrapping (`zw`)
     - toggle the hunk headers (the `#` button, `zh`)
     - both choices are kept between runs (`%APPDATA%/nvimos/state.json`) and shared by Pull request and Changes
-  - switching side-by-side and unified: when the PR or Changes mode is selected, the sidebar rail gets
-    two items under the pull request icon, one per view, unified first, then side-by-side
+  - switching views: a view bar above all the panes of Pull request and Changes has one button per
+    view, Unified, Split (side by side) and Merge (the merge conflict view; dimmed unless a merge with
+    conflicts is open); `v` toggles Unified and Split, `Z` steps Unified → Split → Merge
   - unified diff of the selected file, like GitHub's "Files changed" tab; side-by-side pairs each run
     of deletions with the run of additions after it
   - syntax colors (`ui/syntax.dart`)
@@ -980,7 +980,9 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
 - STAGED over CHANGES behave like the Pull request files and commits: foldable headers,
   the most-room button (CHANGES have it at start), expand / collapse all folders (zR / zM)
 - unified and side-by-side diffs, like the Pull request mode
-  - the rail shows the two views under Changes while it is selected; `v` switches
+  - the view bar above all the panes has a button per view: Unified, Split (side by side) and
+    Merge (dimmed unless a merge with conflicts is open); `v` toggles Unified and Split, `Z` steps
+    through all three
   - one choice for both modes (and the line-wrapping toggle, `zw`)
 - the left pane is resizable, like in Pull request
   - drag its right edge with the mouse; double-click the edge for the automatic width

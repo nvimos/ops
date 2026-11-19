@@ -36,9 +36,23 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
     count of `nvimos_*` folders in `%TEMP%` is the same before and after.
   - a run that was killed or crashed leaves things behind: remove them (the folders, the headless
     `nvim --clean` processes, the daemons) and don't leave them for the user.
-- The whole suite takes about 25 s. `workspace_test.dart` "archive merges deltas" is flaky
+- The whole suite takes about 2–3 minutes (2026-11-19, 4 files at a time). `workspace_test.dart` "archive merges deltas" is flaky
   (fails about half the runs, also before 2026-11-11); don't chase it as a regression.
-- Flutter: `C:/tools/flutter` (Makefile `FLUTTER_ROOT`), `PUB_CACHE=C:/tools/pub-cache`.
+- Flutter: `C:/tools/flutter` (Makefile `FLUTTER_ROOT`), `PUB_CACHE=C:/tools/pub-cache`. Use only
+  this SDK, also for a quick `pub get`, analyze or test. Never `H:/flutter` (an older checkout):
+  running it rewrites `.dart_tool/package_config.json` to its framework, and the next hot reload of
+  `make live` (built with `C:`) fails on framework/engine mismatches such as `SemanticsRole` not
+  exhaustively matched (2026-11-19). Check `"flutterRoot"` in `package_config.json` if a reload
+  breaks oddly; `C:/tools/flutter/bin/flutter pub get` repairs it.
+- `make test` runs 4 files at a time (`TEST_CONCURRENCY ?= 4`, 2026-11-19). The Neovim tests
+  `pr_state_test` "Down past the last file…" and `status_store_test` ("connection closed") failed
+  at 4 and passed one at a time; rerun them with `--concurrency=1` before treating them as regressions.
+- `tasks_meta_test` "every OpenSpec change parses and names its task" fails while
+  `nvimos-meta/openspec/changes/kanban-board-mode` has no backlog task (open: give it a task or let
+  the test allow proposals without one).
+- A test that needs another platform uses `variant: TargetPlatformVariant.only(TargetPlatform.windows)`,
+  not `debugDefaultTargetPlatformOverride` with `addTearDown`: the tear-down runs after Flutter's
+  check that debug variables are reset, so the test fails.
 - `make analyze` lists `package:flutter/material.dart` deprecation infos on every file
   (Flutter 3.50); anything else is a real finding.
 - New code uses no deprecated APIs (Flutter, Dart, packages): look up the replacement instead. The
@@ -73,6 +87,20 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   - inside a `SelectionArea` (the diff, lists) a `Text` brings its own I-beam cursor, which beats an
     outer `MouseRegion`: wrap the button's content in `SelectionContainer.disabled`
   - check the new item for both before saying it is done
+- Mode rail: one plain icon per mode, nothing under it (sub entries made the rail move when they
+  expanded; 2026-11-19). The diff views of Pull request and Changes are the view bar
+  (`lib/ui/view_bar.dart`) above all their panes: Unified, Split (side by side), Merge. Merge is
+  dimmed unless a merge with conflicts is open; the button stays so the bar doesn't change shape.
+- Path rows of the ported Purrage modes (Add and Ignore, Repos) follow Purrage's `PLAN.md`: two
+  columns, the folder right-aligned in muted monospace with its trailing slash (`PathFolder`,
+  `Expanded(flex: 2)`), the base name left-aligned (`PathName`, `Expanded(flex: 3)`), so the names
+  line up (`lib/ui/path_cells.dart`). Directory names take Windows Explorer's folder amber
+  (`C.folder`). Tests find a path by its base name, not the whole path.
+- The shell keeps every mode built in an `IndexedStack`, each wrapped in
+  `ExcludeSemantics(excluding: <not shown>)`. Hidden modes that refreshed sent semantics updates the
+  Windows accessibility bridge rejected (`Failed to update ui::AXTree, error: 144 will not be in the
+  tree and is not the new root`, hundreds per run). Fix added 2026-11-19, not yet confirmed by a
+  mode-switching run.
 - Errors: `Session.run` returns the full error text (with Neovim's trace). Show a failed load
   with `ErrorPane` in place of the view, a failed action with `showActionError` (short snackbar,
   Details opens the selectable trace).
@@ -94,6 +122,14 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   `autofocus` in a mode, or a hidden mode in the IndexedStack takes the keys.
 - Plain keys are ignored while a text field has focus (`_typing()` in the shell).
 - Two-key commands (`gs`, `]f`, `zw`) go through `KeySequence` (`lib/ui/key_sequence.dart`).
+  A one-key command can't be the start of a longer one: a bare `z` never fires while `zw`, `zh`,
+  `zR` exist. That's why the view cycle is `Z`.
+- Diff views (Pull request, Changes): `v` toggles Unified and Split, `Z` steps Unified → Split →
+  Merge (Merge only while a merge has conflicts; `DiffPrefs.cycleLayout`).
+- `Attempted to send a key down event when no keys are in keysPressed` (Alt Left, `repeat: true`)
+  right after a hot restart is not an app bug. The restart clears the framework's pressed keys
+  while Windows still has Alt down, so the next repeat trips a debug-only assertion in Flutter's
+  raw keyboard. Leave it.
 - Panes and lists: a pane is a part of a mode that takes the keys; a list is a pane that enumerates
   items (files, commits, directories, tasks). Every mode with panes follows the same motion rules:
   - Up / Down and `j` / `k` (arrows, hjkl and WASD are the same keys; a command that wanted one of those
@@ -155,6 +191,23 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
   - everything flutter and the app print is also written to `out/live.log` (a new file per run)
   - `out/` is ignored by git
   - read its last lines when diagnosing what the running app did
+  - it also has the running app's VM service URL. Read-only extensions answer over plain HTTP, e.g.
+    `curl "<url>/getVM"` for the isolate id, then
+    `curl "<url>/ext.flutter.debugDumpSemanticsTreeInTraversalOrder?isolateId=isolates/<n>"`
+    (the semantics tree, used 2026-11-19 to find which node the accessibility errors named)
+- PDF pages in the preview are an optional build (2026-11-19). pdfrx builds PDFium natively and made
+  every build slow. A Dart define can't drop a pubspec dependency, so the switch is a package swap:
+  - `pubspec.yaml` depends on `ops_pdf` from `packages/ops_pdf_off` (a stub: a PDF shows its facts,
+    the Open button and "PDF pages are not in this build")
+  - `make pdf-on` (`tool/pdf.ps1`) writes the git-ignored `pubspec_overrides.yaml`, which points
+    `ops_pdf` at `packages/ops_pdf_on` (pdfrx), and runs `pub get`; `make pdf-off` removes it,
+    `make pdf-status` says which one is active
+  - `make release` turns PDF on and leaves it on; build with PDF on now and then to check it still
+    compiles
+  - while PDF is on, `pubspec.lock` shows as modified; commit the lock from the off state
+  - `analysis_options.yaml` excludes `packages/ops_pdf_on` (its pdfrx import only resolves when on)
+- `BUILD_CONCURRENCY ?= 4` in the Makefile is exported as `CMAKE_BUILD_PARALLEL_LEVEL` for the
+  native build (2026-11-19; not yet checked that `flutter build windows` honours it)
 - `make timings` shows the UI timings (`WHICH=totals` or `<n>` sessions back, `FILTER=tasks`);
   `make measure` prints the timings of Tasks clicks in a 300-task repo
 - new backlog tasks (`nvimos-meta/backlog/tasks`)
