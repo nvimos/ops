@@ -15,7 +15,7 @@ TEST_CONCURRENCY ?= 4
 BUILD_CONCURRENCY ?= 4
 export CMAKE_BUILD_PARALLEL_LEVEL := $(BUILD_CONCURRENCY)
 
-.PHONY: help run live build dist single bin-local release test analyze nvim timings measure
+.PHONY: help run live build dist single bin-local release test analyze nvim timings measure pdf-on pdf-off pdf-status
 
 # `make help` prints the `##@` lines as section headers and `target: ## text` as entries.
 .DEFAULT_GOAL := help
@@ -46,7 +46,7 @@ bin-local: single ## build the one-file exe and copy it to ~/.local/bin/ops.exe 
 	Copy-Item -Force 'dist/ops-windows-x64-$(VERSION)-single.exe' "$$env:USERPROFILE/.local/bin/ops.exe"
 	@'installed {0}\.local\bin\ops.exe' -f $$env:USERPROFILE
 
-release: build ## zip and single exe from one build, uploaded as GitHub release v<VERSION> (nvimos/ops)
+release: pdf-on build ## zip and single exe from one build, uploaded as GitHub release v<VERSION> (nvimos/ops)
 	pwsh -NoProfile -File tool/dist.ps1 -Zip -Single -Version '$(VERSION)'
 	gh release create 'v$(VERSION)' dist/ops-windows-x64-$(VERSION).zip dist/ops-windows-x64-$(VERSION)-single.exe --repo nvimos/ops --title 'ops $(VERSION)' --generate-notes
 
@@ -73,6 +73,15 @@ measure: ## time Tasks checkbox clicks in a 300-task repo with a headless Neovim
 	$(FLUTTER) test test/timing_measure_test.dart
 
 ##@ other
+
+pdf-on: ## draw PDF pages in the preview (pdfrx + PDFium: a slow first build); make release turns it on
+	pwsh -NoProfile -File tool/pdf.ps1 -Mode on -Flutter "$(FLUTTER)"
+
+pdf-off: ## the default: no PDF library, so a quick build; a PDF shows its facts and the Open button only
+	pwsh -NoProfile -File tool/pdf.ps1 -Mode off -Flutter "$(FLUTTER)"
+
+pdf-status: ## whether the PDF pages are on or off
+	@pwsh -NoProfile -File tool/pdf.ps1 -Mode status
 
 icon: ## rebuild windows/runner/resources/app_icon.ico from assets/icon/ops.svg
 	pwsh -NoProfile -File tool/icon.ps1

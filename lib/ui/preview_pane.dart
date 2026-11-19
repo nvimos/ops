@@ -1,8 +1,7 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
-import 'package:pdfrx/pdfrx.dart';
+import 'package:ops_pdf/ops_pdf.dart';
 
 import '../state/preview.dart';
 import 'theme.dart';
@@ -43,7 +42,7 @@ class PreviewPane extends StatelessWidget {
     PreviewHeader(:final path) => _Header(path: path),
     PreviewLine(:final number, :final text) => _Line(number: number, text: text),
     PreviewNote(:final text) => _Note(text: text),
-    PreviewPdf(:final path) => _Pdf(path: path),
+    PreviewPdf(:final path) => PdfPages(path: path, maxPages: PreviewPdf.maxPages, style: T.small),
     PreviewImage(:final path) => _Picture(path: path),
     PreviewLaunch(:final path, :final text, :final program, :final facts) => _Launch(
       text: text,
@@ -83,33 +82,6 @@ class _Line extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(child: Text(text.replaceAll('\t', '  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: T.code)),
       ],
-    ),
-  );
-}
-
-/// The first pages of a PDF, each as wide as the pane (pdfrx, which draws with PDFium).
-class _Pdf extends StatelessWidget {
-  const _Pdf({required this.path});
-
-  final String path;
-
-  static Size _fit(Size biggest, PdfPage page, PdfPageRotation? rotation) =>
-      Size(biggest.width, biggest.width * page.height / page.width);
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-    child: PdfDocumentViewBuilder.file(
-      path,
-      builder: (context, document) => Column(
-        children: [
-          for (var n = 1; n <= math.min(document?.pages.length ?? 0, PreviewPdf.maxPages); n++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: PdfPageView(document: document, pageNumber: n, pageSizeCallback: _fit),
-            ),
-        ],
-      ),
     ),
   );
 }

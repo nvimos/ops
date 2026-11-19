@@ -55,5 +55,7 @@ app.*.map.json
 /.agentsroom/
 /.vibe
 /test_results.txt
+# Written by make pdf-on
+/pubspec_overrides.yaml
 # Purrage
 /.claude/settings.local.json
