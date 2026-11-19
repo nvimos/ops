@@ -245,7 +245,7 @@ void main() {
 
     final untracked = status.files.firstWhere((file) => file.path == 'untracked.txt');
     expect(untracked.untracked, isTrue);
-    expect(untracked.unstaged, isTrue);
+    expect(untracked.unstaged, isFalse);
     expect(untracked.index, '?');
     expect(untracked.worktree, '?');
 

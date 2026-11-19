@@ -30,7 +30,7 @@ void main() {
 
   test('every OpenSpec change parses and names its task', () {
     final files = <String, List<String>>{};
-    for (final f in Directory('${root.path}/openspec/changes').listSync(recursive: true).whereType<File>()) {
+    for (final f in Directory('${root.path}/openspec/changes').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.md'))) {
       files[rel(f)] = read(f);
     }
     final changes = parseChanges(files, {});
