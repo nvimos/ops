@@ -81,6 +81,16 @@ class SettingsState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Preview --------------------------------------------------------------------------------------
+
+  /// Draw the first pages of a PDF in the Add and Ignore preview (takes effect when it is next opened).
+  bool get renderPdf => _prefs.flag('previewPdf', fallback: false);
+
+  void setRenderPdf(bool value) {
+    _prefs.setFlag('previewPdf', value);
+    notifyListeners();
+  }
+
   // Crawl ----------------------------------------------------------------------------------------
 
   int get scanDepth => (_prefs.number(Settings.scanDepthKey) ?? RepoBrowser.depthDefault).clamp(RepoBrowser.depthMin, RepoBrowser.depthMax);

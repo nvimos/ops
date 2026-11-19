@@ -4,13 +4,16 @@ import 'package:material_ui/material_ui.dart';
 import '../state/action_queue.dart';
 import '../state/add_ignore.dart';
 import '../state/changes.dart' show fileKind;
+import '../local/file_manager.dart';
 import '../state/ignore_pane.dart';
+import '../state/preview.dart';
 import 'confirm_dialog.dart';
 import 'error_view.dart';
 import 'ignore_dialog.dart';
 import 'ignore_pane.dart';
 import 'key_sequence.dart';
 import 'nav_keys.dart';
+import 'preview_pane.dart';
 import 'reveal.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -54,6 +57,7 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
     'i': _ignoreDialog,
     'I': _ignore,
     'p': _togglePane,
+    'v': _togglePreview,
     'x': _delete,
     'r': () => st.store.refresh(),
   });
@@ -62,16 +66,20 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
 
   IgnorePaneState? _ignorePane; // made when the pane is first opened
   bool _paneOpen = false;
+  PreviewState? _preview; // made when the preview is first opened
+  bool _previewOpen = false;
+  String _previewKey = '';
 
   @override
   void initState() {
     super.initState();
-    st.addListener(_reveal);
+    st.addListener(_onState);
   }
 
   @override
   void dispose() {
-    st.removeListener(_reveal);
+    st.removeListener(_onState);
+    _preview?.dispose();
     _ignorePane?.dispose();
     _keys.dispose();
     focus.dispose();
@@ -109,6 +117,37 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
   Future<void> _ignoreDialog() => showIgnoreDialog(context, st);
 
   void _togglePane() => setState(() => _paneOpen = !_paneOpen);
+
+  /// v: show or hide the preview of the highlighted files (text, pictures, PDFs).
+  void _togglePreview() {
+    setState(() => _previewOpen = !_previewOpen);
+    _previewKey = '';
+    _loadPreview();
+  }
+
+  void _onState() {
+    _reveal();
+    _loadPreview();
+  }
+
+  /// The preview follows the highlighted rows; it reads only when they change.
+  void _loadPreview() {
+    if (!_previewOpen) return;
+    final paths = [for (final r in st.actionRows) r.path];
+    final key = paths.join('|');
+    if (key == _previewKey) return;
+    _previewKey = key;
+    final p = _preview ??= PreviewState(root: () => st.session.repo?.root ?? '.')..renderPdf = st.session.prefs.flag('previewPdf', fallback: false);
+    p.load(paths);
+  }
+
+  Future<void> _launch(String file, {bool program = false}) async {
+    try {
+      await FileManager().launch(file, program: program);
+    } on FileManagerException catch (e) {
+      if (mounted) showActionError(context, '$e');
+    }
+  }
 
   /// I: a rule for each untracked highlighted row into the repository's root `.gitignore`, no questions.
   Future<void> _ignore() async {
@@ -217,12 +256,21 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
     child: Row(
       children: [
         Expanded(child: _listColumn()),
-        if (_paneOpen) ...[
+        if (_paneOpen || _previewOpen) ...[
           const VerticalDivider(width: 1),
-          SizedBox(width: 340, child: IgnorePane(state: _ignorePane ??= IgnorePaneState(st))),
+          SizedBox(width: 360, child: _sidePanes()),
         ],
       ],
     ),
+  );
+
+  /// The panes on the right: the preview over the ignore rules, whichever are open.
+  Widget _sidePanes() => Column(
+    children: [
+      if (_previewOpen) Expanded(child: PreviewPane(state: _preview!, onLaunch: _launch)),
+      if (_previewOpen && _paneOpen) const Divider(height: 1),
+      if (_paneOpen) Expanded(child: IgnorePane(state: _ignorePane ??= IgnorePaneState(st))),
+    ],
   );
 
   Widget _listColumn() => ListenableBuilder(
@@ -235,8 +283,10 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
           selected: st.selectionCount,
           lit: focus.hasFocus,
           paneOpen: _paneOpen,
+          previewOpen: _previewOpen,
           onReload: st.store.refresh,
           onPane: _togglePane,
+          onPreview: _togglePreview,
         ),
         _Filter(controller: _filter, focus: _filterFocus, onChanged: st.setFilter),
         Expanded(child: _body()),
@@ -276,16 +326,18 @@ class _Header extends StatelessWidget {
     required this.selected,
     required this.lit,
     required this.paneOpen,
+    required this.previewOpen,
     required this.onReload,
     required this.onPane,
+    required this.onPreview,
   });
 
   final int count, selected;
 
   /// The list has the keyboard: its title is lit.
   final bool lit;
-  final bool paneOpen;
-  final VoidCallback onReload, onPane;
+  final bool paneOpen, previewOpen;
+  final VoidCallback onReload, onPane, onPreview;
 
   @override
   Widget build(BuildContext context) => PaneHeader(
@@ -297,6 +349,12 @@ class _Header extends StatelessWidget {
       ],
     ),
     trailing: [
+      IconAction(
+        icon: Icons.preview_outlined,
+        tooltip: previewOpen ? 'Hide the preview (v)' : 'Preview the highlighted files (v)',
+        onPressed: onPreview,
+        color: previewOpen ? C.accent : C.muted,
+      ),
       IconAction(
         icon: Icons.rule,
         tooltip: paneOpen ? 'Hide the ignore rules (p)' : 'Show the ignore rules around the cursor row (p)',

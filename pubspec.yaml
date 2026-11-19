@@ -13,6 +13,7 @@ dependencies:
   re_highlight: ^0.0.3
   git: ^2.5.0
   path: ^1.9.1
+  pdfrx: ^3.0.0
 
 dev_dependencies:
   flutter_test:

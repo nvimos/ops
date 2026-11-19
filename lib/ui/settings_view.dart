@@ -97,6 +97,13 @@ class SettingsViewState extends State<SettingsView> {
       const _Section('FOLDERS', 'What a repository folder opens in.'),
       _Choice(label: 'File manager', on: !st.folderInEditor, onTap: () => st.setFolderInEditor(false)),
       _Choice(label: 'The editor', on: st.folderInEditor, onTap: () => st.setFolderInEditor(true)),
+      const _Section('PREVIEW', 'The preview of the highlighted files in Add and Ignore (v).'),
+      _Choice(
+        label: 'Draw the first pages of a PDF',
+        hint: st.renderPdf ? 'on' : 'off: a sentence and an Open button',
+        on: st.renderPdf,
+        onTap: () => st.setRenderPdf(!st.renderPdf),
+      ),
       const _Section('CRAWL', 'How many levels below its start folder the crawl looks for repositories.'),
       _Depth(depth: st.scanDepth, onChange: st.setScanDepth),
     ],
