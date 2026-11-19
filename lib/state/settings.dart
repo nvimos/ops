@@ -89,6 +89,48 @@ class SettingsState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Delete ---------------------------------------------------------------------------------------
+
+  /// Delete into the trash (the default) rather than removing for good.
+  bool get deleteToTrash => session.deleteToTrash;
+
+  void setDeleteToTrash(bool value) {
+    _prefs.setFlag(Settings.deleteToTrashFlag, value);
+    notifyListeners();
+  }
+
+  /// Ask before deleting; off until chosen.
+  bool get confirmDelete => session.confirmDelete;
+
+  void setConfirmDelete(bool value) {
+    _prefs.setFlag(Settings.confirmDeleteFlag, value);
+    notifyListeners();
+  }
+
+  // Wheel ----------------------------------------------------------------------------------------
+
+  /// Rows one Shift + wheel notch moves a list (2 to 1000, 5 until chosen).
+  int get wheelStep => session.wheelStep;
+
+  void setWheelStep(int rows) {
+    final next = rows.clamp(Settings.wheelStepMin, Settings.wheelStepMax);
+    if (next == wheelStep) return;
+    _prefs.setNumber(Settings.wheelStepKey, next);
+    notifyListeners();
+  }
+
+  /// Open `PLAN.md` in the editor in use, from the open repository when there is one; the error text,
+  /// or null.
+  Future<String?> testEditor() async {
+    final root = session.repo?.root;
+    try {
+      await _editors.open(file: root == null ? 'PLAN.md' : '$root/PLAN.md');
+      return null;
+    } on EditorException catch (e) {
+      return '$e';
+    }
+  }
+
   // Preview --------------------------------------------------------------------------------------
 
   /// Draw the first pages of a PDF in the Add and Ignore preview (takes effect when it is next opened).

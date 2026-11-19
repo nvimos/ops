@@ -122,15 +122,38 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
     expect(find.text('VS Code'), findsOneWidget);
     expect(find.text('Windows Terminal'), findsOneWidget);
-    expect(find.text('${RepoBrowser.depthDefault}'), findsOneWidget);
+    expect(m.state.scanDepth, RepoBrowser.depthDefault);
+    expect(m.state.wheelStep, Settings.wheelStepDefault, reason: 'the wheel moves 5 rows until changed');
 
     await t.tap(find.byTooltip('One level more'));
     await t.pump();
     expect(m.state.scanDepth, RepoBrowser.depthDefault + 1);
     expect(find.text('${RepoBrowser.depthDefault + 1}'), findsOneWidget);
 
+    // The wheel step field: a number in range is saved; one out of it says so and is not.
+    await t.enterText(find.byType(TextField).last, '7');
+    await t.pump();
+    expect(m.state.wheelStep, 7);
+    await t.enterText(find.byType(TextField).last, '1');
+    await t.pump();
+    expect(m.state.wheelStep, 7, reason: '1 is below the 2 to 1000 range');
+    expect(find.text('2 to 1000'), findsOneWidget, reason: 'the field says why it is not taken');
+    expect(find.text('range 2 to 1000'), findsOneWidget);
+
     await t.tap(find.text('The editor'));
     await t.pump();
     expect(m.state.folderInEditor, isTrue);
+
+    // Delete: the trash by default; asking first is off until chosen, as in Purrage.
+    expect(m.state.deleteToTrash, isTrue);
+    expect(m.state.confirmDelete, isFalse);
+    await t.tap(find.text('For good'));
+    await t.pump();
+    expect(m.state.deleteToTrash, isFalse);
+    expect(m.prefs.flag(Settings.deleteToTrashFlag, fallback: true), isFalse);
+    await t.tap(find.text('Ask first'));
+    await t.pump();
+    expect(m.state.confirmDelete, isTrue);
+    expect(m.prefs.flag(Settings.confirmDeleteFlag, fallback: false), isTrue);
   });
 }

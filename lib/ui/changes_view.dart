@@ -395,6 +395,7 @@ class ChangesViewState extends State<ChangesView> {
       selectedStaged: st.selectedStaged,
       onSelect: (path, staged) => st.pick(path, staged: staged),
       onStep: (delta, staged) => st.stepFile(delta, staged: staged),
+      wheelStep: st.session.wheelStep,
       onMoveFile: _moveFile,
       onMoveDir: _moveDir,
       onMoveAll: _moveAll,
@@ -498,6 +499,7 @@ class ChangesSidebar extends StatelessWidget {
     required this.onToggleDir,
     required this.onFoldAll,
     required this.commitBox,
+    this.wheelStep = 1,
   });
 
   final Widget branchPicker;
@@ -508,8 +510,11 @@ class ChangesSidebar extends StatelessWidget {
   final bool selectedStaged;
   final void Function(String path, bool staged) onSelect;
 
-  /// The wheel steps through the files of a list: [delta] is -1 or 1.
+  /// The wheel steps through the files of a list by [wheelStep] rows.
   final void Function(int delta, bool staged) onStep;
+
+  /// Rows one Shift + wheel notch (or one step) moves the file cursor: Settings' `wheelStep`.
+  final int wheelStep;
   final void Function(String path, bool staged) onMoveFile;
   final void Function(String dir, bool staged) onMoveDir;
   final void Function(bool staged) onMoveAll;
@@ -555,6 +560,7 @@ class ChangesSidebar extends StatelessWidget {
       onMoveFile: (p) => onMoveFile(p, s.staged),
       onToggleDir: (d) => onToggleDir(i, d),
       onMoveDir: (d) => onMoveDir(d, s.staged),
+      wheelStep: wheelStep,
     );
   }
 }
@@ -602,6 +608,7 @@ class FileSection extends StatelessWidget {
     required this.onMoveFile,
     this.onToggleDir,
     this.onMoveDir,
+    this.wheelStep = 1,
   });
 
   final FileSectionData data;
@@ -611,8 +618,12 @@ class FileSection extends StatelessWidget {
   final ValueChanged<String> onMoveFile;
   final ValueChanged<String>? onToggleDir, onMoveDir;
 
+  /// Rows one Shift + wheel notch (or one step) moves the file cursor: Settings' `wheelStep`.
+  final int wheelStep;
+
   @override
   Widget build(BuildContext context) => FileTree(
+    wheelStep: wheelStep,
     files: [
       for (final f in data.files)
         TreeFile(

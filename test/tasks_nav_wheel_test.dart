@@ -71,7 +71,8 @@ void main() {
     await middle.down(at);
     await middle.up();
     await t.pump();
-    await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, 120)));
+    // Up, so the step lands inside the list wherever the two steps above left the cursor.
+    await t.sendEventToBinding(PointerScrollEvent(position: at, scrollDelta: const Offset(0, -120)));
     await t.pump();
     expect(offset(), 0);
     expect(title(), isNot(before));

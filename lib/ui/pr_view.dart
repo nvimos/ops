@@ -428,6 +428,7 @@ class _Files extends StatelessWidget {
     collapsed: pr.collapsedDirs,
     onToggleDir: pr.toggleDir,
     onStep: pr.stepFile,
+    wheelStep: pr.session.wheelStep,
     selectBottom: pr.selectBottomOfFiles,
   );
 }
@@ -492,7 +493,7 @@ class _CommitListState extends State<_CommitList> {
       revealIndex(_scroll, _cursorKey, _cursor);
     }
     return SelectionArea(
-      child: WheelMode(onStep: pr.stepCommit, builder: (context, steps) => _rows(steps)),
+      child: WheelMode(onStep: pr.stepCommit, step: pr.session.wheelStep, builder: (context, steps) => _rows(steps)),
     );
   }
 

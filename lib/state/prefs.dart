@@ -164,7 +164,8 @@ class Recent {
   int get hashCode => Object.hash(kind, target);
 }
 
-/// The keys of the settings the Settings mode edits (see [Prefs.text] and [Prefs.number]).
+/// The keys of the settings the Settings mode edits (see [Prefs.text] and [Prefs.number]), the flags
+/// behind its on / off choices (see [Prefs.flag]), and the two the Add and Ignore pane keeps.
 abstract final class Settings {
   /// The editor command with `{file}` and `{line}`; unset: the first detected editor.
   static const editorKey = 'editorCommand';
@@ -177,4 +178,22 @@ abstract final class Settings {
 
   /// How many levels below its start folder the crawl goes.
   static const scanDepthKey = 'scanDepth';
+
+  /// Rows one Shift + wheel notch (or one step of the wheel mode) moves a list; 2 to 1000, 5.
+  static const wheelStepKey = 'wheelStep';
+  static const wheelStepMin = 2;
+  static const wheelStepMax = 1000;
+  static const wheelStepDefault = 5;
+
+  /// Delete into the trash (the flag unset: on) instead of removing for good.
+  static const deleteToTrashFlag = 'deleteToTrash';
+
+  /// Ask before deleting (the flag unset: no question, as in Purrage).
+  static const confirmDeleteFlag = 'confirmDelete';
+
+  /// What the Add and Ignore side pane shows: `preview`, else the ignore rules.
+  static const sideViewKey = 'sideView';
+
+  /// The Add and Ignore side pane's width in pixels, as it was last dragged; unset: 360.
+  static const sidePaneWidthKey = 'sidePaneWidth';
 }

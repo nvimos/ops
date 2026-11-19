@@ -47,13 +47,15 @@ class FileTree extends StatefulWidget {
     this.folderTrailing,
     this.selectBottom,
     this.onStep,
+    this.wheelStep = 1,
   });
 
   final List<TreeFile> files;
 
-  /// The wheel steps through the files (-1 / 1) after a middle click, or with Shift (see [WheelMode]);
-  /// null: the wheel only scrolls.
+  /// The wheel steps through the files after a middle click, or with Shift (see [WheelMode]); null:
+  /// the wheel only scrolls. [wheelStep] is Settings' rows per notch.
   final ValueChanged<int>? onStep;
+  final int wheelStep;
 
   /// A widget at the end of a folder row (lined up with the files' trailing widgets), by folder.
   final Widget? Function(String dir)? folderTrailing;
@@ -128,7 +130,7 @@ class _FileTreeState extends State<FileTree> {
   Widget build(BuildContext context) {
     final step = widget.onStep;
     if (step == null) return _list(scrolls: true);
-    return WheelMode(onStep: step, builder: (context, steps) => _list(scrolls: !steps));
+    return WheelMode(onStep: step, step: widget.wheelStep, builder: (context, steps) => _list(scrolls: !steps));
   }
 
   Widget _list({required bool scrolls}) {

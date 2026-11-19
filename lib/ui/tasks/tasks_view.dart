@@ -554,6 +554,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     onPointerDown: (_) => _clicked(TasksPane.nav),
     child: WheelMode(
       onStep: browser.moveNav,
+      step: session.wheelStep,
       builder: (context, steps) => _navPane(scrolls: !steps),
     ),
   );
@@ -590,6 +591,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
           onPointerDown: (_) => _clicked(TasksPane.list),
           child: WheelMode(
             onStep: move,
+            step: session.wheelStep,
             builder: (context, steps) => TaskRows(
               rows: rows,
               ws: ws,

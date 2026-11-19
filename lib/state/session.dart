@@ -59,6 +59,17 @@ class Session extends ChangeNotifier {
   Cursor? cursor;
   RepoInfo? repo;
 
+  /// Rows one Shift + wheel notch (or one step of a list's wheel mode) moves a list.
+  int get wheelStep =>
+      (_prefs.number(Settings.wheelStepKey) ?? Settings.wheelStepDefault)
+          .clamp(Settings.wheelStepMin, Settings.wheelStepMax);
+
+  /// Delete into the trash rather than removing for good.
+  bool get deleteToTrash => _prefs.flag(Settings.deleteToTrashFlag, fallback: true);
+
+  /// Ask before deleting.
+  bool get confirmDelete => _prefs.flag(Settings.confirmDeleteFlag, fallback: false);
+
   /// Unified / side-by-side, wrapping and hunk headers, shared by the diff modes.
   late final diffPrefs = DiffPrefs(_prefs);
 
@@ -434,4 +445,7 @@ class SessionScope extends InheritedNotifier<Session> {
 
   /// Without subscribing to rebuilds.
   static Session read(BuildContext context) => context.getInheritedWidgetOfExactType<SessionScope>()!.notifier!;
+
+  /// The session, or null when there is none above this context (a widget test on its own).
+  static Session? maybeRead(BuildContext context) => context.getInheritedWidgetOfExactType<SessionScope>()?.notifier;
 }

@@ -4,7 +4,9 @@ import 'package:material_ui/material_ui.dart';
 import '../local/browser.dart';
 import '../local/editors.dart';
 import '../local/terminals.dart';
+import '../state/prefs.dart' show Settings;
 import '../state/settings.dart';
+import 'error_view.dart';
 import 'nav_keys.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -89,14 +91,34 @@ class SettingsViewState extends State<SettingsView> {
     padding: const EdgeInsets.symmetric(vertical: 8),
     children: [
       _Section('EDITOR', 'Files open here at their line: Open in Neovim, a diff line, a task file.'),
-      for (final o in st.editors) _EditorRow(option: o, inUse: o == st.editorInUse),
-      _CommandField(controller: _command, onSave: _saveCommand, onDetected: _useDetected, custom: st.savedEditor != null),
+      for (final o in st.editors)
+        _EditorRow(
+          option: o,
+          inUse: o == st.editorInUse,
+          // Clicking the one detection already picked is no change; any other row becomes the choice.
+          onPick: o == st.editorInUse && st.savedEditor == null ? null : () => st.chooseEditor(o.command),
+        ),
+      _CommandField(controller: _command, onSave: _saveCommand, onDetected: _useDetected, custom: st.savedEditor != null, onTest: _test),
       const _Section('TERMINAL', 'Started in a repository by its row in Repos.'),
       for (final t in st.terminals) _TerminalRow(option: t, inUse: t.id == st.terminalInUse?.id, onPick: () => st.chooseTerminal(t.id)),
       if (st.terminals.isEmpty) const _Note('No terminal found on PATH.'),
       const _Section('FOLDERS', 'What a repository folder opens in.'),
       _Choice(label: 'File manager', on: !st.folderInEditor, onTap: () => st.setFolderInEditor(false)),
       _Choice(label: 'The editor', on: st.folderInEditor, onTap: () => st.setFolderInEditor(true)),
+      const _Section('DELETE', 'Where the Delete action of Add and Ignore puts a file.'),
+      _Choice(label: 'To the trash', hint: 'the Recycle Bin, the Trash', on: st.deleteToTrash, onTap: () => st.setDeleteToTrash(true)),
+      _Choice(label: 'For good', hint: 'no way back', on: !st.deleteToTrash, onTap: () => st.setDeleteToTrash(false)),
+      const _Section('CONFIRM', 'Whether Delete asks before it acts.'),
+      _Choice(label: 'Ask first', hint: 'a dialog names what goes', on: st.confirmDelete, onTap: () => st.setConfirmDelete(true)),
+      _Choice(label: 'At once', hint: 'no question', on: !st.confirmDelete, onTap: () => st.setConfirmDelete(false)),
+      const _Section('WHEEL', 'Rows one Shift + wheel notch, or one step of the wheel mode, moves a list.'),
+      _NumberField(
+        value: st.wheelStep,
+        unit: 'rows',
+        min: Settings.wheelStepMin,
+        max: Settings.wheelStepMax,
+        onChange: st.setWheelStep,
+      ),
       const _Section('PREVIEW', 'The preview of the highlighted files in Add and Ignore (v).'),
       _Choice(
         label: 'Draw the first pages of a PDF',
@@ -108,6 +130,12 @@ class SettingsViewState extends State<SettingsView> {
       _Depth(depth: st.scanDepth, onChange: st.setScanDepth),
     ],
   );
+
+  /// Test: open the repository's `PLAN.md` (or the app's) in the editor in use.
+  Future<void> _test() async {
+    final err = await st.testEditor();
+    if (mounted) showActionError(context, err);
+  }
 }
 
 class _Section extends StatelessWidget {
@@ -158,18 +186,20 @@ class _Choice extends StatelessWidget {
   );
 }
 
-/// A detected editor; the one in use is marked. The list is the detection order, not a choice: to
-/// pick another, type its command below.
+/// A detected editor; the one in use is marked, and a click on another row makes it the choice.
 class _EditorRow extends StatelessWidget {
-  const _EditorRow({required this.option, required this.inUse});
+  const _EditorRow({required this.option, required this.inUse, this.onPick});
 
   final EditorOption option;
   final bool inUse;
 
+  /// Use this editor; null for the one already in use.
+  final VoidCallback? onPick;
+
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: inUse ? 'The editor in use' : 'Found, but another one comes first (a saved command leads)',
-    child: _Choice(label: option.label, on: inUse, hint: option.command, onTap: null),
+    message: inUse ? 'The editor in use' : 'Use ${option.label}',
+    child: _Choice(label: option.label, on: inUse, hint: option.command, onTap: onPick),
   );
 }
 
@@ -187,12 +217,18 @@ class _TerminalRow extends StatelessWidget {
   );
 }
 
-/// The user's own editor command, with `{file}` and `{line}`.
+/// The user's own editor command, with `{file}` and `{line}`, and a Test button that opens PLAN.md.
 class _CommandField extends StatelessWidget {
-  const _CommandField({required this.controller, required this.onSave, required this.onDetected, required this.custom});
+  const _CommandField({
+    required this.controller,
+    required this.onSave,
+    required this.onDetected,
+    required this.custom,
+    required this.onTest,
+  });
 
   final TextEditingController controller;
-  final VoidCallback onSave, onDetected;
+  final VoidCallback onSave, onDetected, onTest;
   final bool custom;
 
   @override
@@ -211,7 +247,64 @@ class _CommandField extends StatelessWidget {
         const SizedBox(width: 8),
         SmallButton('Save', primary: true, onPressed: onSave),
         const SizedBox(width: 6),
+        Tooltip(message: 'Open PLAN.md in this editor', child: SmallButton('Test', onPressed: onTest)),
+        const SizedBox(width: 6),
         if (custom) SmallButton('Use the detected one', onPressed: onDetected),
+      ],
+    ),
+  );
+}
+
+/// A whole number from [min] to [max], saved as it is typed; a value out of range says so and is not
+/// saved (as in Purrage's Settings).
+class _NumberField extends StatefulWidget {
+  const _NumberField({required this.value, required this.unit, required this.min, required this.max, required this.onChange});
+
+  final int value;
+  final String unit;
+  final int min, max;
+  final ValueChanged<int> onChange;
+
+  @override
+  State<_NumberField> createState() => _NumberFieldState();
+}
+
+class _NumberFieldState extends State<_NumberField> {
+  late final TextEditingController _text = TextEditingController(text: '${widget.value}');
+  String? _problem;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _typed(String text) {
+    final n = int.tryParse(text.trim());
+    final ok = n != null && n >= widget.min && n <= widget.max;
+    setState(() => _problem = ok ? null : '${widget.min} to ${widget.max}');
+    if (ok) widget.onChange(n);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 90,
+          child: TextField(
+            controller: _text,
+            onChanged: _typed,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            style: T.body,
+            decoration: InputDecoration(suffixText: widget.unit, errorText: _problem),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text('range ${widget.min} to ${widget.max}', style: T.tiny),
       ],
     ),
   );
