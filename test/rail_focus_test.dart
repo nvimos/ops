@@ -50,9 +50,9 @@ void main() {
     await t.sendKeyEvent(LogicalKeyboardKey.arrowUp); // up from Pull request: the expand / collapse button
     await t.sendKeyEvent(LogicalKeyboardKey.enter);
     await t.pump(const Duration(milliseconds: 300));
-    expect(find.text('Directories'), findsOneWidget); // the rail expanded: labels show
+    expect(find.text('Repos'), findsOneWidget); // the rail expanded: labels show
     expect(focused(), 'rail'); // pressing the button leaves the cursor there
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 9; i++) {
       await t.sendKeyEvent(LogicalKeyboardKey.arrowDown); // button -> Pull request -> ... -> Help
     }
     await t.sendKeyEvent(LogicalKeyboardKey.enter);

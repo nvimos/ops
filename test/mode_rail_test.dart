@@ -39,12 +39,16 @@ void main() {
 
   testWidgets('the mode and both its views are lit with the same line', (t) async {
     await pumpRail(t, Mode.pullRequest, DiffLayout.unified);
-    // Order: collapse button, Pull request, Unified, Side by side, Changes, Tasks, Directories, Help.
+    // Order: collapse button, Pull request, Unified, Side by side, Changes, Add and Ignore, History, Tasks, Repos, Settings, Log, Help.
     expect(lines(t), [
       (clear, 2.0),
       (C.accent, 2.0), // the current mode
       (C.accent, 2.0), // the current view: the same line, indented further instead
       (C.accent, 2.0), // the other view: lit with the mode
+      (clear, 2.0),
+      (clear, 2.0),
+      (clear, 2.0),
+      (clear, 2.0),
       (clear, 2.0),
       (clear, 2.0),
       (clear, 2.0),

@@ -70,10 +70,10 @@ void main() {
     // Never connected: widget tests run on a fake clock, so no sockets here.
     final s = Session(port: 1);
     await t.pumpWidget(SessionScope(session: s, child: MaterialApp(theme: buildTheme(), home: const Shell())));
-    expect(find.text('Directories'), findsNothing); // collapsed: icons only
+    expect(find.text('Repos'), findsNothing); // collapsed: icons only
     await t.tap(find.byIcon(Icons.chevron_right));
     await t.pump(const Duration(milliseconds: 300)); // the rail's width animation
-    for (final m in ['Pull request', 'Changes', 'Tasks', 'Directories']) {
+    for (final m in ['Pull request', 'Changes', 'Add and Ignore', 'History', 'Tasks', 'Repos', 'Settings', 'Log']) {
       expect(find.text(m), findsOneWidget);
     }
     s.dispose();
