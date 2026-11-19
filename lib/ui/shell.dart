@@ -21,6 +21,7 @@ import 'nav_keys.dart';
 import 'help_view.dart';
 import 'debug_bar.dart';
 import 'mode_placeholder.dart';
+import 'notice_bar.dart';
 import 'mode_rail.dart';
 import 'pr_view.dart';
 import 'status_bar.dart';
@@ -497,6 +498,7 @@ class _ShellState extends State<Shell> {
               valueListenable: debugBarVisible,
               builder: (context, on, _) => on ? DebugBar(pane: _paneRole, info: _debugInfo) : const SizedBox.shrink(),
             ),
+            NoticeBar(notices: SessionScope.read(context).notices),
             const StatusBar(),
           ],
         ),

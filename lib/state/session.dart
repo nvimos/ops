@@ -14,6 +14,7 @@ import '../rpc/client.dart';
 import 'action_queue.dart';
 import 'diff_prefs.dart';
 import 'merge_conflict.dart';
+import 'notices.dart';
 import 'nvim_launcher.dart';
 import 'prefs.dart';
 import 'status_store.dart';
@@ -74,6 +75,9 @@ class Session extends ChangeNotifier {
 
   /// Bumps when git state may have changed (hint from the backend); views re-query.
   final gitChanged = ValueNotifier<int>(0);
+
+  /// What the notice bar shows: the last failure of an action, in any mode.
+  final notices = Notices();
 
   /// Jobs started through the backend (agents), by id; updated from `jobs` events.
   final jobs = ValueNotifier<Map<int, Job>>({});
@@ -414,6 +418,7 @@ class Session extends ChangeNotifier {
     _drop();
     _store?.dispose();
     gitChanged.dispose();
+    notices.dispose();
     diffPrefs.dispose();
     changedPaths.dispose();
     jobs.dispose();
