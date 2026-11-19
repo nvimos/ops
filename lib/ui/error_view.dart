@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
 import '../rpc/client.dart';
+import '../state/session.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -53,11 +54,17 @@ class ErrorPane extends StatelessWidget {
   }
 }
 
-/// Show an action's error (null: nothing) as a short snackbar with a Details link to the full,
-/// selectable text. A plain message (nothing more to show) gets no Details link.
+/// Show an action's error (null: nothing) in the notice bar, with a Details button to the full,
+/// selectable text. A plain message (nothing more to show) gets no Details button. Without a session
+/// above [context] (a lone widget in a test) it is a snackbar.
 void showActionError(BuildContext context, String? err) {
   if (err == null || !context.mounted) return;
   final short = shortError(err);
+  final scope = context.getInheritedWidgetOfExactType<SessionScope>();
+  if (scope != null) {
+    scope.notifier!.notices.show(short, detail: err);
+    return;
+  }
   final messenger = ScaffoldMessenger.of(context);
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(
