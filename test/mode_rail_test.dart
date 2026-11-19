@@ -52,6 +52,15 @@ void main() {
     expect(find.text('Changes'), findsNothing);
   });
 
+  testWidgets('the rail snaps to its new width in one frame; the mode area is not relaid per frame', (t) async {
+    await t.pumpWidget(rail(Mode.changes));
+    expect(t.getSize(find.byType(ModeRail)).width, ModeRail.collapsedWidth);
+    await t.pumpWidget(rail(Mode.changes, expanded: true));
+    expect(t.getSize(find.byType(ModeRail)).width, ModeRail.expandedWidth, reason: 'no width animation');
+    await t.pumpWidget(rail(Mode.changes));
+    expect(t.getSize(find.byType(ModeRail)).width, ModeRail.collapsedWidth);
+  });
+
   testWidgets('the mouse wheel over the rail steps to the next or previous mode', (t) async {
     final steps = <int>[];
     await t.pumpWidget(rail(Mode.tasks, onStep: steps.add));

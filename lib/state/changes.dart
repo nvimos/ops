@@ -84,8 +84,30 @@ class ChangesState extends ChangeNotifier {
   ]..sort((a, b) => compareTreeOrder(a.path, b.path));
 
   /// Both lists are in the order the tree shows them, so the keys walk the rows top to bottom.
-  List<StatusFile> get staged => _inTreeOrder(status?.files.where((f) => f.staged));
-  List<StatusFile> get unstaged => _inTreeOrder(status?.files.where((f) => f.unstaged || f.untracked || f.conflicted));
+  ///
+  /// Sorted once per status: the store replaces [Status] on every change and never edits one, so
+  /// its identity is the cache key. One arrow key reads these through `pane`, `panes`, `moveCursor`
+  /// and the trees; each read used to filter and sort every file again.
+  List<StatusFile> get staged {
+    _sortLists();
+    return _staged!;
+  }
+
+  List<StatusFile> get unstaged {
+    _sortLists();
+    return _unstaged!;
+  }
+
+  List<StatusFile>? _staged, _unstaged;
+  Status? _listsOf;
+
+  void _sortLists() {
+    final s = status;
+    if (_staged != null && identical(s, _listsOf)) return;
+    _listsOf = s;
+    _staged = _inTreeOrder(s?.files.where((f) => f.staged));
+    _unstaged = _inTreeOrder(s?.files.where((f) => f.unstaged || f.untracked || f.conflicted));
+  }
 
   static List<StatusFile> _inTreeOrder(Iterable<StatusFile>? files) =>
       (files?.toList() ?? [])..sort((a, b) => compareTreeOrder(a.path, b.path));

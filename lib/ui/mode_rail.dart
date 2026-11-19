@@ -128,9 +128,13 @@ class ModeRail extends StatelessWidget {
     );
   }
 
-  Widget _body(List<RailEntry> entries) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 120),
+  /// The width snaps to its new value: the rail sits in a Row with the mode area, an IndexedStack
+  /// that lays out every mode, hidden ones too. A width animation (it was an AnimatedContainer)
+  /// relaid all of them every frame of the slide and made the toggle crawl. Now the mode area is
+  /// laid out once, and only the labels fade in (opacity: paint only, inside the rail's
+  /// RepaintBoundary).
+  Widget _body(List<RailEntry> entries) => RepaintBoundary(
+    child: Container(
       width: expanded ? ModeRail.expandedWidth : ModeRail.collapsedWidth,
       color: C.surface,
       child: ListView.builder(
@@ -138,8 +142,8 @@ class ModeRail extends StatelessWidget {
         itemCount: entries.length,
         itemBuilder: (context, i) => RailItem(entry: entries[i], expanded: expanded),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class RailItem extends StatelessWidget {
@@ -150,15 +154,6 @@ class RailItem extends StatelessWidget {
 
   /// Where the icon starts.
   static const double _indent = 13;
-
-
-  /// While the rail animates from narrow to wide, the row is laid out at its final width and the
-  /// rail clips it, so nothing overflows and the labels don't squash on the way.
-  Widget _fixedWidth(double left, Widget row) {
-    if (!expanded) return row;
-    final w = ModeRail.expandedWidth - left - 2; // the entry's padding and its 2 px line
-    return OverflowBox(alignment: Alignment.centerLeft, minWidth: w, maxWidth: w, child: row);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -176,15 +171,12 @@ class RailItem extends StatelessWidget {
             color: e.cursor ? C.surface2 : null,
             border: Border(left: BorderSide(color: e.selected ? C.accent : Colors.transparent, width: 2)),
           ),
-          child: _fixedWidth(
-            left,
-            Row(
-              children: [
-                Icon(e.icon, size: 20, color: color),
-                if (expanded) const SizedBox(width: 10),
-                if (expanded) Expanded(child: _Label(e.label, color: color)),
-              ],
-            ),
+          child: Row(
+            children: [
+              Icon(e.icon, size: 20, color: color),
+              if (expanded) const SizedBox(width: 10),
+              if (expanded) Expanded(child: _Label(e.label, color: color)),
+            ],
           ),
         ),
       ),
@@ -198,6 +190,14 @@ class _Label extends StatelessWidget {
   final String text;
   final Color color;
 
+  /// The label fades in when the rail opens: an opacity change repaints the text and lays out nothing.
+  static const fadeIn = Duration(milliseconds: 90);
+
   @override
-  Widget build(BuildContext context) => Text(text, overflow: TextOverflow.ellipsis, style: T.body.copyWith(color: color));
+  Widget build(BuildContext context) => TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0, end: 1),
+    duration: fadeIn,
+    builder: (context, v, child) => Opacity(opacity: v, child: child),
+    child: Text(text, overflow: TextOverflow.ellipsis, softWrap: false, style: T.body.copyWith(color: color)),
+  );
 }

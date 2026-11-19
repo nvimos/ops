@@ -133,7 +133,41 @@ class TaskBrowser extends ChangeNotifier {
     for (final s in _sorters) {
       s.dispose();
     }
+    if (_wsHooked) ws.removeListener(_wsChanged);
     super.dispose();
+  }
+
+  // The rows, cached --------------------------------------------------------------------------------
+  //
+  // rows() filters, sorts and groups every task; J/K called it in move() and again in the build. The
+  // rows are kept until something they depend on changes: any notice of the browser except a cursor
+  // move or selection ([_selectionOnly]), any notice of the workspace (every edit, reload or
+  // optimistic change notifies it), the task list itself, or the inbox's lastSeen.
+
+  List<ListRow>? _rows;
+  Object? _rowsKey;
+  bool _rowsStale = true;
+  bool _selectionOnly = false;
+
+  /// Hooked on first use, not in the constructor, so a hot reload of a running browser gets it too.
+  bool _wsHooked = false;
+
+  void _wsChanged() => _rowsStale = true;
+
+  @override
+  void notifyListeners() {
+    if (!_selectionOnly) _rowsStale = true;
+    super.notifyListeners();
+  }
+
+  /// A notice that only the cursor or the selection moved: the rows stay.
+  void _notifySelection() {
+    _selectionOnly = true;
+    try {
+      notifyListeners();
+    } finally {
+      _selectionOnly = false;
+    }
   }
 
   final Workspace ws;
@@ -286,7 +320,7 @@ class TaskBrowser extends ChangeNotifier {
 
   void select(Object? key) {
     selected = key;
-    notifyListeners();
+    _notifySelection();
   }
 
   /// A click on a row: open it, or close it when it is already open.
@@ -307,7 +341,7 @@ class TaskBrowser extends ChangeNotifier {
     final next = i < 0 ? (delta > 0 ? 0 : positions.length - 1) : (i + delta).clamp(0, positions.length - 1);
     cursor = next;
     selected = all[positions[next]].key;
-    notifyListeners();
+    _notifySelection();
     return positions[next];
   }
 
@@ -343,7 +377,22 @@ class TaskBrowser extends ChangeNotifier {
     return _matches('${t.id} ${t.title} ${t.labels.join(' ')}');
   });
 
-  List<ListRow> rows() => switch (view) {
+  /// The list's rows for the current view, filters and sort; cached (see above).
+  List<ListRow> rows() {
+    if (!_wsHooked) {
+      _wsHooked = true;
+      ws.addListener(_wsChanged);
+    }
+    final key = (ws.tasks, lastSeen());
+    if (_rows == null || _rowsStale || _rowsKey != key) {
+      _rows = _buildRows();
+      _rowsKey = key;
+      _rowsStale = false;
+    }
+    return _rows!;
+  }
+
+  List<ListRow> _buildRows() => switch (view) {
     TView.inbox => _inboxRows(),
     TView.tasks => _taskRows(),
     TView.legacy => _legacyRows(),

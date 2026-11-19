@@ -6,6 +6,38 @@ import 'package:nvimos_poc/tasks/parse.dart';
 import 'package:nvimos_poc/tasks/workspace.dart';
 
 void main() {
+  test('J/K and a selection keep the rows; a query, the sort and an edit of the workspace build them again', () {
+    final s = Session();
+    final ws = Workspace(s);
+    Task task(int n, String title) => parseTask(
+      'backlog/tasks/task-$n - t.md',
+      ['---', 'id: TASK-$n', 'title: $title', "created_date: '2026-01-0$n'", 'status: To Do', '---'],
+      mtime: DateTime(2026, 1, n),
+    );
+    ws.tasks = [task(1, 'Alpha'), task(2, 'Bravo'), task(3, 'Charlie')];
+    final browser = TaskBrowser(ws, lastSeen: () => DateTime(2000));
+    addTearDown(browser.dispose);
+    browser.showView(TView.tasks);
+
+    final rows = browser.rows();
+    browser.move(1);
+    browser.move(1);
+    browser.select('TASK-1');
+    expect(identical(browser.rows(), rows), isTrue, reason: 'a cursor move or a selection does not rebuild the rows');
+
+    browser.setQuery('bra');
+    expect([for (final r in browser.rows()) if (!r.isHeader) r.key], ['TASK-2']);
+    browser.setQuery('');
+    final all = browser.rows();
+    browser.taskSort.reverse();
+    expect(identical(browser.rows(), all), isFalse, reason: 'the sort changed');
+
+    final sorted = browser.rows();
+    ws.tasks = [...ws.tasks, task(4, 'Delta')];
+    expect(browser.rows().where((r) => !r.isHeader), hasLength(4), reason: 'a new task list builds them again');
+    expect(identical(browser.rows(), sorted), isFalse);
+  });
+
   test('the sort button cycles the modes; reverse turns the order round', () {
     final s = Session();
     final ws = Workspace(s);

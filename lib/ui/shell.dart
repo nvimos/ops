@@ -9,6 +9,7 @@ import '../state/pr.dart';
 import '../state/session.dart';
 import '../tasks/model.dart';
 import '../tasks/workspace.dart';
+import '../timing/ui_timing.dart';
 import 'add_ignore_view.dart';
 import 'changes_view.dart';
 import 'connect.dart';
@@ -148,9 +149,19 @@ class _ShellState extends State<Shell> {
   /// Shows [m]. The keyboard goes to the mode's own pane, or with [onRail] to its item in the mode
   /// rail, so the keys that follow start from the mode that is shown.
   void _setMode(Mode m, {bool onRail = false}) {
+    final click = _railClick;
+    _railClick = null;
+    click?.mark('tap'); // mouse down -> onTap: a gesture that waits (a double tap) shows here
+    click?.markPainted();
+    UiTiming.instance.span('shell.setMode').markPainted(); // setState -> the new mode on screen
     setState(() => _mode = m);
     WidgetsBinding.instance.addPostFrameCallback((_) => onRail ? _focusRail() : _focusMode(m));
   }
+
+  /// Started when a mouse button goes down on the rail; [_setMode] marks the tap and the paint.
+  Span? _railClick;
+
+  void _onRailPointerDown(PointerDownEvent _) => _railClick = UiTiming.instance.span('shell.railClick');
 
   void _openSettings() {
     _settings?.ensureDetected();
@@ -518,7 +529,7 @@ class _ShellState extends State<Shell> {
         onKeyEvent: _railKey,
         child: ListenableBuilder(
           listenable: Listenable.merge([SessionScope.read(context).diffPrefs, SessionScope.read(context).conflicts, _railFocus]),
-          builder: (context, _) => ModeRail(
+          builder: (context, _) => Listener(onPointerDown: _onRailPointerDown, child: ModeRail(
             mode: _mode,
             expanded: _expanded,
             cursor: _railFocus.hasFocus && _railCursor > 0 ? Mode.values[_railCursor - 1] : null,
@@ -526,7 +537,7 @@ class _ShellState extends State<Shell> {
             onSelect: _setMode,
             onStep: _stepMode,
             onToggle: _toggleRail,
-          ),
+          )),
         ),
       ),
       const VerticalDivider(width: 1),
@@ -549,18 +560,33 @@ class _ShellState extends State<Shell> {
   Widget _modes() => IndexedStack(
     index: _mode.index,
     children: [
-      for (final (i, child) in <Widget>[
-        PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
-        ChangesView(key: _changesKey, onRail: _focusRail),
-        AddIgnoreView(key: _addKey, state: _add!, onRail: _focusRail),
-        const ModePlaceholder(Mode.history),
-        TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
-        DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
-        SettingsView(key: _settingsKey, state: _settings!, onRail: _focusRail),
-        LogView(log: _log!),
-        _help(),
-      ].indexed)
-        ExcludeSemantics(excluding: i != _mode.index, child: child),
+      for (final (i, child) in _modeViews().indexed) ExcludeSemantics(excluding: i != _mode.index, child: child),
     ],
   );
+
+  /// The mode views, kept as the same widget instances while their inputs stay the same. A mode
+  /// switch is a setState of the shell; with new instances every view, hidden ones too, rebuilt its
+  /// whole subtree on each click (a few hundred ms in a debug build: the rail answered late, as if
+  /// it waited for a double click). An identical widget is skipped by Flutter, so a switch now only
+  /// rebuilds the IndexedStack and the two ExcludeSemantics that change. The views still rebuild on
+  /// their own listeners and inherited widgets.
+  List<Widget> _modeViews() {
+    final inputs = (_pr, _reviewing, _ws, _add, _dirs, _settings, _log);
+    if (_views != null && _viewsInputs == inputs) return _views!;
+    _viewsInputs = inputs;
+    return _views = [
+      PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
+      ChangesView(key: _changesKey, onRail: _focusRail),
+      AddIgnoreView(key: _addKey, state: _add!, onRail: _focusRail),
+      const ModePlaceholder(Mode.history),
+      TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
+      DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
+      SettingsView(key: _settingsKey, state: _settings!, onRail: _focusRail),
+      LogView(log: _log!),
+      _help(),
+    ];
+  }
+
+  List<Widget>? _views;
+  Object? _viewsInputs;
 }
