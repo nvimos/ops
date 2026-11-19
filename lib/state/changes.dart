@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import '../backend/backend.dart';
+import '../backend/repo_backend.dart';
 import 'merge_conflict.dart';
 import '../backend/models.dart';
 import '../timing/ui_timing.dart';
@@ -408,7 +408,7 @@ class ChangesState extends ChangeNotifier {
   /// Run an action, then refresh; timed as `changes.<name>`. [optimistic] changes what the view
   /// shows before git answers; the refresh after the action keeps it or puts it back. Returns the
   /// error text, or null.
-  Future<String?> act(String name, Future<void> Function(Backend b) action, {void Function()? optimistic}) async {
+  Future<String?> act(String name, Future<void> Function(RepoBackend b) action, {void Function()? optimistic}) async {
     final span = UiTiming.instance.span('changes.$name');
     busy = true;
     _pending++;
@@ -504,7 +504,7 @@ class ChangesState extends ChangeNotifier {
   Future<String?> openLine(int line, {required bool isOld}) async {
     final path = selected;
     if (isOld || path == null) return null;
-    return session.run((b) => b.open(path, line));
+    return session.runEditor((e) => e.open(path, line));
   }
 
   @override

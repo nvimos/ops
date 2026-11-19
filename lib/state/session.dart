@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import '../backend/backend.dart';
 import '../backend/models.dart';
+import '../backend/repo_backend.dart';
 import '../rpc/client.dart';
 import 'diff_prefs.dart';
 import 'merge_conflict.dart';
@@ -38,7 +39,10 @@ class Session extends ChangeNotifier {
   /// A directory was named on the command line: once connected, show its opening mode
   /// (the same choice the Directories mode makes, see `openTarget`).
   bool openProjectOnConnect = false;
-  Backend? backend;
+  RepoBackend? backend;
+
+  /// The editor behind the backend; null when there is none (modes hide `open` / `show` then).
+  EditorSession? editor;
   Cursor? cursor;
   RepoInfo? repo;
 
@@ -58,6 +62,7 @@ class Session extends ChangeNotifier {
   final changedPaths = ValueNotifier<Set<String>>({});
 
   StreamSubscription<NvimEvent>? _sub;
+  StreamSubscription<Cursor>? _cursorSub;
   bool _disposed = false;
 
   String get address => '$_host:$_port';
@@ -77,17 +82,19 @@ class Session extends ChangeNotifier {
     conn = Conn.connecting;
     final mine = ++_attempt;
     _notify();
-    Backend? b;
+    NvimBackend? b;
     try {
-      b = await Backend.connect(_host, _port, timeout: limit);
+      b = await NvimBackend.connect(_host, _port, timeout: limit);
       final snaps = await b.attach(['buffers', 'windows', 'git', 'jobs']).timeout(limit);
       if (mine != _attempt) return await b.close(); // cancelled meanwhile; the state is already reset
       backend = b;
+      editor = b;
       conn = Conn.connected;
       error = null;
       cursor = Cursor(asMap(snaps['windows']?['current']));
       repo = RepoInfo(snaps['git'] ?? const {});
       _sub = b.events.listen(_onEvent);
+      _cursorSub = b.cursors.listen(_onCursor);
       b.done.then((_) => _lost());
       gitChanged.value++;
     } catch (e) {
@@ -222,12 +229,6 @@ class Session extends ChangeNotifier {
 
   void _onEvent(NvimEvent ev) {
     switch (ev.domain) {
-      case 'windows':
-        final d = ev.reason == 'snapshot' ? asMap(ev.data['current']) : ev.data;
-        if (ev.reason != 'win_closed') {
-          cursor = Cursor(d);
-          _notify();
-        }
       case 'jobs':
         if (ev.reason != 'snapshot') {
           final j = Job(ev.data);
@@ -241,6 +242,11 @@ class Session extends ChangeNotifier {
     }
   }
 
+  void _onCursor(Cursor c) {
+    cursor = c;
+    _notify();
+  }
+
   Future<void> _lost() async {
     if (backend == null) return;
     await _drop();
@@ -251,8 +257,11 @@ class Session extends ChangeNotifier {
   Future<void> _drop() async {
     await _sub?.cancel();
     _sub = null;
+    await _cursorSub?.cancel();
+    _cursorSub = null;
     final b = backend;
     backend = null;
+    editor = null;
     conn = Conn.disconnected;
     cursor = null;
     if (b != null) await b.close();
@@ -266,11 +275,22 @@ class Session extends ChangeNotifier {
 
   /// Run a backend action; returns the full error text (with Neovim's trace), or null.
   /// The UI shows `shortError` of it and the full text on demand.
-  Future<String?> run(Future<void> Function(Backend b) action) async {
+  Future<String?> run(Future<void> Function(RepoBackend b) action) async {
     final b = backend;
     if (b == null) return 'not connected';
+    return _guard(() => action(b));
+  }
+
+  /// Run an editor action (open, show); 'no editor' when this session has none.
+  Future<String?> runEditor(Future<void> Function(EditorSession e) action) async {
+    final e = editor;
+    if (e == null) return backend == null ? 'not connected' : 'no editor';
+    return _guard(() => action(e));
+  }
+
+  Future<String?> _guard(Future<void> Function() action) async {
     try {
-      await action(b);
+      await action();
       return null;
     } catch (e) {
       return '$e';

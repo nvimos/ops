@@ -347,7 +347,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     if (HardwareKeyboard.instance.isControlPressed) {
       openInQt(ws.fullPath(path), line).then(_snack);
     } else {
-      session.run((b) => b.open(ws.absolute(path), line)).then(_snack);
+      session.runEditor((e) => e.open(ws.absolute(path), line)).then(_snack);
     }
   }
 

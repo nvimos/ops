@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:nvimos_poc/backend/backend.dart' show CheckoutHow;
+import 'package:nvimos_poc/backend/repo_backend.dart' show CheckoutHow;
 import 'package:nvimos_poc/backend/models.dart';
 import 'package:nvimos_poc/ui/checkout_dialog.dart';
 

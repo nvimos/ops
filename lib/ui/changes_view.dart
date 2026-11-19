@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
-import '../backend/backend.dart' show CheckoutHow;
+import '../backend/repo_backend.dart' show CheckoutHow;
 import '../backend/models.dart';
 import '../state/changes.dart';
 import '../state/commit_template.dart';

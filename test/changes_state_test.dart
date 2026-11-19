@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nvimos_poc/backend/backend.dart' show CheckoutHow;
+import 'package:nvimos_poc/backend/repo_backend.dart' show CheckoutHow;
+import 'package:nvimos_poc/backend/backend.dart' show NvimBackend;
 import 'package:nvimos_poc/state/changes.dart';
 import 'package:nvimos_poc/state/session.dart';
 
@@ -35,15 +36,15 @@ void main() {
     expect((await git(repo, ['log', '-1', '--format=%s'])).trim(), 'first hunk');
 
     // Save a new file from Neovim: the list picks it up from the write hint.
-    await s.backend!.rpc.request('nvim_command', ['edit new.txt']);
-    await s.backend!.rpc.request('nvim_buf_set_lines', [
+    await (s.backend! as NvimBackend).rpc.request('nvim_command', ['edit new.txt']);
+    await (s.backend! as NvimBackend).rpc.request('nvim_buf_set_lines', [
       0,
       0,
       -1,
       false,
       ['hello'],
     ]);
-    await s.backend!.rpc.request('nvim_command', ['write']);
+    await (s.backend! as NvimBackend).rpc.request('nvim_command', ['write']);
     await until(() => st.unstaged.any((f) => f.path == 'new.txt'));
 
     st.dispose();

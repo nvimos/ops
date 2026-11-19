@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import '../backend/backend.dart';
+import '../backend/repo_backend.dart';
 import '../backend/models.dart';
 import 'diff_prefs.dart';
 
 /// Runs a backend action; returns the error text, or null (Session.run).
-typedef RunAction = Future<String?> Function(Future<void> Function(Backend b) action);
+typedef RunAction = Future<String?> Function(Future<void> Function(RepoBackend b) action);
 
 /// A merge that stopped with conflicts, in its worktree (nvimos/merge.lua): the files, which of them
 /// are still unresolved, the file open and its hunks. The main checkout is not part of it.
@@ -97,7 +97,7 @@ class ConflictController extends ChangeNotifier {
     return MergeResult(error: again.error, note: clean);
   }
 
-  Future<String?> _action(Future<void> Function(Backend x, MergeConflict c) action) async {
+  Future<String?> _action(Future<void> Function(RepoBackend x, MergeConflict c) action) async {
     final c = current;
     if (c == null) return 'no merge with conflicts is open';
     final err = await _run((x) => action(x, c));

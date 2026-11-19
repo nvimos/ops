@@ -9,13 +9,13 @@ import 'support/nvim.dart';
 void main() {
   late Directory repo;
   late TestNvim nvim;
-  late Backend b;
+  late NvimBackend b;
 
   setUp(() async {
     repo = await makeRepo();
     nvim = await TestNvim.start(cwd: repo);
     await nvim.connect().then((r) => r.close());
-    b = await Backend.connect('127.0.0.1', nvim.port);
+    b = await NvimBackend.connect('127.0.0.1', nvim.port);
   });
 
   tearDown(() async {
@@ -27,7 +27,7 @@ void main() {
     final snaps = await b.attach(['buffers', 'windows', 'git']);
     expect(snaps['git']!['head'], 'main');
     expect(snaps['windows']!['current'], isA<Map>());
-    final ev = b.events.firstWhere((e) => e.domain == 'buffers' && e.reason == 'lines_changed');
+    final ev = b.allEvents.firstWhere((e) => e.domain == 'buffers' && e.reason == 'lines_changed');
     await b.rpc.request('nvim_buf_set_lines', [
       0,
       0,
@@ -40,7 +40,7 @@ void main() {
 
   test('a gap in seq triggers a resync snapshot; stale events are dropped', () async {
     await b.attach(['buffers']);
-    final snap = b.events.firstWhere((e) => e.reason == 'snapshot');
+    final snap = b.allEvents.firstWhere((e) => e.reason == 'snapshot');
     b.handleEvent({'domain': 'buffers', 'seq': 0, 'reason': 'stale'});
     b.handleEvent({'domain': 'buffers', 'seq': 99, 'reason': 'lines_changed'});
     final s = await snap.timeout(const Duration(seconds: 5));
