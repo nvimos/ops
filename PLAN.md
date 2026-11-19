@@ -1438,6 +1438,12 @@ products and their vision, of how things work, with utmost humility and gratitud
   - the rail snaps its width; only its labels fade in
   - dragging the edge of the Add and Ignore side pane lays the list and the pane out at the new
     width but rebuilds neither of them
+  - hidden modes still lay out on a window resize: a keep-alive stack that skipped them was tried
+    on 2026-11-20 and reverted (a hidden mode that changed left dirty semantics and the log filled
+    with assertions); do not retry it without a plan for dirty hidden subtrees
+  - a window resize over Help freezes the table, scales it uniformly to the new width, and reflows
+    150 ms after the last change; descriptions are one line while resizing, and a column never goes
+    below 250 px (the right edge clips instead)
   - debug builds show a badge in the middle of the pane being dragged, `width X height` in px
     (orange on deep blue); release builds keep no badge (`lib/ui/resize_badge.dart`)
   - no resizable pane goes below 280 px (Add and Ignore's side pane, Pull request and Changes)
@@ -1451,6 +1457,7 @@ products and their vision, of how things work, with utmost humility and gratitud
     mouse down to the handler, so a gesture that waits shows; `/paint`)
   - `addIgnore.move`: an arrow key to the frame with the new cursor
   - `addIgnore.resizeSide`: a drag step on the side pane's edge to the frame at the new width
+  - `help.resize`: a window width change in Help to the frame at the new column layout
   - per action: count, p50, p95, max in ms
   - written to `%APPDATA%/nvimos/ui-timing.json` every minute and on quit: the last 30 sessions and totals
 

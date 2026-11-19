@@ -21,17 +21,76 @@ void main() {
     ]);
   });
 
-  testWidgets('every key group fits on one wide screen', (tester) async {
+  testWidgets('the key table lays out without overflowing; a narrow pane scrolls', (tester) async {
     tester.view.physicalSize = const Size(1600, 1050);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: HelpView())));
+    expect(tester.takeException(), isNull, reason: 'no row or column overflows');
     for (final (title, _) in keyTable) {
-      final box = tester.getRect(find.text(title.toUpperCase()));
-      expect(box.bottom, lessThan(1050), reason: title);
+      expect(find.text(title.toUpperCase()), findsOneWidget, reason: title);
     }
-    final last = keyTable.last.$2.last.$2;
-    expect(tester.getRect(find.text(last)).bottom, lessThan(1050));
+    // Every group is in the scroll view, so a screen too short for all of them still reaches them.
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+  });
+
+  RichText description(WidgetTester tester) => tester.widget<RichText>(
+    find.byWidgetPredicate(
+      (w) => w is RichText && w.text.toPlainText().contains('previous or next mode'),
+    ),
+  );
+
+  testWidgets('a single width change reflows at once and never freezes', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: HelpView())));
+
+    tester.view.physicalSize = const Size(1250, 900);
+    await tester.pump();
+    expect(description(tester).maxLines, isNull, reason: 'a one-off jump reflows directly');
+    expect(find.ancestor(of: find.byType(SelectionArea), matching: find.byType(Transform)), findsNothing);
+    for (var t = 0; t < 4; t++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(description(tester).maxLines, isNull, reason: 'still wrapping after ${(t + 1) * 50} ms');
+    }
+  });
+
+  testWidgets('a drag freezes the table: one compact rebuild, then only layout', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: HelpView())));
+
+    tester.view.physicalSize = const Size(1250, 900);
+    await tester.pump();
+    expect(description(tester).maxLines, isNull, reason: 'the first change reflows at once');
+
+    tester.view.physicalSize = const Size(1275, 900);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(description(tester).maxLines, 1, reason: 'a second change within 150 ms freezes');
+
+    final before = tester.widgetList<RichText>(find.byType(RichText)).toList();
+    tester.view.physicalSize = const Size(1300, 900);
+    await tester.pump();
+    final after = tester.widgetList<RichText>(find.byType(RichText)).toList();
+    expect(after.length, before.length);
+    for (var i = 0; i < before.length; i++) {
+      expect(identical(before[i], after[i]), isTrue, reason: 'a drag frame rebuilt rich text $i');
+    }
+
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(); // the timer's setState builds on the next frame
+    expect(description(tester).maxLines, isNull, reason: 'the table reflowed with wrapping at rest');
+  });
+
+  testWidgets('a column stops at 250 px and the right edge clips', (tester) async {
+    tester.view.physicalSize = const Size(200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: HelpView())));
+    // The column keeps 250 px; its 24 px right gap lives inside it, so the table is 226 px.
+    expect(tester.getSize(find.byType(Table).first).width, greaterThanOrEqualTo(226));
   });
 
   testWidgets('the key table text is selectable', (tester) async {

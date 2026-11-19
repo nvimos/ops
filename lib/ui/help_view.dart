@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../timing/ui_timing.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -159,11 +161,44 @@ class HelpView extends StatefulWidget {
 class HelpViewState extends State<HelpView> {
   static const _columnWidth = 360.0;
 
+  /// The least a column may be, at rest and while the window edge moves; below this the table is
+  /// kept and its right edge is clipped.
+  static const _minColumnWidth = 250.0;
+
+  /// The padding of the table around its columns (20 left, 20 right).
+  static const _padding = 40.0;
+
   final _search = TextEditingController();
   final _focus = FocusNode(debugLabel: 'help search');
 
+  /// The heights of the key groups: the split depends on them, not on the width.
+  late final _heights = [for (final g in keyTable) g.$2.length + 2];
+
+  /// The table cached for a column count and query. A width change inside the same structure only
+  /// needs a new layout; one across columns rebuilds it.
+  int? _columnCount;
+  String _columnQuery = '';
+  Widget? _columnArea;
+
+  /// The width the cached table was laid out for, and the window width it last settled at.
+  double _layoutWidth = 0, _settledWidth = 0, _latestWidth = 0;
+
+  /// A window drag: the table is frozen, scaled to the new width, and reflowed once the width has
+  /// been still for 150 ms. There is no reliable end event for a window resize.
+  bool _resizing = false;
+  Timer? _resizeTimer;
+
+  /// Runs for 150 ms after a width change that reflowed at once. A one-off jump (the rail toggled,
+  /// a side pane opened) reflows directly; only a second change while this runs starts the freeze.
+  Timer? _recentChange;
+
+  /// A width change is being timed, from the new layout to the frame on screen (`help.resize`).
+  Span? _resize;
+
   @override
   void dispose() {
+    _resizeTimer?.cancel();
+    _recentChange?.cancel();
     _search.dispose();
     _focus.dispose();
     super.dispose();
@@ -198,7 +233,7 @@ class HelpViewState extends State<HelpView> {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      PaneHeader(title: const Text('Keys'), trailing: [_field()]),
+      PaneHeader(title: const Text('Keys'), trailing: [Flexible(child: _field())]),
       Expanded(child: LayoutBuilder(builder: (context, box) => _columns(box.maxWidth))),
     ],
   );
@@ -231,47 +266,127 @@ class HelpViewState extends State<HelpView> {
     ),
   );
 
-  Widget _columns(double width) {
-    final count = (width ~/ _columnWidth).clamp(1, keyTable.length);
-    final columns = splitColumns([for (final g in keyTable) g.$2.length + 2], count);
-    return SelectionArea(
+  static int _countFor(double width) => (width ~/ _columnWidth).clamp(1, keyTable.length);
+
+  static double _floorWidth(int count) => count * _minColumnWidth + _padding;
+
+  /// Build the table for [count] columns at [width] (already at or above the 250 px floor).
+  void _build(int count, double width, {required bool compact}) {
+    _columnCount = count;
+    _columnQuery = _search.text;
+    _layoutWidth = width;
+    _columnArea = SelectionArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+        padding: const EdgeInsets.fromLTRB(_padding / 2, 4, _padding / 2, 20),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final c in columns)
-              Expanded(
-                child: _KeyColumn(groups: c, query: _search.text),
-              ),
+            for (final c in splitColumns(_heights, count))
+              Expanded(child: _KeyColumn(groups: c, query: _columnQuery, compact: compact)),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Lay the table out for the current width: the normal, wrapping rows, at the column count the
+  /// width allows and never narrower than the 250 px floor.
+  void _settle(double width) {
+    _resizeTimer?.cancel();
+    _resizeTimer = null;
+    final count = _countFor(width);
+    _build(count, max(width, _floorWidth(count)), compact: false);
+    _resizing = false;
+    _settledWidth = width;
+  }
+
+  void _reflow() {
+    if (mounted) setState(() => _settle(_latestWidth));
+  }
+
+  Widget _columns(double width) {
+    _latestWidth = width;
+    if (_columnArea == null || _columnQuery != _search.text) {
+      _settle(width);
+    } else if (!_resizing && width != _settledWidth) {
+      _timeResize();
+      if (_recentChange?.isActive ?? false) {
+        // A second change within 150 ms: a drag. Rebuild the frozen table once with one-line
+        // descriptions, then every further frame only scales it.
+        _recentChange!.cancel();
+        _resizing = true;
+        _build(_columnCount!, _layoutWidth, compact: true);
+      } else {
+        // A single change reflows at once, as at rest.
+        _settle(width);
+        _recentChange = Timer(const Duration(milliseconds: 150), () {});
+      }
+    }
+    if (_resizing) {
+      _resizeTimer?.cancel();
+      _resizeTimer = Timer(const Duration(milliseconds: 150), _reflow);
+    }
+    return _shown(width);
+  }
+
+  /// Time this width change (a direct reflow or the start of a drag) to the frame on screen.
+  void _timeResize() {
+    if (_resize != null) return;
+    final span = _resize = UiTiming.instance.span('help.resize');
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resize = null);
+    span.markPainted();
+  }
+
+  /// The table, scaled uniformly to [width] while the drag goes on; when nothing is being dragged
+  /// it is the layout itself, clipped at the right when the floor makes it wider than the window.
+  Widget _shown(double width) {
+    final area = _columnArea!;
+    final layout = _layoutWidth;
+    if (!_resizing && layout == width) return area;
+    final target = max(width, _floorWidth(_columnCount ?? 1));
+    return ClipRect(
+      child: OverflowBox(
+        alignment: Alignment.topLeft,
+        minWidth: layout,
+        maxWidth: layout,
+        child: _resizing
+            ? Transform.scale(scale: target / layout, alignment: Alignment.topLeft, child: area)
+            : area,
       ),
     );
   }
 }
 
 class _KeyColumn extends StatelessWidget {
-  const _KeyColumn({required this.groups, required this.query});
+  const _KeyColumn({required this.groups, required this.query, this.compact = false});
 
   final List<int> groups;
   final String query;
+
+  /// One line per description (a window drag): fixed row heights, no wrapping to re-layout.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(right: 24),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [for (final i in groups) _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2, query: query)],
+      children: [
+        for (final i in groups)
+          _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2, query: query, compact: compact),
+      ],
     ),
   );
 }
 
 class _KeyGroup extends StatelessWidget {
-  const _KeyGroup({required this.title, required this.keys, required this.query});
+  const _KeyGroup({required this.title, required this.keys, required this.query, this.compact = false});
 
   final String title, query;
   final List<(String, String)> keys;
+
+  /// One line per description (a window drag).
+  final bool compact;
 
   /// The key column is as wide as the group's widest key: descriptions sit right after their keys,
   /// and still line up inside the group.
@@ -286,12 +401,12 @@ class _KeyGroup extends StatelessWidget {
       Table(
         columnWidths: const {0: IntrinsicColumnWidth(), 1: FlexColumnWidth()},
         defaultVerticalAlignment: TableCellVerticalAlignment.top,
-        children: [for (final (key, what) in keys) _row(key, what, query)],
+        children: [for (final (key, what) in keys) _row(key, what, query, compact)],
       ),
     ],
   );
 
-  static TableRow _row(String keys, String what, String query) => TableRow(
+  static TableRow _row(String keys, String what, String query, bool compact) => TableRow(
     children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(0, 2, 12, 2),
@@ -299,7 +414,12 @@ class _KeyGroup extends StatelessWidget {
       ),
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Text.rich(TextSpan(children: highlight(what, query)), style: T.small),
+        child: Text.rich(
+          TextSpan(children: highlight(what, query)),
+          style: T.small,
+          maxLines: compact ? 1 : null,
+          overflow: compact ? TextOverflow.ellipsis : TextOverflow.clip,
+        ),
       ),
     ],
   );

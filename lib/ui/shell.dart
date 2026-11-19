@@ -655,7 +655,9 @@ class _ShellState extends State<Shell> {
   }
 
   /// Every mode stays built (its state and scroll survive a switch), but only the shown one is in the
-  /// semantics tree. Without the ExcludeSemantics the hidden modes kept sending semantics updates for
+  /// semantics tree. A keep-alive stack that skipped layout for hidden modes was tried on 2026-11-20
+  /// and reverted: a hidden mode that changed left dirty semantics and the app logged a storm of
+  /// assertions. Without the ExcludeSemantics the hidden modes kept sending semantics updates for
   /// nodes the Windows accessibility tree never got ("Failed to update ui::AXTree, error: N will not be
   /// in the tree and is not the new root", in bursts while a hidden mode refreshed).
   Widget _modes() => IndexedStack(

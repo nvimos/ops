@@ -339,6 +339,21 @@ says the rule, why, and the trap it came from.
     neighbours are relaid, never rebuilt
   - a test sends several moves without a pump between them and expects the size to change by
     exactly their sum
+- A window resize changes a dimension, not the content: cache the content by what it actually
+  depends on (a column count, a search query, a list of rows) and hand Flutter the same widget
+  instances, so a width change is layout only.
+  - Help rebuilt every key column, table and highlighted span on each width change (80-220 ms per
+    frame in a widget test). The split and columns are cached by column count and query; a single
+    width change reflows at once, a drag (a second change within 150 ms) freezes the table once
+    with one-line rows, scales it uniformly per frame, and reflows 150 ms after the last width
+    change (`lib/ui/help_view.dart`, 2026-11-20)
+  - not laying out hidden modes, tried on 2026-11-20 and reverted (the file is gone): a
+    `KeepAliveStack` kept every mode's element and scroll but laid out only the shown child, since
+    `IndexedStack` lays out all nine on every window resize. A hidden mode that changed left
+    dirty semantics and the log filled with assertions (`!semantics.parentDataDirty`,
+    `!childSemantics.renderObject._needsLayout`). Any retry must let a dirty hidden subtree lay
+    itself out (or remove it from the render tree) first
+  - the Help table keeps at least 250 px per column and clips the right edge below that
 - Measure: a stopwatch from the input event to the next painted frame
   (`addPostFrameCallback` after `scheduleFrame`), recorded per interaction, says where the time
   goes. "It waits for a double click" was a rebuild of every page; the measurement tells them apart.
