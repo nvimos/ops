@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatf
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'input_modality.dart';
 import 'theme.dart';
 
 /// A row that highlights on hover and when selected; the basic list item everywhere.
@@ -14,13 +15,22 @@ class HoverRow extends StatefulWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
     this.pointer = true,
     this.selectedColor = C.surface2,
+    this.bar,
+    this.onContextMenu,
   });
 
   final Widget child;
   final VoidCallback? onTap;
 
+  /// A right click, with where it happened (screen coordinates), for the row's menu.
+  final ValueChanged<Offset>? onContextMenu;
+
   /// The background of a selected row; a row on a [C.surface2] box (a drop-down) needs another one.
   final Color selectedColor;
+
+  /// A 3 px bar down the left edge: the current or active row (`C.accent`). Pass a transparent one on
+  /// the rows without it, so their content stays lined up with it.
+  final Color? bar;
 
   /// Show the pointing hand over a clickable row; off for rows whose clickability is obvious (files).
   final bool pointer;
@@ -51,24 +61,66 @@ class RowHover extends InheritedWidget {
 }
 
 class _HoverRowState extends State<HoverRow> {
+  /// The pointer is over the row, whether or not it is allowed to show it (see [InputModality]).
   bool _hover = false;
 
+  /// The hover look belongs to the pointer: after a key press it waits for the mouse to move, so
+  /// the row that scrolls under a resting mouse does not light up and read as the focused one.
+  bool get _hoverShown => _hover && InputModality.instance.isPointer;
+
+  MouseCursor get _cursor =>
+      widget.onTap != null && widget.pointer ? SystemMouseCursors.click : MouseCursor.defer;
+
+  GestureTapUpCallback? get _secondaryTapUp =>
+      widget.onContextMenu == null ? null : _secondaryTap;
+
+  void _secondaryTap(TapUpDetails details) => widget.onContextMenu!(details.globalPosition);
+
+  void _pointerEntered(PointerEnterEvent _) => setState(() => _hover = true);
+
+  void _pointerExited(PointerExitEvent _) => setState(() => _hover = false);
+
+  // Only a real movement says the pointer is in use: entering because the list scrolled under it
+  // does not.
+  void _pointerHovered(PointerHoverEvent _) => InputModality.instance.pointerUsed();
+
+  void _pointerDown(TapDownDetails _) => InputModality.instance.pointerUsed();
+
   @override
-  Widget build(BuildContext context) {
-    final bg = widget.selected ? widget.selectedColor : (_hover ? C.hover : Colors.transparent);
-    return MouseRegion(
-      cursor: widget.onTap != null && widget.pointer ? SystemMouseCursors.click : MouseCursor.defer,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: RowHover(
-          hovered: _hover,
-          child: Container(color: bg, padding: widget.padding, child: widget.child),
-        ),
-      ),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: InputModality.instance,
+    builder: (context, _) => _row(),
+  );
+
+  Widget _row() {
+    final hover = RowHover(hovered: _hoverShown, child: _content(hovered: _hoverShown));
+    final gestures = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: _pointerDown,
+      onTap: widget.onTap,
+      onSecondaryTapUp: _secondaryTapUp,
+      child: hover,
     );
+    return MouseRegion(
+      cursor: _cursor,
+      onEnter: _pointerEntered,
+      onHover: _pointerHovered,
+      onExit: _pointerExited,
+      child: gestures,
+    );
+  }
+
+  Widget _content({required bool hovered}) => Container(
+    decoration: _decoration(hovered: hovered),
+    padding: widget.padding,
+    child: widget.child,
+  );
+
+  BoxDecoration _decoration({required bool hovered}) {
+    final background = widget.selected ? widget.selectedColor : (hovered ? C.hover : Colors.transparent);
+    final bar = widget.bar;
+    final border = bar == null ? null : Border(left: BorderSide(width: 3, color: bar));
+    return BoxDecoration(color: background, border: border);
   }
 }
 
