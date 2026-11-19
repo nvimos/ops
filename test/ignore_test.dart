@@ -78,7 +78,8 @@ void main() {
     expect(result.error, isNull, reason: result.error);
     expect(await File('${repo.path}/.gitignore').readAsString(), allOf(contains('*.txt'), contains('*.log')));
     expect(add.lastIgnoreEffect?.lost, greaterThan(0), reason: 'the rows the rules cover left the list');
-    await until(() => add.rows.isEmpty);
+    // The new .gitignore is an untracked row of its own; the three logs are what leave.
+    await until(() => add.rows.length == 1 && add.rows.single.path == '.gitignore');
   });
 
   test('a scope that names nothing says so, and nothing is written', () async {
