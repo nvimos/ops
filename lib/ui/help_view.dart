@@ -79,6 +79,17 @@ const keyTable = [
   ),
   ('Directories', [('Enter', 'make it the Active Directory'), ('/', 'filter'), ('n', 'New Neovim per directory')]),
   (
+    'Add and Ignore',
+    [
+      ('t  u', 'add (stage) or untrack the highlighted files'),
+      ('i  x', 'ignore (a rule in .gitignore) or delete (to the trash, asks first)'),
+      ('Space', 'highlight or un-highlight the cursor row'),
+      ('Shift+{up}{down}', 'extend the highlight'),
+      ('Ctrl+A', 'highlight every row'),
+      ('r', 'reload the list'),
+    ],
+  ),
+  (
     'Mouse',
     [
       ('Shift+wheel', 'Facets, task list: item'),

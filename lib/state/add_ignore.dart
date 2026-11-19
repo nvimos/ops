@@ -122,6 +122,28 @@ class AddIgnoreState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Shift + arrow: move the cursor and highlight every row from the anchor to it.
+  void extend(int delta) {
+    if (visible.isEmpty) return;
+    click(cursor + delta, shift: true);
+  }
+
+  /// Space: add the cursor row to the highlighted ones, or take it out again.
+  void toggleCursor() => click(cursor, ctrl: true);
+
+  /// How many rows sit above [index] in the list with its section headers (for scrolling to it).
+  int headersAbove(int index) {
+    final rows = visible;
+    if (rows.isEmpty) return 0;
+    var headers = 0;
+    AddIgnoreSection? last;
+    for (var i = 0; i <= index.clamp(0, rows.length - 1); i++) {
+      if (rows[i].section != last) headers++;
+      last = rows[i].section;
+    }
+    return headers;
+  }
+
   void click(int index, {bool ctrl = false, bool shift = false}) {
     if (visible.isEmpty) return;
     final next = index.clamp(0, visible.length - 1);

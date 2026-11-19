@@ -21,6 +21,8 @@ const focusRoles = {
   'commit message': 'Commit message field',
   'branch switcher': 'Branch switcher field',
   'dirs filter': 'Directory filter field',
+  'add and ignore filter': 'Add and Ignore filter field',
+  'add and ignore': 'Add and Ignore list',
   'tasks filter': 'Task filter field',
   'dirs': 'Directory list',
   'tasks': 'Task list',
