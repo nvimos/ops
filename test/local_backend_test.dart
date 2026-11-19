@@ -138,6 +138,21 @@ void main() {
     expect(await File('${temp.path}/b.txt').readAsString(), 'b\n');
   });
 
+  test('checkout with stash carries the changes to the new branch', () async {
+    final temp = await TempRepo.make();
+    await temp.write('a.txt', 'a\n');
+    await temp.git(['add', 'a.txt']);
+    await temp.git(['commit', '-q', '-m', 'a']);
+    await temp.git(['branch', 'feature']);
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+
+    await temp.write('a.txt', 'dirty\n');
+    await backend.checkout('feature', how: CheckoutHow.stash);
+    expect(await backend.repo.currentBranch(), 'feature');
+    expect(await File('${temp.path}/a.txt').readAsString(), 'dirty\n');
+  });
+
   test('checkout with force discards worktree changes', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'a\n');
