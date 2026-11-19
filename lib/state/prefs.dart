@@ -52,6 +52,29 @@ class Prefs {
   Map<String, String> branchLinks(String repo) =>
       (((_data['branchLinks'] as Map?)?[repo] as Map?) ?? {}).map((k, v) => MapEntry('$k', '$v'));
 
+  /// Recent project folders, newest first: the local hint source when no Neovim is connected.
+  List<String> recentProjects() =>
+      ((_data['recentProjects'] as List?) ?? const []).map((v) => '$v').toList();
+
+  /// Put [path] at the front of the recent projects, once.
+  void rememberProject(String path) {
+    final list = recentProjects()..removeWhere((p) => p.toLowerCase() == path.toLowerCase());
+    list.insert(0, path);
+    _data['recentProjects'] = list.take(30).toList();
+    _save();
+  }
+
+  /// The folder the project browser starts in.
+  String? lastProjectFolder() {
+    final v = _data['lastProjectFolder'];
+    return v is String ? v : null;
+  }
+
+  void setLastProjectFolder(String path) {
+    _data['lastProjectFolder'] = path;
+    _save();
+  }
+
   void setBranchLinks(String repo, Map<String, String> links) {
     final m = ((_data['branchLinks'] as Map?) ?? {}).cast<String, Object?>();
     m[repo] = links;
