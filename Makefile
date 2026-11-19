@@ -10,7 +10,10 @@ FLUTTER := $(FLUTTER_ROOT)/bin/flutter.bat
 PORT    ?= 6666
 # Per-test timeout of make test; dart_test.yaml (plain flutter test) repeats it, keep the two equal.
 TEST_TIMEOUT ?= 55s
-TEST_CONCURRENCY ?= 1
+TEST_CONCURRENCY ?= 4
+# Parallel jobs of the native build (CMake / MSBuild); `cmake --build` reads this variable.
+BUILD_CONCURRENCY ?= 4
+export CMAKE_BUILD_PARALLEL_LEVEL := $(BUILD_CONCURRENCY)
 
 .PHONY: help run live build dist single bin-local release test analyze nvim timings measure
 
@@ -52,7 +55,7 @@ release: build ## zip and single exe from one build, uploaded as GitHub release 
 test: ## unit and integration tests (headless Neovim); TEST_TIMEOUT=Ns (33s, timeout per test)
 	$(FLUTTER) test --timeout $(TEST_TIMEOUT) --concurrency=$(TEST_CONCURRENCY)
 
-test-fast: ## unit and integration tests, fail fast (default TEST_CONCURRENCY=1)
+test-fast: ## unit and integration tests, fail fast (default TEST_CONCURRENCY=4)
 	$(FLUTTER) test --timeout $(TEST_TIMEOUT) --concurrency=$(TEST_CONCURRENCY) --fail-fast
 
 analyze: ## static analysis
