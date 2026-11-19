@@ -1,11 +1,13 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
+import '../state/add_ignore.dart';
 import '../state/repos.dart';
 import '../state/pr.dart';
 import '../state/session.dart';
 import '../tasks/model.dart';
 import '../tasks/workspace.dart';
+import 'add_ignore_view.dart';
 import 'changes_view.dart';
 import 'connect.dart';
 import 'dirs_view.dart';
@@ -14,6 +16,7 @@ import 'key_sequence.dart';
 import 'nav_keys.dart';
 import 'help_view.dart';
 import 'debug_bar.dart';
+import 'mode_placeholder.dart';
 import 'mode_rail.dart';
 import 'pr_view.dart';
 import 'status_bar.dart';
@@ -36,6 +39,7 @@ class _ShellState extends State<Shell> {
   PrState? _pr;
   Workspace? _ws;
   ReposState? _dirs;
+  AddIgnoreState? _add;
 
   /// The session's backend generation the mode states above were made for.
   int _epoch = 0;
@@ -49,6 +53,7 @@ class _ShellState extends State<Shell> {
   final _tasksKey = GlobalKey<TasksViewState>();
   final _changesKey = GlobalKey<ChangesViewState>();
   final _dirsKey = GlobalKey<DirsViewState>();
+  final _addKey = GlobalKey<AddIgnoreViewState>();
   final _helpKey = GlobalKey<HelpViewState>();
 
   /// The mode rail takes the keyboard (Left from the leftmost pane, Tab round the cycle); its cursor
@@ -94,6 +99,7 @@ class _ShellState extends State<Shell> {
     _pr?.dispose();
     _ws?.dispose();
     _dirs?.dispose();
+    _add?.dispose();
     super.dispose();
   }
 
@@ -139,7 +145,8 @@ class _ShellState extends State<Shell> {
   void _focusMode(Mode m) => switch (m) {
     Mode.changes => _changesKey.currentState?.focus.requestFocus(),
     Mode.tasks => _tasksKey.currentState?.focus.requestFocus(),
-    Mode.directories => _dirsKey.currentState?.focusFilter(),
+    Mode.repos => _dirsKey.currentState?.focusFilter(),
+    Mode.addIgnore => _addKey.currentState?.focus.requestFocus(),
     _ => _focus.requestFocus(),
   };
 
@@ -166,6 +173,10 @@ class _ShellState extends State<Shell> {
     LogicalKeyboardKey.digit3,
     LogicalKeyboardKey.digit4,
     LogicalKeyboardKey.digit5,
+    LogicalKeyboardKey.digit6,
+    LogicalKeyboardKey.digit7,
+    LogicalKeyboardKey.digit8,
+    LogicalKeyboardKey.digit9,
   ];
 
   /// A text field has the keyboard: plain keys are typing, not commands.
@@ -258,10 +269,14 @@ class _ShellState extends State<Shell> {
         _changesKey.currentState?.focusBranch();
       case Mode.tasks:
         _tasksKey.currentState?.filterFocus.requestFocus();
-      case Mode.directories:
+      case Mode.repos:
         _dirsKey.currentState?.focusFilter();
+      case Mode.addIgnore:
+        _addKey.currentState?.focusFilter();
       case Mode.help:
         _helpKey.currentState?.focusSearch();
+      case Mode.history || Mode.settings || Mode.log:
+        break;
     }
   }
 
@@ -307,8 +322,10 @@ class _ShellState extends State<Shell> {
         _changesKey.currentState?.enterFromRail(forward: forward);
       case Mode.tasks:
         _tasksKey.currentState?.enterFromRail(forward: forward);
-      case Mode.directories:
+      case Mode.repos:
         _dirsKey.currentState?.enterFromRail(forward: forward);
+      case Mode.addIgnore:
+        _addKey.currentState?.enterFromRail(forward: forward);
       default:
         _focusMode(_mode);
     }
@@ -423,13 +440,13 @@ class _ShellState extends State<Shell> {
     if (s.epoch == _epoch) return;
     _epoch = s.epoch;
     // disposed after this frame: the views of the old states are still in the tree until it ends
-    final old = [_pr, _ws, _dirs];
+    final old = <ChangeNotifier?>[_pr, _ws, _dirs, _add];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       for (final o in old) {
         o?.dispose();
       }
     });
-    _pr = _ws = _dirs = null;
+    _pr = _ws = _dirs = _add = null;
     _openedProject = false;
   }
 
@@ -443,6 +460,7 @@ class _ShellState extends State<Shell> {
       _pr ??= PrState(s);
       _ws ??= Workspace(s);
       _dirs ??= ReposState(s);
+      _add ??= AddIgnoreState(s);
       if (s.openProjectOnConnect && !_openedProject) {
         _openedProject = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -512,8 +530,12 @@ class _ShellState extends State<Shell> {
     children: [
       PrView(state: _pr, reviewing: _reviewing, workspace: _ws, onStopReview: _stopReview, onOpenTask: _openTask),
       ChangesView(key: _changesKey, onRail: _focusRail),
+      AddIgnoreView(key: _addKey, state: _add!, onRail: _focusRail),
+      const ModePlaceholder(Mode.history),
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
       DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
+      const ModePlaceholder(Mode.settings),
+      const ModePlaceholder(Mode.log),
       _help(),
     ],
   );

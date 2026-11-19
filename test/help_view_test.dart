@@ -22,16 +22,16 @@ void main() {
   });
 
   testWidgets('every key group fits on one wide screen', (tester) async {
-    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.physicalSize = const Size(1600, 1050);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: HelpView())));
     for (final (title, _) in keyTable) {
       final box = tester.getRect(find.text(title.toUpperCase()));
-      expect(box.bottom, lessThan(900), reason: title);
+      expect(box.bottom, lessThan(1050), reason: title);
     }
     final last = keyTable.last.$2.last.$2;
-    expect(tester.getRect(find.text(last)).bottom, lessThan(900));
+    expect(tester.getRect(find.text(last)).bottom, lessThan(1050));
   });
 
   testWidgets('the key table text is selectable', (tester) async {

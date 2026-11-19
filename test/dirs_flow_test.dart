@@ -16,7 +16,7 @@ String slash(String p) => p.replaceAll(r'\', '/');
 String norm(String p) => slash(p).toLowerCase();
 
 
-/// A spot check of the Directories flow in the whole window: Alt+4, type a filter, Enter picks the
+/// A spot check of the Directories flow in the whole window: Alt+6, type a filter, Enter picks the
 /// dir, and the app-wide mode keys still work afterwards. Neovim runs in real time (runAsync).
 void main() {
   testWidgets('Directories: filter + Enter picks the dir, then Alt+[ / Alt+] still switch modes', (t) async {
@@ -56,8 +56,8 @@ void main() {
     for (var i = 0; i < 4; i++) {
       await settle(); // the hints (the start dirs, a check of each folder) and the first crawl, round by round
     }
-    await alt(LogicalKeyboardKey.digit4);
-    expect(shown(), Mode.directories.index);
+    await alt(LogicalKeyboardKey.digit6);
+    expect(shown(), Mode.repos.index);
 
     // The filter has the keyboard: type, then Enter (the text field's "done" action).
     await t.enterText(find.byType(TextField), 'cfg_'); // only the folder made here: the open repository is a hint too
@@ -82,8 +82,8 @@ void main() {
     await t.runAsync(() => until(() => norm(s.repo?.cwd ?? '') == norm(target.path)));
 
     // A click on the Active Directory again opens the project; one untracked file: Changes.
-    await alt(LogicalKeyboardKey.digit4);
-    expect(shown(), Mode.directories.index);
+    await alt(LogicalKeyboardKey.digit6);
+    expect(shown(), Mode.repos.index);
     await t.tap(find.byType(DirRow).first);
     for (var i = 0; i < 3; i++) {
       await settle(); // the mode is chosen after asking git (two calls), round by round

@@ -182,7 +182,22 @@ Tasks
 | Ctrl+click a file  | open it in a new nvim-qt (detail panel)                 |
 | `Esc`              | close the detail panel                                  |
 
-Directories
+Add and Ignore
+
+| Key                | Action                                                  |
+|--------------------|---------------------------------------------------------|
+| `t` / `u`          | add (stage) / untrack the highlighted files             |
+| `i`                | ignore: choose the scope, the rule and the ignore file  |
+| `I`                | ignore at once: a plain rule in the root `.gitignore`   |
+| `x`, `Delete`      | move the highlighted files to the trash (asks first)    |
+| `p`                | show / hide the ignore rules around the cursor row      |
+| `Space`            | highlight / un-highlight the cursor row                 |
+| `Shift+Up/Down`    | extend the highlight                                    |
+| `Ctrl+A`           | highlight every row                                     |
+| `r`                | reload the list                                         |
+| `gi`, `/`          | focus the filter field                                  |
+
+Repos
 
 | Key                | Action                                                  |
 |--------------------|---------------------------------------------------------|
@@ -654,7 +669,8 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
   - expanded, each icon gets a short label beside it, so the sidebar stays narrow
   - hovering an icon or label shows a brief explanation of the mode,
     like an HTML `title` tooltip.
-- one icon per mode, top to bottom: Pull request, Changes, Tasks, Directories, Help
+- one icon per mode, top to bottom (Alt+1 … Alt+9): Pull request, Changes, Add and Ignore, History, Tasks, Repos, Settings, Log, Help
+  - History, Settings and Log show a short "not built yet" note until their views arrive
 - Help lists every key the app has; it works without a connection too
   - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
     so every key fits on one screen; the groups keep their order and the columns even out in height
@@ -1108,7 +1124,24 @@ keyboard J/K/Enter/Esc/C and /.
   - the Facets header says "from <folder>" when the planning folder is outside the repo
   - new tasks get the project label; task numbers count every project's tasks, so they don't collide
 
-#### Directories mode
+#### Add and Ignore mode
+
+<!-- {{{ -->
+- the whole-file triage list from Purrage: one row per changed or untracked path, in sections
+  (conflicts, staged, changed, untracked); Changes stays the diff and hunk mode
+- both modes sit on one status store and one action queue (`Session.store`, `Session.actions`), so
+  an action in one shows in the other; each keeps only its cursor, selection and filter
+- plain, Ctrl and Shift selection with the mouse; Shift+arrows, Space and Ctrl+A with the keys
+- row buttons (add, untrack, ignore, delete) show on hover; every button has a tooltip and the pointer
+- the Ignore dialog (`i`) chooses the scope of the rule (file, extension, folder) and its file
+  (the folder's `.gitignore`, the root one, `.git/info/exclude`, the global one), previews the rules
+  and the rows they cover, and names paths git already ignores
+- the Ignore pane (`p`) lists the ignore files around the cursor row, marks the rule that matches,
+  and deletes a rule or moves it one folder up; it looks a path up once the cursor rests
+- needs a local repository for ignore and delete (the rules engine works on the files)
+<!-- }}} -->
+
+#### Repos mode (was Directories)
 
 <!-- {{{ -->
 - works only while connected; disconnected, the view says so

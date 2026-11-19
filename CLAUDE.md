@@ -89,7 +89,7 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 
 ## Keys
 
-- The shell owns app-wide keys (Alt+] / Alt+[ / Alt+1..5, Ctrl+B, `?`) and gives the keyboard
+- The shell owns app-wide keys (Alt+] / Alt+[ / Alt+1..9, Ctrl+B, `?`) and gives the keyboard
   to the shown mode on every mode switch. A mode with its own keys has a `focus` node; no
   `autofocus` in a mode, or a hidden mode in the IndexedStack takes the keys.
 - Plain keys are ignored while a text field has focus (`_typing()` in the shell).

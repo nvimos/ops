@@ -4,30 +4,42 @@ import 'package:material_ui/material_ui.dart';
 import '../state/diff_prefs.dart';
 import 'theme.dart';
 
-enum Mode { pullRequest, changes, tasks, directories, help }
+enum Mode { pullRequest, changes, addIgnore, history, tasks, repos, settings, log, help }
 
 extension ModeText on Mode {
   String get label => switch (this) {
     Mode.pullRequest => 'Pull request',
     Mode.changes => 'Changes',
+    Mode.addIgnore => 'Add and Ignore',
+    Mode.history => 'History',
     Mode.tasks => 'Tasks',
-    Mode.directories => 'Directories',
+    Mode.repos => 'Repos',
+    Mode.settings => 'Settings',
+    Mode.log => 'Log',
     Mode.help => 'Help',
   };
 
   String get explain => switch (this) {
     Mode.pullRequest => 'Review two revisions as a pull request: their commits, files and diff',
     Mode.changes => 'Your uncommitted work against HEAD: stage, discard, commit',
+    Mode.addIgnore => 'Whole files: add, untrack, ignore or delete what is new or changed',
+    Mode.history => 'The branches of a stack, in the order they merge',
     Mode.tasks => 'Backlog.md tasks and OpenSpec changes, Linear-style',
-    Mode.directories => 'Pick the Active Directory, the repo the other modes work on',
+    Mode.repos => 'The repositories around you; pick the one the other modes work on',
+    Mode.settings => 'Editors, terminals, the crawl depth and other preferences',
+    Mode.log => 'What the actions and the crawl did',
     Mode.help => 'Every key the app has (?)',
   };
 
   IconData get icon => switch (this) {
     Mode.pullRequest => Icons.merge_type,
     Mode.changes => Icons.edit_note,
+    Mode.addIgnore => Icons.playlist_add_check,
+    Mode.history => Icons.account_tree_outlined,
     Mode.tasks => Icons.task_alt,
-    Mode.directories => Icons.folder_outlined,
+    Mode.repos => Icons.folder_outlined,
+    Mode.settings => Icons.settings_outlined,
+    Mode.log => Icons.receipt_long_outlined,
     Mode.help => Icons.help_outline,
   };
 }
