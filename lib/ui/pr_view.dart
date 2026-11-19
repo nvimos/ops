@@ -82,7 +82,7 @@ class _PrViewState extends State<PrView> {
     );
   }
 
-  static const _minSidebar = 150.0, _maxSidebar = 360.0; // 300 before: half, 120%
+  static const _minSidebar = 280.0, _maxSidebar = 360.0; // the least a pane may be dragged to, 120%
 
   /// The narrowest sidebar that shows every file, folder, commit and picker value in full.
   double _autoWidth() {

@@ -644,7 +644,7 @@ _not strictly normative_
     the mouse is targeted first, or the whole highlight when the row is part of it (see Add and
     Ignore and Repos)
   - side panes (Add and Ignore): a 1 px line inside a 7 px drag area with the resize cursor; at least
-    240 px, at most 60 % of the window, 360 px until dragged; a double click on the edge goes back to
+    280 px, at most 60 % of the window, 360 px until dragged; a double click on the edge goes back to
     360; the width and the shown view are kept in `Prefs`
   - tooltips: `surface2`, radius 4, 12 px text, after 500 ms
   - snackbars: no `SnackBarTheme`, so they have Material's default look and not the app's colours;
@@ -1109,7 +1109,7 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
 - the left pane is resizable, like in Pull request
   - drag its right edge with the mouse; double-click the edge for the automatic width
   - automatic width: the narrowest that shows all file, folder and header text and the commit
-    button, between 160 and 384 px; dragging is limited to 70 % of the window
+    button, between 280 and 384 px; dragging is limited to 70 % of the window
 - the files are listed, and walked by the keys, in the order the tree shows them: files of the top
   folder first, then the folders, each sorted by path (not git's status order)
 - panes: the branch switcher, STAGED, CHANGES, the diff (and the commit message for Tab)
@@ -1275,7 +1275,7 @@ keyboard J/K/Enter/Esc/C and /.
   at start on the view last used, remembered in `Prefs` (`sideView`)
   - a visible switch above it picks the ignore panes or the preview; the same key again hides the
     pane, the other key switches it; the close button on the switch hides it
-  - its left edge drags (7 px, the resize cursor) between 240 px and 60 % of the window; 360 px
+  - its left edge drags (7 px, the resize cursor) between 280 px and 60 % of the window; 360 px
     until dragged, a double click on the edge goes back to it, and the width is remembered
     (`sidePaneWidth`)
   - under 600 px of window width it starts hidden; `p` or the switch still opens it for the session,
@@ -1424,6 +1424,9 @@ products and their vision, of how things work, with utmost humility and gratitud
   - the rail snaps its width; only its labels fade in
   - dragging the edge of the Add and Ignore side pane lays the list and the pane out at the new
     width but rebuilds neither of them
+  - debug builds show a badge in the middle of the pane being dragged, `width X height` in px
+    (orange on deep blue); release builds keep no badge (`lib/ui/resize_badge.dart`)
+  - no resizable pane goes below 280 px (Add and Ignore's side pane, Pull request and Changes)
 - Settings are read where they are used, not copied at startup: a choice applies at once to the next
   delete, the next wheel notch and the pane, and a restart starts on the saved choices
 - UI timing instrumentation, on in debug and profile builds, off in release; `NVIMOS_TIMING=1` / `0` overrides

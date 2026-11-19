@@ -350,7 +350,7 @@ class ChangesViewState extends State<ChangesView> {
     ),
   );
 
-  static const _minSidebar = 160.0, _maxSidebar = 384.0; // 320 before: half, 120%
+  static const _minSidebar = 280.0, _maxSidebar = 384.0; // the least a pane may be dragged to, 120%
 
   /// The narrowest sidebar that shows every file and folder in full, plus the branch title and
   /// the commit box's hint.

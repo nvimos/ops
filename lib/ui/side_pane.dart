@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:material_ui/material_ui.dart';
 
+import 'resize_badge.dart';
+
 /// What a mode's right-hand pane shows.
 enum SideView {
   /// The `.gitignore` files and their lines.
@@ -13,9 +15,9 @@ enum SideView {
   preview,
 }
 
-/// The width a side pane has until it is dragged, and the least it can be.
+/// The width a side pane has until it is dragged, and the least a drag can make it.
 const double sidePaneDefaultWidth = 360;
-const double sidePaneMinWidth = 240;
+const double sidePaneMinWidth = 280;
 
 /// The pane may take at most this share of the window, so the list keeps its room.
 const double sidePaneMaxShare = 0.6;
@@ -25,8 +27,9 @@ const double sidePaneMaxShare = 0.6;
 /// [onReset] is a double click on the edge, which goes back to [sidePaneDefaultWidth].
 ///
 /// Only this widget listens to [width]: a drag lays the pane and its neighbours out again but
-/// rebuilds nothing, because [child] is the same instance on every frame of the drag.
-class SidePane extends StatelessWidget {
+/// rebuilds nothing, because [child] is the same instance on every frame of the drag. In debug,
+/// [ResizeBadge] shows the pane's size in its middle while the edge is held.
+class SidePane extends StatefulWidget {
   const SidePane({
     super.key,
     required this.width,
@@ -42,22 +45,54 @@ class SidePane extends StatelessWidget {
   final Widget child;
 
   @override
+  State<SidePane> createState() => _SidePaneState();
+}
+
+class _SidePaneState extends State<SidePane> {
+  /// On while the edge is dragged; only the debug badge listens, so the pane is not rebuilt.
+  final _resizing = ValueNotifier<bool>(false);
+
+  @override
+  void dispose() {
+    _resizing.dispose();
+    super.dispose();
+  }
+
+  void _setResizing(bool on) => _resizing.value = on;
+
+  @override
   Widget build(BuildContext context) => ValueListenableBuilder<double>(
-    valueListenable: width,
-    child: RepaintBoundary(child: child),
+    valueListenable: widget.width,
+    child: RepaintBoundary(child: widget.child),
     builder: (context, width, pane) => LayoutBuilder(
       builder: (context, box) {
         final room = box.maxWidth.isFinite ? box.maxWidth : 1600.0;
         final shown = width.clamp(sidePaneMinWidth, math.max(sidePaneMinWidth, room * sidePaneMaxShare)).toDouble();
         return Row(
           children: [
-            _LeftEdge(width: shown, onWidth: onWidth, onDone: onDone, onReset: onReset),
-            SizedBox(width: shown, child: pane),
+            _LeftEdge(
+              width: shown,
+              onWidth: widget.onWidth,
+              onDone: widget.onDone,
+              onReset: widget.onReset,
+              onResize: _setResizing,
+            ),
+            SizedBox(
+              width: shown,
+              child: _badged(pane!, shown, box.hasBoundedHeight ? box.maxHeight : 0),
+            ),
           ],
         );
       },
     ),
   );
+
+  /// The pane, with the debug size badge over it. A release build returns the pane itself, so the
+  /// extra Stack does not exist there.
+  Widget _badged(Widget pane, double width, double height) {
+    if (!kDebugMode) return pane;
+    return Stack(fit: StackFit.passthrough, children: [pane, Positioned.fill(child: ResizeBadge(width: width, height: height, dragging: _resizing))]);
+  }
 }
 
 /// The draggable divider: a thin line with a wider hit area, and the resize cursor.
@@ -67,12 +102,21 @@ class SidePane extends StatelessWidget {
 /// last built width lost all but one delta per frame (several pointer events arrive between
 /// builds), so the edge trailed the mouse like a lever.
 class _LeftEdge extends StatefulWidget {
-  const _LeftEdge({required this.width, required this.onWidth, required this.onDone, required this.onReset});
+  const _LeftEdge({
+    required this.width,
+    required this.onWidth,
+    required this.onDone,
+    required this.onReset,
+    required this.onResize,
+  });
 
   /// The pane's width as shown now.
   final double width;
   final ValueChanged<double> onWidth;
   final VoidCallback onDone, onReset;
+
+  /// The debug badge: true while the edge is held.
+  final ValueChanged<bool> onResize;
 
   @override
   State<_LeftEdge> createState() => _LeftEdgeState();
@@ -84,10 +128,16 @@ class _LeftEdgeState extends State<_LeftEdge> {
   void _start(DragStartDetails d) {
     _startX = d.globalPosition.dx;
     _startWidth = widget.width;
+    widget.onResize(true);
   }
 
   /// The edge is on the pane's left, so moving right makes the pane narrower.
   void _update(DragUpdateDetails d) => widget.onWidth(_startWidth - (d.globalPosition.dx - _startX));
+
+  void _end() {
+    widget.onResize(false);
+    widget.onDone();
+  }
 
   @override
   Widget build(BuildContext context) => MouseRegion(
@@ -97,7 +147,8 @@ class _LeftEdgeState extends State<_LeftEdge> {
       dragStartBehavior: DragStartBehavior.down,
       onHorizontalDragStart: _start,
       onHorizontalDragUpdate: _update,
-      onHorizontalDragEnd: (_) => widget.onDone(),
+      onHorizontalDragEnd: (_) => _end(),
+      onHorizontalDragCancel: () => widget.onResize(false),
       onDoubleTap: widget.onReset,
       child: const SizedBox(width: 7, child: Center(child: VerticalDivider(width: 1))),
     ),
