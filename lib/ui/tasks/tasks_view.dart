@@ -12,6 +12,7 @@ import '../../tasks/model.dart';
 import '../../tasks/workspace.dart';
 import '../error_view.dart';
 import '../key_sequence.dart';
+import '../nav_history.dart';
 import '../nav_keys.dart';
 import '../wheel_mode.dart';
 import '../widgets.dart';
@@ -330,7 +331,20 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   // TaskActions ----------------------------------------------------------------------------------
 
   @override
-  void openTask(String id) => ws.task(id) == null ? _snack('$id not found') : browser.select(id);
+  void openTask(String id, {bool record = true}) {
+    if (ws.task(id) == null) return _snack('$id not found');
+    // A link from one task to another: back reopens the one the link came from. A restore passes
+    // record: false, so going back does not stack the task it is leaving.
+    final from = record ? browser.selectedTask : null;
+    if (from != null && from.id != id) {
+      NavScope.maybeOf(context)?.push(
+        NavPlace('Back to ${from.id}', () {
+          if (ws.task(from.id) != null) browser.select(from.id);
+        }),
+      );
+    }
+    browser.select(id);
+  }
 
   @override
   void openChange(Change c) => browser.select(ChangeKey(c.dir));

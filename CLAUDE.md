@@ -155,6 +155,10 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 - Two-key commands (`gs`, `]f`, `zw`) go through `KeySequence` (`lib/ui/key_sequence.dart`).
   A one-key command can't be the start of a longer one: a bare `z` never fires while `zw`, `zh`,
   `zR` exist. That's why the view cycle is `Z`.
+- A jump that replaces what is shown (a task link, a review, a mode switch) records where it came
+  from first: `NavScope.maybeOf(context)?.push(NavPlace(label, restore))`
+  (`lib/ui/nav_history.dart`). The mouse's back button pops it in the shell. A restore must not
+  record again (`record: false`), or back would ping-pong.
 - Diff views (Pull request, Changes): `v` toggles Unified and Split, `Z` steps Unified → Split →
   Merge (Merge only while a merge has conflicts; `DiffPrefs.cycleLayout`).
 - `Attempted to send a key down event when no keys are in keysPressed` (Alt Left, `repeat: true`)

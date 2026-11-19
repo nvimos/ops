@@ -84,7 +84,7 @@ const keyTable = [
     [
       ('t  u', 'add or untrack the highlighted'),
       ('i  I', 'ignore: dialog, or at once'),
-      ('x  p  v  r', 'delete; the side pane: ignore panes / preview; reload'),
+      ('x  p  v  r', 'delete; the side pane: ignore panes or preview; reload'),
       ('Space  Ctrl+A', 'highlight the row, every row'),
     ],
   ),
@@ -117,6 +117,7 @@ const keyTable = [
       ('Click', 'pick or select; checkbox ticks; Active Directory again: Tasks'),
       ('Right click,Ctrl+click', 'checkbox: next mark'),
       ('Ctrl+click', 'task: open its file in nvim-qt'),
+      ('Back', 'the previous place: a task link or a mode switch'),
     ],
   ),
 ];

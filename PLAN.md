@@ -126,6 +126,7 @@ Global
 | `.`                | widen or narrow the detail panel (Tasks)                |
 | `Shift`+wheel      | over a list: the cursor moves Settings' wheel step (5 rows by default) |
 | middle click       | over a list: the wheel steps the cursor one row (like Up / Down) or scrolls |
+| back button        | the previous place: a task link, a review, a mode switch |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
 
 Any list (files, commits, branches, dirs, tasks)
@@ -219,6 +220,27 @@ Repos
 | `Enter`            | make the dir the Active Directory                       |
 | `n`                | toggle "New Neovim per directory"                       |
 | `gi`               | focus the filter field (go input)                       |
+
+Back
+
+- The mouse's back button (X1) goes to the previous place, as in a browser. A jump records where
+  the user was; the button pops one place at a time and does nothing when there is none. There is
+  no forward button.
+- A place is a restore, not a route: the modes stay alive, so going back shows the right mode with
+  the selection, detail panel and scroll it had.
+- What records a place:
+  - a task link: a `TASK-n` in a description, a note or a check, a dependency chip, the task under
+    a change or spec. Back reopens the task the link came from (its detail stays open)
+  - a review: opening a task's branch in Pull request. Back returns to Tasks with that task selected
+  - opening a project (the Active Directory's first mode)
+  - a mode switch (a rail click, Alt+1..9): back returns to the mode that was shown
+  - not a step (Alt+[ / Alt+], the wheel over the rail): stepping through four modes is one walk,
+    not four places to go back through
+- `ui/nav_history.dart`: `NavHistory` holds up to 50 `NavPlace`s (a label and a `show` restore);
+  `NavScope` hands it to every view. The shell owns it, listens for the back button at the root, and
+  every jump records once, through `_setMode` (`_review` records the review as one place).
+- A view that adds another kind of jump records a `NavPlace` with the state it leaves behind; the
+  button needs no per-view handling.
 
 <!-- }}} -->
 
@@ -375,6 +397,7 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `connect.dart`, `pr_view.dart`, `changes_view.dart`, `tasks/`: the views below (aka Modes)
   - `diff_view.dart`, `file_tree.dart`, `widgets.dart`, `theme.dart`: shared pieces; `HoverRow`
     declares its pointer handlers and assembles its content and decoration from named pieces
+  - `nav_history.dart`: the back stack (`NavHistory`, `NavScope`) behind the mouse's back button
   - `syntax.dart`: syntax colors of the diff's code (highlight.js through the `re_highlight` package)
   - `confirm_dialog.dart`, `checkout_dialog.dart`, `commit_message_dialog.dart`, `error_view.dart`:
     the question modals, the large commit message modal, and the error pane, snackbars and the Done
@@ -774,8 +797,9 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
   - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
     so every key fits on one screen; the groups keep their order and the columns even out in height
   - a narrow pane gets fewer columns and scrolls
-  - a Mouse group lists what the clicks, the wheel and the middle button do (Shift+wheel, middle
-    click, click, right click and Ctrl+click on a checkbox, Ctrl+click on a task)
+  - a Mouse group lists what the clicks, the wheel, the middle button and the back button do
+    (Shift+wheel, middle click, click, right click and Ctrl+click on a checkbox, Ctrl+click on a
+    task, the back button's previous place)
   - the text is selectable
   - each key row: the keys, then the description right after them; the key column is as wide as the
     group's widest key, so descriptions line up inside a group and sit close to their keys

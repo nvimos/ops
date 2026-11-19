@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/gestures.dart' show kBackMouseButton;
 import 'package:flutter/services.dart';
 
 import '../state/add_ignore.dart';
@@ -23,6 +24,7 @@ import 'help_view.dart';
 import 'debug_bar.dart';
 import 'mode_placeholder.dart';
 import 'notice_bar.dart';
+import 'nav_history.dart';
 import 'mode_rail.dart';
 import 'pr_view.dart';
 import 'status_bar.dart';
@@ -55,6 +57,9 @@ class _ShellState extends State<Shell> {
 
   /// The task whose branch the Pull request view is reviewing (its Verify list shows beside it).
   Task? _reviewing;
+
+  /// Where the mouse's back button goes: the places jumps came from, newest last.
+  final _history = NavHistory();
 
   /// A directory was named on the command line: its opening mode was shown once.
   bool _openedProject = false;
@@ -118,13 +123,23 @@ class _ShellState extends State<Shell> {
   // Event handlers -------------------------------------------------------------------------------
 
   void _openTask(String id) {
+    // From another mode (the review panel's banner) the mode switch records the way back; from one
+    // task to another (a link in the detail) Tasks records the task it leaves.
+    final inTasks = _mode == Mode.tasks;
     _setMode(Mode.tasks);
-    _tasksKey.currentState?.openTask(id);
+    _tasksKey.currentState?.openTask(id, record: inTasks);
   }
 
   void _review(Task t, String branch) {
+    final previous = _mode;
+    _history.push(
+      NavPlace('Back to ${previous.label}', () {
+        if (_reviewing != null) _stopReview();
+        _setMode(previous, record: false);
+      }),
+    );
     setState(() => _reviewing = t);
-    _setMode(Mode.pullRequest);
+    _setMode(Mode.pullRequest, record: false);
     _pr!.pick(base: _ws!.defaultBranch, head: branch);
   }
 
@@ -146,9 +161,14 @@ class _ShellState extends State<Shell> {
 
 
   /// Switch modes and give the keyboard to the new one (Tasks and Directories have their own keys).
-  /// Shows [m]. The keyboard goes to the mode's own pane, or with [onRail] to its item in the mode
-  /// rail, so the keys that follow start from the mode that is shown.
-  void _setMode(Mode m, {bool onRail = false}) {
+  /// Shows [m]; [record] puts the mode being left on the back stack (a composite jump records the
+  /// whole place itself, once). The keyboard goes to the mode's own pane, or with [onRail] to its
+  /// item in the mode rail, so the keys that follow start from the mode that is shown.
+  void _setMode(Mode m, {bool onRail = false, bool record = true}) {
+    if (record && m != _mode) {
+      final previous = _mode;
+      _history.push(NavPlace('Back to ${previous.label}', () => _setMode(previous, record: false)));
+    }
     final click = _railClick;
     _railClick = null;
     click?.mark('tap'); // mouse down -> onTap: a gesture that waits (a double tap) shows here
@@ -162,6 +182,11 @@ class _ShellState extends State<Shell> {
   Span? _railClick;
 
   void _onRailPointerDown(PointerDownEvent _) => _railClick = UiTiming.instance.span('shell.railClick');
+
+  /// The mouse's back button: show the previous place (a task link, a review, a mode switch).
+  void _onPointerDown(PointerDownEvent e) {
+    if (e.buttons & kBackMouseButton != 0) _history.back();
+  }
 
   void _openSettings() {
     _settings?.ensureDetected();
@@ -189,8 +214,10 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _pr?.openHead.value++);
   }
 
+  /// The next or previous mode, wrapping round. A step is not a place to go back to: four steps
+  /// would take four presses of the back button.
   void _stepMode(int delta, {bool onRail = false}) =>
-      _setMode(Mode.values[(_mode.index + delta) % Mode.values.length], onRail: onRail);
+      _setMode(Mode.values[(_mode.index + delta) % Mode.values.length], onRail: onRail, record: false);
 
   // Keys -----------------------------------------------------------------------------------------
 
@@ -500,23 +527,31 @@ class _ShellState extends State<Shell> {
     } else {
       _dirs ??= ReposState(s);
     }
-    return Focus(
-      focusNode: _focus,
-      autofocus: true,
-      onKeyEvent: _onKey,
-      child: Scaffold(
-        body: _railAndModes(s.conn == Conn.connected),
-        // The bars are the Scaffold's bottom bar, so a message slides in above them, not over them.
-        bottomNavigationBar: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ValueListenableBuilder<bool>(
-              valueListenable: debugBarVisible,
-              builder: (context, on, _) => on ? DebugBar(pane: _paneRole, info: _debugInfo) : const SizedBox.shrink(),
+    return NavScope(
+      history: _history,
+      child: Listener(
+        // The mouse's back button works over any pane, like a browser's.
+        onPointerDown: _onPointerDown,
+        child: Focus(
+          focusNode: _focus,
+          autofocus: true,
+          onKeyEvent: _onKey,
+          child: Scaffold(
+            body: _railAndModes(s.conn == Conn.connected),
+            // The bars are the Scaffold's bottom bar, so a message slides in above them, not over them.
+            bottomNavigationBar: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: debugBarVisible,
+                  builder: (context, on, _) =>
+                      on ? DebugBar(pane: _paneRole, info: _debugInfo) : const SizedBox.shrink(),
+                ),
+                NoticeBar(notices: SessionScope.read(context).notices),
+                const StatusBar(),
+              ],
             ),
-            NoticeBar(notices: SessionScope.read(context).notices),
-            const StatusBar(),
-          ],
+          ),
         ),
       ),
     );
