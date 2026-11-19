@@ -4,8 +4,11 @@ import 'package:material_ui/material_ui.dart';
 import '../state/action_queue.dart';
 import '../state/add_ignore.dart';
 import '../state/changes.dart' show fileKind;
+import '../state/ignore_pane.dart';
 import 'confirm_dialog.dart';
 import 'error_view.dart';
+import 'ignore_dialog.dart';
+import 'ignore_pane.dart';
 import 'key_sequence.dart';
 import 'nav_keys.dart';
 import 'reveal.dart';
@@ -48,12 +51,17 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
     'gi': focusFilter,
     't': _add,
     'u': _untrack,
-    'i': _ignore,
+    'i': _ignoreDialog,
+    'I': _ignore,
+    'p': _togglePane,
     'x': _delete,
     'r': () => st.store.refresh(),
   });
 
   AddIgnoreState get st => widget.state;
+
+  IgnorePaneState? _ignorePane; // made when the pane is first opened
+  bool _paneOpen = false;
 
   @override
   void initState() {
@@ -64,6 +72,7 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
   @override
   void dispose() {
     st.removeListener(_reveal);
+    _ignorePane?.dispose();
     _keys.dispose();
     focus.dispose();
     _filterFocus.dispose();
@@ -96,7 +105,12 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
 
   Future<void> _untrack() async => _report(await st.untrackSelected());
 
-  /// Writes a rule for each untracked highlighted row into the repository's root `.gitignore`.
+  /// i: ask what to ignore (the file, its kind, its folder) and where to write the rule.
+  Future<void> _ignoreDialog() => showIgnoreDialog(context, st);
+
+  void _togglePane() => setState(() => _paneOpen = !_paneOpen);
+
+  /// I: a rule for each untracked highlighted row into the repository's root `.gitignore`, no questions.
   Future<void> _ignore() async {
     final target = st.rootIgnore;
     if (target == null) return _report(const ActionResult('ignore', 'ignore needs a local repository'));
@@ -200,16 +214,33 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
   Widget build(BuildContext context) => Focus(
     focusNode: focus,
     onKeyEvent: _onKey,
-    child: ListenableBuilder(
-      listenable: Listenable.merge([st, focus]),
-      builder: (context, _) => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Header(count: st.rows.length, selected: st.selectionCount, lit: focus.hasFocus, onReload: st.store.refresh),
-          _Filter(controller: _filter, focus: _filterFocus, onChanged: st.setFilter),
-          Expanded(child: _body()),
+    child: Row(
+      children: [
+        Expanded(child: _listColumn()),
+        if (_paneOpen) ...[
+          const VerticalDivider(width: 1),
+          SizedBox(width: 340, child: IgnorePane(state: _ignorePane ??= IgnorePaneState(st))),
         ],
-      ),
+      ],
+    ),
+  );
+
+  Widget _listColumn() => ListenableBuilder(
+    listenable: Listenable.merge([st, focus]),
+    builder: (context, _) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Header(
+          count: st.rows.length,
+          selected: st.selectionCount,
+          lit: focus.hasFocus,
+          paneOpen: _paneOpen,
+          onReload: st.store.refresh,
+          onPane: _togglePane,
+        ),
+        _Filter(controller: _filter, focus: _filterFocus, onChanged: st.setFilter),
+        Expanded(child: _body()),
+      ],
     ),
   );
 
@@ -240,13 +271,21 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
 // Molecules and atoms -----------------------------------------------------------------------------
 
 class _Header extends StatelessWidget {
-  const _Header({required this.count, required this.selected, required this.lit, required this.onReload});
+  const _Header({
+    required this.count,
+    required this.selected,
+    required this.lit,
+    required this.paneOpen,
+    required this.onReload,
+    required this.onPane,
+  });
 
   final int count, selected;
 
   /// The list has the keyboard: its title is lit.
   final bool lit;
-  final VoidCallback onReload;
+  final bool paneOpen;
+  final VoidCallback onReload, onPane;
 
   @override
   Widget build(BuildContext context) => PaneHeader(
@@ -257,7 +296,15 @@ class _Header extends StatelessWidget {
         Text(selected > 1 ? '$selected of $count selected' : '$count', style: T.tiny),
       ],
     ),
-    trailing: [IconAction(icon: Icons.refresh, tooltip: 'Reload the list (r)', onPressed: onReload)],
+    trailing: [
+      IconAction(
+        icon: Icons.rule,
+        tooltip: paneOpen ? 'Hide the ignore rules (p)' : 'Show the ignore rules around the cursor row (p)',
+        onPressed: onPane,
+        color: paneOpen ? C.accent : C.muted,
+      ),
+      IconAction(icon: Icons.refresh, tooltip: 'Reload the list (r)', onPressed: onReload),
+    ],
   );
 }
 
