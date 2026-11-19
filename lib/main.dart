@@ -10,8 +10,8 @@ import 'timing/ui_timing.dart';
 import 'ui/shell.dart';
 import 'ui/theme.dart';
 
-/// Where the first command-line argument points: an existing directory (open it: start Neovim
-/// there), else an address to connect to. Without an argument, [envAddress] (`NVIMOS_ADDR`).
+/// Where the first command-line argument points: an existing directory (open it with the local
+/// backend, no Neovim), else an address to connect to (the Neovim backend). Without an argument, [envAddress] (`NVIMOS_ADDR`).
 /// [isDir] replaces the file-system check (tests).
 ({String? dir, String? address}) launchTarget(
   List<String> args, {
@@ -40,7 +40,7 @@ class NvimosApp extends StatefulWidget {
 
   final String? address;
 
-  /// A directory named on the command line: Neovim is started there and the app connects to it.
+  /// A directory named on the command line: it is opened with the local backend.
   final String? directory;
 
   @override
@@ -57,7 +57,7 @@ class _NvimosAppState extends State<NvimosApp> {
     _lifecycle = AppLifecycleListener(onExitRequested: _onExit);
     final dir = widget.directory;
     if (dir != null) {
-      _session.startNeovim(dir: dir);
+      _session.openFolder(dir, openProject: true);
     } else {
       _session.connect(address: widget.address);
     }

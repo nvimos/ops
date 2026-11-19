@@ -74,7 +74,7 @@ class ActionQueue {
       final err = await session.run(action);
       span.mark('git');
       if (err != null) store.undo(undo);
-      store.pending--;
+      if (store.pending > 0) store.pending--; // a reset (backend swap) may have cleared it
       store.changed();
       await store.refresh();
       if (settled != null) await settled();

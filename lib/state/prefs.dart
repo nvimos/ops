@@ -82,6 +82,30 @@ class Prefs {
     _save();
   }
 
+  /// The folders and addresses opened before, newest first.
+  List<Recent> recents() => [
+    for (final e in (_data['recent'] as List?) ?? const [])
+      if (e is Map && e['target'] is String)
+        Recent(e['kind'] == 'nvim' ? BackendKind.nvim : BackendKind.local, e['target'] as String),
+  ];
+
+  /// Remember [r] as the newest entry (an older copy of it goes); at most [maxRecents] are kept.
+  void addRecent(Recent r) {
+    final all = [r, ...recents().where((x) => x != r)].take(maxRecents);
+    _setRecents(all);
+  }
+
+  void removeRecent(Recent r) => _setRecents(recents().where((x) => x != r));
+
+  static const maxRecents = 12;
+
+  void _setRecents(Iterable<Recent> all) {
+    _data['recent'] = [
+      for (final r in all) {'kind': r.kind.name, 'target': r.target},
+    ];
+    _save();
+  }
+
   void _save() {
     final f = _file;
     if (f == null) return;
@@ -90,4 +114,22 @@ class Prefs {
       f.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(_data));
     } catch (_) {}
   }
+}
+
+/// Which backend a recent entry opens with.
+enum BackendKind { local, nvim }
+
+/// A folder or a Neovim address the Connect screen remembers, with the backend it opens with.
+class Recent {
+  const Recent(this.kind, this.target);
+
+  /// A folder is opened locally; an address is a Neovim with the nvimos plugin.
+  final BackendKind kind;
+  final String target;
+
+  @override
+  bool operator ==(Object other) => other is Recent && other.kind == kind && other.target == target;
+
+  @override
+  int get hashCode => Object.hash(kind, target);
 }
