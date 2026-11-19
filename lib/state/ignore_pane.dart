@@ -45,6 +45,7 @@ class IgnoreInfo {
 class IgnorePaneState extends ChangeNotifier {
   /// [lookup] answers for a path instead of the repository (tests).
   IgnorePaneState(this._add, {this.delay = const Duration(milliseconds: 200), Future<IgnoreInfo> Function(String path)? lookup})
+    // ignore: prefer_initializing_formals
     : _lookup = lookup {
     _add.addListener(_onAdd);
     _add.store.refreshed.addListener(forget); // a reload may follow a rule written elsewhere

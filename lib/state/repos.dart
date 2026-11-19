@@ -133,9 +133,30 @@ class ReposState extends ChangeNotifier {
     if (!_started) {
       _started = true;
       browser.addListener(notifyListeners);
+      final before = browser.onReport;
+      browser.onReport = (r) {
+        before?.call(r);
+        lastReport = r;
+        notifyListeners();
+      };
       load();
     }
   }
+
+  /// What the last walk did (where from, how far, how long), for the line under the title.
+  ScanReport? lastReport;
+
+  /// The folder the crawl walks from.
+  String get crawlFolder => browser.directory;
+
+  /// Walk from [path] instead (a folder chosen in the list, the parent, a drive).
+  Future<void> scanFrom(String path) => browser.goTo(path);
+
+  Future<void> scanUp() => browser.up();
+
+  Future<void> rescan() => browser.rescan();
+
+  Future<List<String>> drives() => browser.listDrives();
 
   /// Resolve the hints and walk from the start folder; the list fills in as the walk finds repos.
   Future<void> load() async {
