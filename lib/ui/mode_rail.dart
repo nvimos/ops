@@ -173,6 +173,13 @@ class RailState extends ChangeNotifier {
     _write(hiddenKey, [for (final m in order) if (next.contains(m)) m.name]);
     notifyListeners();
   }
+
+  /// Settings: the default order, with every mode shown.
+  void reset() {
+    _write(orderKey, [for (final m in Mode.values) m.name]);
+    _write(hiddenKey, const []);
+    notifyListeners();
+  }
 }
 
 /// One entry of the rail.
@@ -303,6 +310,7 @@ class ModeRail extends StatelessWidget {
       onMenu: mode == null || onHide == null ? null : (at) => _menu(context, mode, at),
     );
     if (mode == null || onReorder == null) return item;
+    final target = modes.indexOf(mode);
     return Draggable<Mode>(
       data: mode,
       dragAnchorStrategy: pointerDragAnchorStrategy,
@@ -311,12 +319,12 @@ class ModeRail extends StatelessWidget {
       child: DragTarget<Mode>(
         onWillAcceptWithDetails: (d) => d.data != mode,
         onAcceptWithDetails: (d) {
-          // Look the mode up again: a hide or unhide during the drag may have shifted the indices.
+          // Look both up again: a hide or unhide during the drag may have shifted the indices.
           final from = modes.indexOf(d.data);
-          if (from >= 0) onReorder!(from, index - 1);
+          if (from >= 0 && target >= 0) onReorder!(from, target);
         },
         builder: (context, candidate, _) => DecoratedBox(
-          decoration: BoxDecoration(border: _dropLine(candidate, index - 1)),
+          decoration: BoxDecoration(border: _dropLine(candidate, target)),
           child: item,
         ),
       ),

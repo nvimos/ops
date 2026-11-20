@@ -10,7 +10,7 @@ FLUTTER := $(FLUTTER_ROOT)/bin/flutter.bat
 PORT    ?= 6666
 # Per-test timeout of make test; dart_test.yaml (plain flutter test) repeats it, keep the two equal.
 TEST_TIMEOUT ?= 55s
-TEST_CONCURRENCY ?= 4
+TEST_CONCURRENCY ?= 2
 # Parallel jobs of the native build (CMake / MSBuild); `cmake --build` reads this variable.
 BUILD_CONCURRENCY ?= 4
 export CMAKE_BUILD_PARALLEL_LEVEL := $(BUILD_CONCURRENCY)
@@ -55,7 +55,7 @@ release: pdf-off build ## zip and single exe from one build without PDF, uploade
 test: ## unit and integration tests (headless Neovim); TEST_TIMEOUT=Ns (33s, timeout per test)
 	$(FLUTTER) test --timeout $(TEST_TIMEOUT) --concurrency=$(TEST_CONCURRENCY)
 
-test-fast: ## unit and integration tests, fail fast (default TEST_CONCURRENCY=4)
+test-fast: ## unit and integration tests, fail fast (default TEST_CONCURRENCY=2)
 	$(FLUTTER) test --timeout $(TEST_TIMEOUT) --concurrency=$(TEST_CONCURRENCY) --fail-fast
 
 analyze: ## static analysis
@@ -88,3 +88,5 @@ icon: ## rebuild windows/runner/resources/app_icon.ico from assets/icon/ops.svg
 
 help: ## this list
 	@Select-String -Path Makefile -Pattern '^##@ (.*)', '^([a-z-]+):.*## (.*)' | ForEach-Object { $$g = $$_.Matches[0].Groups; if ($$_.Line.StartsWith('##@')) { ''; $$g[1].Value } else { '  {0,-9} {1}' -f $$g[1].Value, $$g[2].Value } }
+
+

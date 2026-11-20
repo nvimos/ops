@@ -207,6 +207,19 @@ Win32Window::MessageHandler(HWND hwnd,
       return 0;
     }
 
+    case WM_GETMINMAXINFO: {
+      auto info = reinterpret_cast<MINMAXINFO*>(lparam);
+      const UINT dpi = FlutterDesktopGetDpiForHWND(hwnd);
+      const double scale = dpi / 96.0;
+      // The content is rail 180 + divider + the narrowest pane 280 + its 7 px drag edge; the
+      // panes clamp at 280 px, so a narrower window would overflow them. Convert the client width
+      // to a window width (the frame is not part of the content).
+      RECT frame = {0, 0, Scale(468, scale), 0};
+      AdjustWindowRectExForDpi(&frame, WS_OVERLAPPEDWINDOW, FALSE, 0, dpi);
+      info->ptMinTrackSize.x = frame.right - frame.left;
+      return 0;
+    }
+
     case WM_ACTIVATE:
       if (child_content_ != nullptr) {
         SetFocus(child_content_);

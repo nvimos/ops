@@ -36,17 +36,17 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
     count of `nvimos_*` folders in `%TEMP%` is the same before and after.
   - a run that was killed or crashed leaves things behind: remove them (the folders, the headless
     `nvim --clean` processes, the daemons) and don't leave them for the user.
-- The whole suite takes about 2–3 minutes (2026-11-19, 4 files at a time). `workspace_test.dart` "archive merges deltas" is flaky
-  (fails about half the runs, also before 2026-11-11); don't chase it as a regression.
+- The whole suite takes about 7-8 minutes (2026-11-20, 2 files at a time). `workspace_test.dart` "archive merges deltas" and `status_store_test` "two mode states…" are flaky (also before 2026-11-20); don't chase them as regressions.
 - Flutter: `C:/tools/flutter` (Makefile `FLUTTER_ROOT`), `PUB_CACHE=C:/tools/pub-cache`. Use only
   this SDK, also for a quick `pub get`, analyze or test. Never `H:/flutter` (an older checkout):
   running it rewrites `.dart_tool/package_config.json` to its framework, and the next hot reload of
   `make live` (built with `C:`) fails on framework/engine mismatches such as `SemanticsRole` not
   exhaustively matched (2026-11-19). Check `"flutterRoot"` in `package_config.json` if a reload
   breaks oddly; `C:/tools/flutter/bin/flutter pub get` repairs it.
-- `make test` runs 4 files at a time (`TEST_CONCURRENCY ?= 4`, 2026-11-19). The Neovim tests
-  `pr_state_test` "Down past the last file…" and `status_store_test` ("connection closed") failed
-  at 4 and passed one at a time; rerun them with `--concurrency=1` before treating them as regressions.
+- `make test` runs 2 files at a time (`TEST_CONCURRENCY ?= 2`, 2026-11-20; `dart_test.yaml` says
+  the same). The Neovim tests `pr_state_test` "Down past the last file…" and `status_store_test`
+  ("two mode states…") failed at 4 and passed one at a time; rerun them with `--concurrency=1`
+  before treating them as regressions.
 - A test that needs another platform uses `variant: TargetPlatformVariant.only(TargetPlatform.windows)`,
   not `debugDefaultTargetPlatformOverride` with `addTearDown`: the tear-down runs after Flutter's
   check that debug variables are reset, so the test fails.
@@ -351,6 +351,9 @@ says the rule, why, and the trap it came from.
     `!childSemantics.renderObject._needsLayout`). Any retry must let a dirty hidden subtree lay
     itself out (or remove it from the render tree) first
   - the Help table keeps at least 250 px per column and clips the right edge below that
+- The window is at least 468 px wide (rail 180 + divider + the narrowest pane 280 + its 7 px
+  edge), enforced by `WM_GETMINMAXINFO` in `windows/runner/win32_window.cpp`; without it a 280 px
+  pane plus the rail overflows.
 - Measure: a stopwatch from the input event to the next painted frame
   (`addPostFrameCallback` after `scheduleFrame`), recorded per interaction, says where the time
   goes. "It waits for a double click" was a rebuild of every page; the measurement tells them apart.

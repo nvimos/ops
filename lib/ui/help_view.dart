@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -184,13 +185,15 @@ class HelpViewState extends State<HelpView> {
   double _layoutWidth = 0, _settledWidth = 0, _latestWidth = 0;
 
   /// A window drag: the table is frozen, scaled to the new width, and reflowed once the width has
-  /// been still for 150 ms. There is no reliable end event for a window resize.
+  /// been still for [quiet]. There is no reliable end event for a window resize.
   bool _resizing = false;
   Timer? _resizeTimer;
+  static const quiet = Duration(milliseconds: 150);
 
-  /// Runs for 150 ms after a width change that reflowed at once. A one-off jump (the rail toggled,
-  /// a side pane opened) reflows directly; only a second change while this runs starts the freeze.
-  Timer? _recentChange;
+  /// The frame time of a width change that reflowed at once. A one-off jump (the rail toggled, a
+  /// side pane opened) reflows directly; only a second change within [quiet] starts the freeze.
+  /// The frame timestamp, not a Stopwatch: widget tests advance the frame clock with `pump`.
+  Duration? _recentChangeAt;
 
   /// A width change is being timed, from the new layout to the frame on screen (`help.resize`).
   Span? _resize;
@@ -198,7 +201,6 @@ class HelpViewState extends State<HelpView> {
   @override
   void dispose() {
     _resizeTimer?.cancel();
-    _recentChange?.cancel();
     _search.dispose();
     _focus.dispose();
     super.dispose();
@@ -310,21 +312,23 @@ class HelpViewState extends State<HelpView> {
       _settle(width);
     } else if (!_resizing && width != _settledWidth) {
       _timeResize();
-      if (_recentChange?.isActive ?? false) {
-        // A second change within 150 ms: a drag. Rebuild the frozen table once with one-line
+      final now = SchedulerBinding.instance.currentFrameTimeStamp;
+      final recent = _recentChangeAt;
+      if (recent != null && now - recent < quiet) {
+        // A second change within [quiet]: a drag. Rebuild the frozen table once with one-line
         // descriptions, then every further frame only scales it.
-        _recentChange!.cancel();
+        _recentChangeAt = null;
         _resizing = true;
         _build(_columnCount!, _layoutWidth, compact: true);
       } else {
         // A single change reflows at once, as at rest.
         _settle(width);
-        _recentChange = Timer(const Duration(milliseconds: 150), () {});
+        _recentChangeAt = now;
       }
     }
     if (_resizing) {
       _resizeTimer?.cancel();
-      _resizeTimer = Timer(const Duration(milliseconds: 150), _reflow);
+      _resizeTimer = Timer(quiet, _reflow);
     }
     return _shown(width);
   }

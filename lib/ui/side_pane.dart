@@ -79,7 +79,7 @@ class _SidePaneState extends State<SidePane> {
             ),
             SizedBox(
               width: shown,
-              child: _badged(pane!, shown, box.hasBoundedHeight ? box.maxHeight : 0),
+              child: _badged(pane ?? const SizedBox.shrink(), shown, box.hasBoundedHeight ? box.maxHeight : 0),
             ),
           ],
         );

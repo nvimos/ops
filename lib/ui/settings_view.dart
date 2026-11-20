@@ -143,6 +143,16 @@ class SettingsViewState extends State<SettingsView> {
       else
         for (final m in _layout.order.where(_layout.hidden.contains))
           _HiddenMode(mode: m, onShow: () => _layout.show(m)),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Tooltip(
+            message: 'The default order, with every mode shown',
+            child: SmallButton('Reset the rail', onPressed: _layout.reset),
+          ),
+        ),
+      ),
     ],
   );
 

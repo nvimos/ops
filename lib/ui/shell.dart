@@ -153,6 +153,7 @@ class _ShellState extends State<Shell> {
     _prKeys.dispose();
     _focus.dispose();
     _railFocus.dispose();
+    _history.dispose();
     _rail?.dispose();
     _pr?.dispose();
     _ws?.dispose();
@@ -524,12 +525,15 @@ class _ShellState extends State<Shell> {
     _ => _mode.label,
   };
 
-  /// For the debug bar: the mode and where its keys act.
-  List<String> _debugInfo() => switch (_mode) {
-    Mode.pullRequest => ['Mode: ${_mode.label}', ...?_prDebug()],
-    Mode.changes => ['Mode: ${_mode.label}', ...?_changesKey.currentState?.debugInfo],
-    _ => ['Mode: ${_mode.label}'],
-  };
+  /// For the debug bar: the mode, where its keys act, and the place the back button would show.
+  List<String> _debugInfo() => [
+    ...switch (_mode) {
+      Mode.pullRequest => ['Mode: ${_mode.label}', ...?_prDebug()],
+      Mode.changes => ['Mode: ${_mode.label}', ...?_changesKey.currentState?.debugInfo],
+      _ => ['Mode: ${_mode.label}'],
+    },
+    'Back: ${_history.label ?? 'none'}',
+  ];
 
   /// The Pull request items: the commit under the cursor (the active one in COMMITS), file, hunk.
   List<String>? _prDebug() {
@@ -599,8 +603,12 @@ class _ShellState extends State<Shell> {
               children: [
                 ValueListenableBuilder<bool>(
                   valueListenable: debugBarVisible,
-                  builder: (context, on, _) =>
-                      on ? DebugBar(pane: _paneRole, info: _debugInfo) : const SizedBox.shrink(),
+                  builder: (context, on, _) => on
+                      ? ListenableBuilder(
+                          listenable: _history,
+                          builder: (context, _) => DebugBar(pane: _paneRole, info: _debugInfo),
+                        )
+                      : const SizedBox.shrink(),
                 ),
                 NoticeBar(notices: SessionScope.read(context).notices),
                 const StatusBar(),

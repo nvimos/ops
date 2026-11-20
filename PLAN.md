@@ -233,9 +233,13 @@ Back
     a change or spec. Back reopens the task the link came from (its detail stays open)
   - a review: opening a task's branch in Pull request. Back returns to Tasks with that task selected
   - opening a project (the Active Directory's first mode)
+  - the automatic open on connect counts as opening a project: back returns to the start mode
+    (Pull request). Kept deliberately; the proposal in `nvimos-meta` has the longer argument
   - a mode switch (a rail click, Alt+1..9): back returns to the mode that was shown
   - not a step (Alt+[ / Alt+], the wheel over the rail): stepping through four modes is one walk,
     not four places to go back through
+- A restore may show a mode that is hidden now: hiding means "off the rail", not "cannot be shown";
+  the place the user came from wins. A deliberate choice, not an oversight.
 - `ui/nav_history.dart`: `NavHistory` holds up to 50 `NavPlace`s (a label and a `show` restore);
   `NavScope` hands it to every view. The shell owns it, listens for the back button at the root, and
   every jump records once, through `_setMode` (`_review` records the review as one place).
@@ -459,6 +463,9 @@ mode area, which shrinks upward.
 ```
 
 - the rail is as high as the mode area; the two bars span the whole width
+- the window is at least 468 px wide (rail expanded 180 + divider + the narrowest pane 280 + its
+  7 px edge), so the 280 px panes never overflow; `windows/runner/win32_window.cpp`
+  (`WM_GETMINMAXINFO`)
 - Pull request and Changes have the left pane (resizable), the main pane and, while reviewing, the
   review panel; Changes' left pane holds Staged, Changed and the commit message instead
 - Tasks, Repos and Help fill the mode area with one pane
@@ -797,14 +804,15 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
   - right-click an icon to hide that mode; it leaves the rail, and Alt+1..9, Alt+[ / Alt+] and the
     wheel skip it
   - at least one mode stays visible; Settings lists the hidden modes and puts one back in the place
-    it was dragged to
+    it was dragged to; a **Reset the rail** button restores the default order and shows them all
   - the saved arrangement is names, not ids: at startup a name that no longer exists (a mode was
     renamed or removed) is dropped, a mode added since the save comes last, duplicates go, and a
     hidden set that would hide every mode is forgotten; the repaired state is written back
   - History and Log show a short "not built yet" note until their views arrive
 - Help lists every key the app has; it works without a connection too
-  - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
-    so every key fits on one screen; the groups keep their order and the columns even out in height
+  - the key groups fill the pane in columns about 360 px wide, as many as the width allows; the
+    groups keep their order and the columns even out in height; the table scrolls when a screen is
+    too short for every group
   - a narrow pane gets fewer columns; a column never goes below 250 px, and below that the right
     edge is clipped
   - a window resize freezes the table, scales it uniformly to the new width, and reflows once
@@ -857,6 +865,8 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
 - each item is "Label: value" with the colons of a column on one line:
   - Focus: the focused element by its role in the interface (not its class), e.g. "Commits list",
     "Base revision field", "Mode rail", "Task detail"
+  - Back: the label of the place the mouse's back button would show, or `none`; it updates as the
+    stack changes
   - clicking the Focus value opens a dialog, "Focus path": the path of the focused element in the
     focus tree from the root down, each node by its label (an unlabelled node by its widget type),
     joined with ` > `; the text is selectable with the mouse
@@ -1375,6 +1385,7 @@ keyboard J/K/Enter/Esc/C and /.
   see Repos); it applies to the next crawl
 - MODES: the modes hidden from the rail, in rail order; a click on a row puts that mode back in the
   place it was dragged to. The rail's order itself is changed by dragging its icons (see the rail)
+  - **Reset the rail** restores the default order and shows every mode
 <!-- }}} -->
 
 #### Repos mode (was Directories)

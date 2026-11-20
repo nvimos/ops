@@ -229,6 +229,18 @@ void main() {
     expect(identical(rail.visible, afterHide), isFalse, reason: 'a reorder drops it too');
   });
 
+  test('reset restores the default order and shows every mode', () {
+    final rail = RailState(Prefs.memory());
+    rail.reorderVisible(0, 8);
+    rail.hide(Mode.help);
+    expect(rail.hidden, isNotEmpty);
+
+    rail.reset();
+    expect(rail.order, Mode.values);
+    expect(rail.visible, Mode.values);
+    expect(rail.hidden, isEmpty);
+  });
+
   test('a reorder with stale indices does nothing', () {
     final rail = RailState(Prefs.memory());
     final before = rail.visible;
