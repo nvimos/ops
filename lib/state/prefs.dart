@@ -56,6 +56,18 @@ class Prefs {
   List<String> recentProjects() =>
       ((_data['recentProjects'] as List?) ?? const []).map((v) => '$v').toList();
 
+  /// A list of strings under [key] (the rail's mode order and hidden modes). A missing key, or one
+  /// that holds something else after a hand edit or an older format, reads as empty.
+  List<String> strings(String key) {
+    final value = _data[key];
+    return value is List ? [for (final e in value) '$e'] : const [];
+  }
+
+  void setStrings(String key, List<String> value) {
+    _data[key] = value;
+    _save();
+  }
+
   /// Put [path] at the front of the recent projects, once.
   void rememberProject(String path) {
     final list = recentProjects()..removeWhere((p) => p.toLowerCase() == path.toLowerCase());

@@ -118,6 +118,8 @@ const keyTable = [
       ('Right click,Ctrl+click', 'checkbox: next mark'),
       ('Ctrl+click', 'task: open its file in nvim-qt'),
       ('Back', 'the previous place: a task link or a mode switch'),
+      ('Drag a rail icon', 'reorder the modes; the order is remembered'),
+      ('Right click a rail icon', 'hide that mode; Settings shows it again'),
     ],
   ),
 ];

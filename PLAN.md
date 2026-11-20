@@ -792,14 +792,26 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
   - hovering an icon or label shows a brief explanation of the mode,
     like an HTML `title` tooltip.
 - one icon per mode, top to bottom (Alt+1 … Alt+9): Pull request, Changes, Add and Ignore, History, Tasks, Repos, Settings, Log, Help
+  - the order is the user's: drag an icon up or down the rail; it is saved in the state file and the
+    next start uses it
+  - right-click an icon to hide that mode; it leaves the rail, and Alt+1..9, Alt+[ / Alt+] and the
+    wheel skip it
+  - at least one mode stays visible; Settings lists the hidden modes and puts one back in the place
+    it was dragged to
+  - the saved arrangement is names, not ids: at startup a name that no longer exists (a mode was
+    renamed or removed) is dropped, a mode added since the save comes last, duplicates go, and a
+    hidden set that would hide every mode is forgotten; the repaired state is written back
   - History and Log show a short "not built yet" note until their views arrive
 - Help lists every key the app has; it works without a connection too
   - the key groups fill the pane in columns about 360 px wide, as many as the width allows,
     so every key fits on one screen; the groups keep their order and the columns even out in height
-  - a narrow pane gets fewer columns and scrolls
-  - a Mouse group lists what the clicks, the wheel, the middle button and the back button do
-    (Shift+wheel, middle click, click, right click and Ctrl+click on a checkbox, Ctrl+click on a
-    task, the back button's previous place)
+  - a narrow pane gets fewer columns; a column never goes below 250 px, and below that the right
+    edge is clipped
+  - a window resize freezes the table, scales it uniformly to the new width, and reflows once
+    150 ms after the last width change; descriptions are one line while resizing and wrap at rest
+  - a Mouse group lists what the clicks, the wheel, the middle button, the back button and the rail
+    drags do (Shift+wheel, middle click, click, right click and Ctrl+click on a checkbox,
+    Ctrl+click on a task, the back button's previous place, a dragged rail icon)
   - the text is selectable
   - each key row: the keys, then the description right after them; the key column is as wide as the
     group's widest key, so descriptions line up inside a group and sit close to their keys
@@ -1361,6 +1373,8 @@ keyboard J/K/Enter/Esc/C and /.
   button)
 - CRAWL: how many levels below its start folder the crawl looks for repositories, 1 to 12 (default 5,
   see Repos); it applies to the next crawl
+- MODES: the modes hidden from the rail, in rail order; a click on a row puts that mode back in the
+  place it was dragged to. The rail's order itself is changed by dragging its icons (see the rail)
 <!-- }}} -->
 
 #### Repos mode (was Directories)

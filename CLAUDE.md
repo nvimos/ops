@@ -159,6 +159,9 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   from first: `NavScope.maybeOf(context)?.push(NavPlace(label, restore))`
   (`lib/ui/nav_history.dart`). The mouse's back button pops it in the shell. A restore must not
   record again (`record: false`), or back would ping-pong.
+- The rail's saved order and hidden set are mode **names**, not ids: drop names that are not in
+  `Mode.values`, append modes added since the save, dedupe, and never leave `visible` empty
+  (`RailState._repair`). A renamed mode starts at the end; a removed one disappears.
 - Diff views (Pull request, Changes): `v` toggles Unified and Split, `Z` steps Unified → Split →
   Merge (Merge only while a merge has conflicts; `DiffPrefs.cycleLayout`).
 - `Attempted to send a key down event when no keys are in keysPressed` (Alt Left, `repeat: true`)

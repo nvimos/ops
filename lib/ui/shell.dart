@@ -61,6 +61,48 @@ class _ShellState extends State<Shell> {
   /// Where the mouse's back button goes: the places jumps came from, newest last.
   final _history = NavHistory();
 
+  /// The rail's arrangement (order and hidden modes), from the local state file.
+  RailState? _rail;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_rail == null) {
+      final rail = RailState(SessionScope.read(context).prefs)..addListener(_onRailChanged);
+      _rail = rail;
+      // A saved state may hide the mode the app starts on (Pull request): show the nearest one.
+      if (!rail.visible.contains(_mode) && rail.visible.isNotEmpty) _mode = _nearestVisible(_mode, rail.visible);
+    }
+  }
+
+  /// The visible mode closest to [mode] in the full order, so hiding the shown mode does not jump
+  /// the user to the top of the rail.
+  Mode _nearestVisible(Mode mode, List<Mode> shown) {
+    final all = _rail?.order ?? Mode.values;
+    final at = all.indexOf(mode);
+    for (var i = at - 1; i >= 0; i--) {
+      if (shown.contains(all[i])) return all[i];
+    }
+    for (var i = at + 1; i < all.length; i++) {
+      if (shown.contains(all[i])) return all[i];
+    }
+    return shown.first;
+  }
+
+  /// The rail's arrangement changed (a drag, or a hide/show): show the rail again, and leave the
+  /// mode it holds if that one was just hidden.
+  void _onRailChanged() {
+    if (!mounted) return;
+    final shown = _shownModes;
+    if (!shown.contains(_mode)) {
+      if (shown.isNotEmpty) _setMode(_nearestVisible(_mode, shown), record: false);
+    } else {
+      setState(() {});
+    }
+  }
+
+  List<Mode> get _shownModes => _rail?.visible ?? Mode.values;
+
   /// A directory was named on the command line: its opening mode was shown once.
   bool _openedProject = false;
   final _tasksKey = GlobalKey<TasksViewState>();
@@ -111,6 +153,7 @@ class _ShellState extends State<Shell> {
     _prKeys.dispose();
     _focus.dispose();
     _railFocus.dispose();
+    _rail?.dispose();
     _pr?.dispose();
     _ws?.dispose();
     _dirs?.dispose();
@@ -159,6 +202,8 @@ class _ShellState extends State<Shell> {
 
   void _toggleRail() => setState(() => _expanded = !_expanded);
 
+  /// The rail's right-click menu: hide a mode; the listener shows another if it was the current one.
+  void _hideMode(Mode mode) => _rail?.hide(mode);
 
   /// Switch modes and give the keyboard to the new one (Tasks and Directories have their own keys).
   /// Shows [m]; [record] puts the mode being left on the back stack (a composite jump records the
@@ -214,10 +259,14 @@ class _ShellState extends State<Shell> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _pr?.openHead.value++);
   }
 
-  /// The next or previous mode, wrapping round. A step is not a place to go back to: four steps
-  /// would take four presses of the back button.
-  void _stepMode(int delta, {bool onRail = false}) =>
-      _setMode(Mode.values[(_mode.index + delta) % Mode.values.length], onRail: onRail, record: false);
+  /// The next or previous shown mode, wrapping round; hidden modes are skipped. A step is not a
+  /// place to go back to: four steps would take four presses of the back button.
+  void _stepMode(int delta, {bool onRail = false}) {
+    final shown = _shownModes;
+    if (shown.isEmpty) return;
+    final at = shown.indexOf(_mode);
+    _setMode(shown[at < 0 ? 0 : (at + delta) % shown.length], onRail: onRail, record: false);
+  }
 
   // Keys -----------------------------------------------------------------------------------------
 
@@ -276,8 +325,9 @@ class _ShellState extends State<Shell> {
   bool _altKey(LogicalKeyboardKey k) {
     if (k == LogicalKeyboardKey.bracketRight) return _run(() => _stepMode(1, onRail: true));
     if (k == LogicalKeyboardKey.bracketLeft) return _run(() => _stepMode(-1, onRail: true));
-    final i = _digits.indexOf(k);
-    return i >= 0 && _run(() => _setMode(Mode.values[i], onRail: true));
+    final i = _digits.indexOf(k), shown = _shownModes;
+    // Alt+1..9 follow the rail, not the enum: a hidden mode is skipped with the rest.
+    return i >= 0 && i < shown.length && _run(() => _setMode(shown[i], onRail: true));
   }
 
   bool get _inPr => _mode == Mode.pullRequest && _pr != null;
@@ -335,11 +385,11 @@ class _ShellState extends State<Shell> {
   }
 
   void _focusRail() {
-    setState(() => _railCursor = _mode.index + 1);
+    setState(() => _railCursor = _shownModes.indexOf(_mode) + 1);
     _railFocus.requestFocus();
   }
 
-  void _railMove(int dir) => setState(() => _railCursor = (_railCursor + dir).clamp(0, Mode.values.length));
+  void _railMove(int dir) => setState(() => _railCursor = (_railCursor + dir).clamp(0, _shownModes.length));
 
   /// Keys while the rail has the keyboard: Up / Down (k, j, w, s) move the cursor over the
   /// expand / collapse button and the modes; Enter, Right (l, d) or Space presses the button, or
@@ -352,7 +402,12 @@ class _ShellState extends State<Shell> {
     if (nav != null && nav.vertical) {
       _railMove(nav.delta);
     } else if (nav?.dir == NavDir.right || key == LogicalKeyboardKey.enter || e.character == ' ') {
-      _railCursor == 0 ? _toggleRail() : _setMode(Mode.values[_railCursor - 1]);
+      final shown = _shownModes;
+      if (_railCursor == 0 || shown.isEmpty) {
+        _toggleRail();
+      } else {
+        _setMode(shown[(_railCursor - 1).clamp(0, shown.length - 1)]);
+      }
     } else if (key == LogicalKeyboardKey.escape) {
       _focusMode(_mode);
     } else {
@@ -557,28 +612,39 @@ class _ShellState extends State<Shell> {
     );
   }
 
-  Widget _railAndModes(bool connected) => Row(
-    children: [
-      Focus(
-        focusNode: _railFocus,
-        onKeyEvent: _railKey,
-        child: ListenableBuilder(
-          listenable: Listenable.merge([SessionScope.read(context).diffPrefs, SessionScope.read(context).conflicts, _railFocus]),
-          builder: (context, _) => Listener(onPointerDown: _onRailPointerDown, child: ModeRail(
-            mode: _mode,
-            expanded: _expanded,
-            cursor: _railFocus.hasFocus && _railCursor > 0 ? Mode.values[_railCursor - 1] : null,
-            toggleCursor: _railFocus.hasFocus && _railCursor == 0,
-            onSelect: _setMode,
-            onStep: _stepMode,
-            onToggle: _toggleRail,
-          )),
+  Widget _railAndModes(bool connected) {
+    final shown = _shownModes;
+    return Row(
+      children: [
+        Focus(
+          focusNode: _railFocus,
+          onKeyEvent: _railKey,
+          child: ListenableBuilder(
+            listenable: Listenable.merge([SessionScope.read(context).diffPrefs, SessionScope.read(context).conflicts, _railFocus]),
+            builder: (context, _) => Listener(
+              onPointerDown: _onRailPointerDown,
+              child: ModeRail(
+                mode: _mode,
+                modes: shown,
+                expanded: _expanded,
+                cursor: _railFocus.hasFocus && _railCursor > 0 && shown.isNotEmpty
+                    ? shown[(_railCursor - 1).clamp(0, shown.length - 1)]
+                    : null,
+                toggleCursor: _railFocus.hasFocus && _railCursor == 0,
+                onSelect: _setMode,
+                onStep: _stepMode,
+                onToggle: _toggleRail,
+                onReorder: _rail?.reorderVisible,
+                onHide: _hideMode,
+              ),
+            ),
+          ),
         ),
-      ),
-      const VerticalDivider(width: 1),
-      Expanded(child: _content(connected)),
-    ],
-  );
+        const VerticalDivider(width: 1),
+        Expanded(child: _content(connected)),
+      ],
+    );
+  }
 
   Widget _help() => HelpView(key: _helpKey, onLeave: _focus.requestFocus);
 
@@ -616,7 +682,7 @@ class _ShellState extends State<Shell> {
       const ModePlaceholder(Mode.history),
       TasksView(key: _tasksKey, ws: _ws!, onReview: _review, onRail: _focusRail),
       DirsView(key: _dirsKey, state: _dirs!, onRail: _focusRail, onOpen: _openProject),
-      SettingsView(key: _settingsKey, state: _settings!, onRail: _focusRail),
+      SettingsView(key: _settingsKey, state: _settings!, layout: _rail, onRail: _focusRail),
       LogView(log: _log!),
       _help(),
     ];

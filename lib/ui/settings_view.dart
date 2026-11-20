@@ -7,6 +7,7 @@ import '../local/terminals.dart';
 import '../state/prefs.dart' show Settings;
 import '../state/settings.dart';
 import 'error_view.dart';
+import 'mode_rail.dart' show Mode, ModeText, RailState;
 import 'nav_keys.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -14,9 +15,12 @@ import 'widgets.dart';
 /// The Settings mode: the editor files open in, the terminal and folder opener of the Repos rows,
 /// and how deep the crawl goes. Page: owns the keys; [SettingsState] does the work.
 class SettingsView extends StatefulWidget {
-  const SettingsView({super.key, required this.state, this.onRail});
+  const SettingsView({super.key, required this.state, this.layout, this.onRail});
 
   final SettingsState state;
+
+  /// The rail's order and hidden modes; the shell's instance, so a show updates the rail at once.
+  final RailState? layout;
 
   /// Gives the keyboard to the mode rail (Left, Tab round the cycle).
   final VoidCallback? onRail;
@@ -31,6 +35,9 @@ class SettingsViewState extends State<SettingsView> {
 
   SettingsState get st => widget.state;
 
+  /// On its own (tests) the view makes a state from the same prefs; the shell passes its own.
+  late final RailState _layout = widget.layout ?? RailState(st.session.prefs);
+
   @override
   void initState() {
     super.initState();
@@ -41,6 +48,8 @@ class SettingsViewState extends State<SettingsView> {
   void dispose() {
     focus.dispose();
     _command.dispose();
+    // Only the state the view made itself; the shell's belongs to the shell.
+    if (widget.layout == null) _layout.dispose();
     super.dispose();
   }
 
@@ -70,7 +79,7 @@ class SettingsViewState extends State<SettingsView> {
     focusNode: focus,
     onKeyEvent: _onKey,
     child: ListenableBuilder(
-      listenable: st,
+      listenable: Listenable.merge([st, _layout]),
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -128,6 +137,12 @@ class SettingsViewState extends State<SettingsView> {
       ),
       const _Section('CRAWL', 'How many levels below its start folder the crawl looks for repositories.'),
       _Depth(depth: st.scanDepth, onChange: st.setScanDepth),
+      const _Section('MODES', 'Drag the rail icons to reorder them; right-click one to hide it.'),
+      if (_layout.hidden.isEmpty)
+        const _Note('No mode is hidden.')
+      else
+        for (final m in _layout.order.where(_layout.hidden.contains))
+          _HiddenMode(mode: m, onShow: () => _layout.show(m)),
     ],
   );
 
@@ -160,6 +175,32 @@ class _Note extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4), child: Text(text, style: T.small));
+}
+
+/// A hidden mode in Settings: the icon and the name, and a click anywhere shows it again on the rail.
+class _HiddenMode extends StatelessWidget {
+  const _HiddenMode({required this.mode, required this.onShow});
+
+  final Mode mode;
+  final VoidCallback onShow;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: 'Put ${mode.label} back on the rail',
+    child: HoverRow(
+      onTap: onShow,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+      child: Row(
+        children: [
+          Icon(mode.icon, size: 15, color: C.muted),
+          const SizedBox(width: 8),
+          Text(mode.label, style: T.body),
+          const Spacer(),
+          Text('Show', style: T.small.copyWith(color: C.accent)),
+        ],
+      ),
+    ),
+  );
 }
 
 /// A radio row: a mark, a label and a hint line.
