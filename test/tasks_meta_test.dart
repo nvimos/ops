@@ -37,9 +37,15 @@ void main() {
     // OpenSpec holds only the changes that need a design (2026-11-11); the rest is Backlog.md.
     expect(changes.length, greaterThan(3));
     for (final c in changes) {
-      expect(c.taskId, startsWith('TASK-'), reason: c.dir);
-      expect(c.checkGroups, isNotEmpty, reason: c.dir);
+      // A change starts on its own; only the ones that have a task name one. A one-off proposal
+      // (merge-beside-checkout) has no tasks.md, so no check groups either; one with a tasks.md
+      // must parse to some.
+      if (c.taskId != null) expect(c.taskId, startsWith('TASK-'), reason: c.dir);
+      if (files.containsKey('${c.dir}/tasks.md')) {
+        expect(c.checkGroups, isNotEmpty, reason: '${c.dir}: its tasks.md has checks');
+      }
     }
+    expect(changes.where((c) => c.checkGroups.isNotEmpty), isNotEmpty, reason: 'checks parse at all');
     expect(changes.where((c) => c.archived), isNotEmpty);
     expect(changes.where((c) => c.deltas.isNotEmpty), isNotEmpty);
   }, skip: skip);

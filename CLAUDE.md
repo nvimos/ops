@@ -47,9 +47,6 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 - `make test` runs 4 files at a time (`TEST_CONCURRENCY ?= 4`, 2026-11-19). The Neovim tests
   `pr_state_test` "Down past the last file…" and `status_store_test` ("connection closed") failed
   at 4 and passed one at a time; rerun them with `--concurrency=1` before treating them as regressions.
-- `tasks_meta_test` "every OpenSpec change parses and names its task" fails while
-  `nvimos-meta/openspec/changes/kanban-board-mode` has no backlog task (open: give it a task or let
-  the test allow proposals without one).
 - A test that needs another platform uses `variant: TargetPlatformVariant.only(TargetPlatform.windows)`,
   not `debugDefaultTargetPlatformOverride` with `addTearDown`: the tear-down runs after Flutter's
   check that debug variables are reset, so the test fails.
