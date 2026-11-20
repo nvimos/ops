@@ -111,7 +111,11 @@ void main() {
     await mount(t);
     expect(find.byIcon(Icons.add), findsNWidgets(3), reason: 'the changed row and the two untracked ones');
     expect(find.byIcon(Icons.remove), findsNWidgets(2), reason: 'the staged row and the changed one');
-    expect(find.byIcon(Icons.visibility_off_outlined), findsNWidgets(2), reason: 'the eye on the untracked rows');
+    expect(
+      find.byIcon(Icons.visibility_off_outlined),
+      findsNWidgets(4),
+      reason: 'the eye on every row but the conflict: the staged, changed and two untracked ones',
+    );
     expect(find.byIcon(Icons.delete_outline), findsNothing, reason: 'delete lives in the right-click menu');
   });
 

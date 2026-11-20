@@ -347,19 +347,38 @@ class AddIgnoreState extends ChangeNotifier {
 
   /// Write a literal ignore rule for each untracked selected row into [target], through the
   /// backend. Tracked rows stay: a rule does not untrack.
-  Future<ActionResult> ignoreSelected(IgnoreFileRef target) async {
-    final rows = actionRows.where((row) => row.untracked).toList();
+  Future<ActionResult> ignoreSelected(IgnoreFileRef target) => _ignoreRows(target, untrack: false);
+
+  /// The row's eye: [ignoreSelected] for every selected row, and a tracked one is stopped as well
+  /// (`git rm --cached`; the file stays on disk), so it leaves the list - an untracked row at once,
+  /// a tracked one as a staged deletion until the commit that stops tracking it.
+  Future<ActionResult> ignoreAndUntrackSelected(IgnoreFileRef target) => _ignoreRows(target, untrack: true);
+
+  Future<ActionResult> _ignoreRows(IgnoreFileRef target, {required bool untrack}) async {
+    final rows = actionRows.where((row) => row.untracked || (untrack && !row.conflicted)).toList();
     if (rows.isEmpty) return const ActionResult('ignore', 'nothing to ignore');
+    final tracked = untrack ? {for (final row in rows) if (!row.untracked) row.path}.toList() : const <String>[];
+    final r = tracked.isEmpty ? null : await ensureRepo();
+    if (tracked.isNotEmpty && r == null) {
+      return const ActionResult('ignore', 'untracking a tracked row needs a local repository');
+    }
     final paths = rows.map((row) => row.path).toSet().toList();
     final before = store.status?.files ?? const <StatusFile>[];
     var appends = const <IgnoreAppend>[];
     final result = await actions.run(
       'ignore',
-      (b) async => appends = await b.appendIgnoreLines(target, paths),
+      (b) async {
+        appends = await b.appendIgnoreLines(target, paths);
+        // The rule first, then the untrack, so the file stops showing as tracked and starts to be
+        // ignored in the same trip; `git rm --cached` leaves the file where it is.
+        if (tracked.isNotEmpty) await r!.untrack(tracked);
+      },
       predict: (files) => [for (final file in files) if (!paths.contains(file.path)) file],
       settled: () async => _noteWrite(target, paths, appends),
-      origin: 'Add and Ignore.ignore -> RepoBackend.appendIgnoreLines',
-      command: '${_targetName(target)} += ${paths.length} rule(s)',
+      origin: 'Add and Ignore.ignore -> RepoBackend.appendIgnoreLines, Repo.untrack',
+      command: tracked.isEmpty
+          ? '${_targetName(target)} += ${paths.length} rule(s)'
+          : '${_targetName(target)} += ${paths.length} rule(s), git rm --cached -- ${tracked.take(8).join(' ')}',
       changed: paths.length,
     );
     lastIgnoreEffect = IgnoreEffect.between(before, store.status?.files ?? const <StatusFile>[]);

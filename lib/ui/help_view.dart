@@ -86,7 +86,7 @@ const keyTable = [
     'Add and Ignore',
     [
       ('t  u', 'add or untrack the highlighted'),
-      ('i  I', 'ignore: dialog, or at once'),
+      ('i  I', 'ignore: dialog, or at once (a tracked row is untracked too)'),
       ('x  p  v  r', 'delete; the side pane: ignore panes or preview; reload'),
       ('Space  Ctrl+A', 'highlight the row, every row'),
     ],

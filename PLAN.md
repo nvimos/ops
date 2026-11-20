@@ -1280,9 +1280,11 @@ keyboard J/K/Enter/Esc/C and /.
   `muted` with its trailing slash, the row's buttons, then the base name
   - a folder too long for its column (a wide side pane) loses its start, not its end:
     `…ui/widgets/`, so the part next to the base name stays (`fitTail`, `path_cells.dart`)
-  - the buttons sit in a fixed 42 px slot and are always there — add (`+`) or untrack (`−`), and for
-    an untracked row the eye that ignores it (`I`, the literal path into the project `.gitignore`) — so
-    the name column is the same on every row; there are no hover-only buttons
+  - the buttons sit in a fixed 63 px slot and are always there — add (`+`) or untrack (`−`), then the
+    eye that ignores the row (`I`): the literal path into the project `.gitignore`, and for a tracked
+    row `git rm --cached` as well, since a rule alone does not untrack (the file stays on disk; the
+    row leaves the list as a staged deletion until that commit) — so the name column is the same on
+    every row; there are no hover-only buttons
   - a directory's base name is amber (`C.folder`) and keeps its trailing slash, so it reads as a
     folder
   - a section heading reads `Staged (3)` in `T.section`, at the bottom of its 28 px strip

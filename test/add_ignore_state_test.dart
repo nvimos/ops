@@ -78,6 +78,33 @@ void main() {
     expect(removed.single, endsWith('tracked.txt'));
   });
 
+  test('the eye ignores a tracked row and stops tracking it, the file staying on disk', () async {
+    final temp = await TempRepo.make();
+    await temp.write('tracked.txt', 'one\n');
+    await temp.git(['add', 'tracked.txt']);
+    await temp.git(['commit', '-q', '-m', 'tracked']);
+    await temp.write('tracked.txt', 'two\n');
+
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+    final session = Session()..backend = backend;
+    final state = AddIgnoreState(session);
+    addTearDown(state.dispose);
+    await until(() => state.visible.any((row) => row.path == 'tracked.txt'));
+
+    state.click(state.visible.indexWhere((row) => row.path == 'tracked.txt'));
+    final result = await state.ignoreAndUntrackSelected(const IgnoreFileRef.gitignore('.gitignore'));
+    expect(result.error, isNull);
+
+    // The rule is written, the file is still there, and git no longer tracks it (the index holds
+    // the deletion until it is committed).
+    expect(await File('${temp.path}/.gitignore').readAsString(), contains('tracked.txt'));
+    expect(await File('${temp.path}/tracked.txt').readAsString(), 'two\n');
+    final listed = (await temp.git(['ls-files', '--', 'tracked.txt'])).stdout as String;
+    expect(listed.trim(), isEmpty);
+    await until(() => state.visible.any((row) => row.path == 'tracked.txt' && row.section == AddIgnoreSection.staged));
+  });
+
   test('a folder row keeps its trailing slash in the name and its folder apart', () {
     // The backend lists untracked files one by one, but a directory path (from either backend) ends
     // in a slash; its base name must not come out empty.

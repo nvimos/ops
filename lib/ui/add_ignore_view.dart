@@ -62,7 +62,7 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
     't': _add,
     'u': _untrack,
     'i': _ignoreDialog,
-    'I': _ignore,
+    'I': _hide,
     'p': () => _toggleSide(SideView.ignore),
     'v': () => _toggleSide(SideView.preview),
     'x': _delete,
@@ -238,8 +238,11 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
     }
   }
 
-  /// I: a rule for each untracked highlighted row into the project `.gitignore`, no questions.
-  Future<void> _ignore() async => _report(await st.ignoreSelected(const IgnoreFileRef.gitignore('.gitignore')));
+  /// The row's eye and `I`: ignore every highlighted row, and untrack the tracked ones too, so the
+  /// file leaves the list (the rule goes into the project `.gitignore`; the file itself stays on
+  /// disk).
+  Future<void> _hide() async =>
+      _report(await st.ignoreAndUntrackSelected(const IgnoreFileRef.gitignore('.gitignore')));
 
   /// Delete (the key or the menu): to the trash or for good, after asking only when Settings says so.
   Future<void> _delete() async {
@@ -522,7 +525,7 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
         onTap: _tap,
         onAdd: (i) => _rowAction(i, _add),
         onUntrack: (i) => _rowAction(i, _untrack),
-        onIgnore: (i) => _rowAction(i, _ignore),
+        onIgnore: (i) => _rowAction(i, _hide),
         onMenu: _menu,
       ),
     );
@@ -885,9 +888,9 @@ class AddIgnoreRowTile extends StatelessWidget {
   /// A right click, with where it happened.
   final ValueChanged<Offset> onMenu;
 
-  /// The room the row's buttons take (two 21 px icons: add or untrack, then ignore), so the name column
+  /// The room the row's buttons take (three 21 px icons: add, untrack, ignore), so the name column
   /// stays put whatever a row shows and whether the mouse is on it.
-  static const double actionsWidth = 42;
+  static const double actionsWidth = 63;
 
   @override
   Widget build(BuildContext context) {
@@ -919,8 +922,9 @@ class AddIgnoreRowTile extends StatelessWidget {
   }
 }
 
-/// The row's buttons, always there: add or untrack, and the eye that ignores an untracked path. Delete
-/// is in the right-click menu, as in Purrage.
+/// The row's buttons, always there: add or untrack, then the eye that ignores the row (and stops
+/// tracking it when it is tracked, so the file goes away). Delete is in the right-click menu, as in
+/// Purrage.
 class _Actions extends StatelessWidget {
   const _Actions({required this.row, required this.onAdd, required this.onUntrack, required this.onIgnore});
 
@@ -936,10 +940,13 @@ class _Actions extends StatelessWidget {
         if (!staged && !row.conflicted) IconAction(icon: Icons.add, tooltip: 'Add: stage the whole file (t)', onPressed: onAdd),
         if (row.section != AddIgnoreSection.untracked && !row.conflicted)
           IconAction(icon: Icons.remove, tooltip: 'Untrack: take it out of the index (u)', onPressed: onUntrack),
-        if (row.untracked)
+        if (!row.conflicted)
           IconAction(
             icon: Icons.visibility_off_outlined,
-            tooltip: 'Ignore: add the literal path to the project .gitignore (I; i or right-click to choose)',
+            tooltip: row.untracked
+                ? 'Ignore: add the literal path to the project .gitignore (I; i or right-click to choose)'
+                : 'Ignore and untrack: add the literal path to the project .gitignore and stop tracking it, '
+                      'so it leaves the list (I; i or right-click to choose)',
             onPressed: onIgnore,
           ),
       ],
