@@ -34,8 +34,8 @@ class TempRepo {
       }
     });
     await repo.git(['init', '-b', 'main']);
-    await repo.git(['config', 'user.email', 'test@example.com']);
-    await repo.git(['config', 'user.name', 'test']);
+    await repo.git(['config', 'user.email', 'testies@example.com']);
+    await repo.git(['config', 'user.name', 'Testies Cohones']);
     await repo.git(['config', 'core.fsmonitor', 'false']);
     // Files come back from git as the test wrote them: the GitHub Windows runner sets
     // core.autocrlf=true system-wide, and a checkout or restore there wrote CRLF.
@@ -55,8 +55,8 @@ class TempRepo {
     await dir.create(recursive: true);
     final repo = TempRepo._(dir);
     await repo.git(['init', '-q', '-b', 'main']);
-    await repo.git(['config', 'user.email', 'test@example.com']);
-    await repo.git(['config', 'user.name', 'test']);
+    await repo.git(['config', 'user.email', 'testies@example.com']);
+    await repo.git(['config', 'user.name', 'Testies Cohones']);
     await repo.git(['config', 'core.fsmonitor', 'false']);
     await repo.git(['config', 'core.autocrlf', 'false']);
     return repo;

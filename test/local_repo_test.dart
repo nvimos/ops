@@ -417,8 +417,8 @@ Future<Directory> _innerRepo(TempRepo temp, String relative) async {
   final inner = Directory('${temp.dir.path}/$relative');
   await inner.create(recursive: true);
   await _innerGit(inner, ['init', '-q', '-b', 'main']);
-  await _innerGit(inner, ['config', 'user.email', 'test@example.com']);
-  await _innerGit(inner, ['config', 'user.name', 'test']);
+  await _innerGit(inner, ['config', 'user.email', 'testies@example.com']);
+  await _innerGit(inner, ['config', 'user.name', 'Testies Cohones']);
   await _innerGit(inner, ['config', 'core.fsmonitor', 'false']);
   await _innerCommit(inner, 'one');
   return inner;

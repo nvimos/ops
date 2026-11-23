@@ -106,9 +106,9 @@ Future<String> git(Directory dir, List<String> args) async {
     '-c',
     'core.fsmonitor=false',
     '-c',
-    'user.name=Test',
+    'user.name=Testies Cohones',
     '-c',
-    'user.email=test@example.com',
+    'user.email=testies@example.com',
     '-c',
     'core.autocrlf=false',
     ...args,
@@ -121,7 +121,7 @@ Future<String> git(Directory dir, List<String> args) async {
 Future<Directory> makeRepo() async {
   final d = keepForCleanup(await Directory.systemTemp.createTemp('nvimos_repo_'));
   await git(d, ['init', '-q', '-b', 'main']);
-  for (final kv in {'user.name': 'Test', 'user.email': 'test@example.com', 'core.autocrlf': 'false', 'core.fsmonitor': 'false'}.entries) {
+  for (final kv in {'user.name': 'Testies Cohones', 'user.email': 'testies@example.com', 'core.autocrlf': 'false', 'core.fsmonitor': 'false'}.entries) {
     await git(d, ['config', kv.key, kv.value]);
   }
   await File('${d.path}/a.txt').writeAsString('one\ntwo\nthree\nfour\nfive\n');
