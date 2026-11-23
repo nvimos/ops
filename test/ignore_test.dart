@@ -16,6 +16,7 @@ import 'package:nvimos_poc/ui/theme.dart';
 
 import 'session_test.dart' show until;
 import 'support/nvim.dart';
+import 'support/tooltip_semantics.dart';
 
 /// A local session over a repository with untracked files in several folders.
 Future<(Session, AddIgnoreState, Directory)> localRepo() async {
@@ -356,6 +357,7 @@ void main() {
       findsNWidgets(2),
       reason: 'neither .gitignore is there yet; .git/info/exclude is',
     );
+    await expectTooltipsInSemantics(t);
 
     await t.tap(find.text('this extension'));
     await t.pump();
@@ -402,6 +404,7 @@ void main() {
     expect(find.text('src'), findsOneWidget);
     expect(find.text('# a comment'), findsOneWidget);
     expect(find.text('*.tmp'), findsOneWidget);
+    await expectTooltipsInSemantics(t);
 
     final mouse = await t.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);

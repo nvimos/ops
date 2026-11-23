@@ -9,6 +9,7 @@ import 'package:nvimos_poc/ui/dirs_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 
 import 'local_browser_test.dart' show BlockingLister, dir;
+import 'support/tooltip_semantics.dart';
 
 /// A state over fixed hints and a crawl in memory; picking is recorded, not run.
 class FixedRepos extends ReposState {
@@ -68,6 +69,7 @@ void main() {
     expect(find.text('a'), findsOneWidget);
     expect(find.text('b'), findsOneWidget);
     expect(t.widget<Text>(find.text('b')).style!.color, C.folder, reason: 'a directory name takes the folder amber');
+    await expectTooltipsInSemantics(t);
 
     await t.tap(find.text('b'));
     await t.pump();

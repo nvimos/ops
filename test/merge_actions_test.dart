@@ -5,6 +5,7 @@ import 'package:nvimos_poc/state/session.dart';
 import 'package:nvimos_poc/ui/pr_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 import 'package:nvimos_poc/ui/widgets.dart';
+import 'support/tooltip_semantics.dart';
 
 void main() {
   testWidgets('Swap (label column) and Merge (in line with the fields) are on the line between the pickers', (t) async {
@@ -36,5 +37,6 @@ void main() {
     expect(t.widget<SmallButton>(find.widgetWithText(SmallButton, 'merge')).onPressed, isNull); // no diff to merge
     pr.dispose();
     s.dispose();
+    await expectTooltipsInSemantics(t);
   });
 }

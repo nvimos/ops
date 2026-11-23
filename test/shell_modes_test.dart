@@ -39,6 +39,32 @@ void main() {
     expect(rail(t).mode, Mode.history, reason: 'the step skips the hidden mode too');
   });
 
+  testWidgets('a mode switch dismisses a shown tooltip of the mode it leaves', (t) async {
+    final s = Session(port: 1);
+    addTearDown(s.dispose);
+    await t.pumpWidget(shell(s));
+    await t.pump();
+    rail(t).onSelect(Mode.settings); // a mode with tooltips while not connected
+    await t.pump();
+
+    // A tooltip inside the shown mode, not in the rail (the rail stays on screen).
+    final inMode = find.byType(Tooltip).evaluate().where((e) => e.findAncestorWidgetOfExactType<ModeRail>() == null);
+    expect(inMode, isNotEmpty);
+    final element = inMode.first as StatefulElement;
+    final message = (element.widget as Tooltip).message!;
+    (element.state as TooltipState).ensureTooltipVisible();
+    await t.pump(const Duration(milliseconds: 200));
+    expect(find.text(message), findsOneWidget, reason: 'the bubble shows');
+
+    await alt(t, LogicalKeyboardKey.digit1);
+    expect(rail(t).mode, Mode.pullRequest);
+    expect(
+      find.text(message, skipOffstage: false),
+      findsNothing,
+      reason: "the bubble went with its mode: left behind, its semantics node can lose its parent",
+    );
+  });
+
   testWidgets('hiding the shown mode goes to its nearest visible neighbour', (t) async {
     final s = Session(port: 1);
     addTearDown(s.dispose);

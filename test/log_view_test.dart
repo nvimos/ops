@@ -4,6 +4,7 @@ import 'package:nvimos_poc/local/browser.dart';
 import 'package:nvimos_poc/state/log_state.dart';
 import 'package:nvimos_poc/state/session.dart';
 import 'package:nvimos_poc/ui/log_view.dart';
+import 'support/tooltip_semantics.dart';
 
 void main() {
   testWidgets('a log row opens to its detail', (tester) async {
@@ -26,5 +27,6 @@ void main() {
     await tester.tap(find.textContaining('scanned C:/fake'));
     await tester.pump();
     expect(find.textContaining('origin: RepoBrowser.scan'), findsOneWidget);
+    await expectTooltipsInSemantics(tester);
   });
 }

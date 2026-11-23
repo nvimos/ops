@@ -6,6 +6,7 @@ import 'package:nvimos_poc/ui/file_tree.dart';
 import 'package:nvimos_poc/ui/pr_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 import 'package:nvimos_poc/ui/widgets.dart';
+import 'support/tooltip_semantics.dart';
 
 void main() {
   testWidgets('the branch drop-down stays closed when the keys land in the picker; typing opens it', (t) async {
@@ -43,6 +44,7 @@ void main() {
     expect(find.text('main'), findsNothing); // filtered
     await t.pump(const Duration(seconds: 1)); // let the auto-pick timer run out
     focus.dispose();
+    await expectTooltipsInSemantics(t);
   });
 
   testWidgets('a click on the picker opens the list of all branches, another click closes it', (t) async {

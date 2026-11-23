@@ -13,6 +13,8 @@ import 'package:nvimos_poc/ui/preview_pane.dart';
 import 'package:nvimos_poc/ui/side_pane.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 
+import 'support/tooltip_semantics.dart';
+
 Map<String, Object?> file(String path, {String index = ' ', String worktree = ' ', String kind = ''}) => {
   'path': path,
   'index': index,
@@ -96,6 +98,11 @@ void main() {
       expect(find.text(n), findsOneWidget);
     }
     expect(find.text('5'), findsOneWidget, reason: 'the header counts the rows');
+  });
+
+  testWidgets('every tooltip bubble is in the semantics tree', (t) async {
+    await mount(t);
+    await expectTooltipsInSemantics(t);
   });
 
   testWidgets('a right click on a row opens its menu: Open, Ignore…, Delete', (t) async {

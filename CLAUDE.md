@@ -107,6 +107,23 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   Windows accessibility bridge rejected (`Failed to update ui::AXTree, error: 144 will not be in the
   tree and is not the new root`, hundreds per run). Fix added 2026-11-19, not yet confirmed by a
   mode-switching run.
+- The same error from a shown tooltip has another cause (2026-11-20, OpenSpec change
+  `ops-tooltip-semantics`). A tooltip's bubble lives in the root overlay; Flutter grafts its
+  semantics node under the tooltip's owner (`OverlayPortal`, `traversalParentIdentifier`). When two
+  overlay portals (two tooltips in one tappable row, a tooltip and a menu) merge into one semantics
+  node, only the first identifier survives (`SemanticsConfiguration.absorb`). The other bubble has
+  no parent and is still sent, on every frame of its fade.
+  - the id in the message is the next free one, not a place; it is gone from the tree by the time
+    you dump it
+  - fix: give the tooltip its own node, `Semantics(container: true)` around it
+  - the same orphan comes from a mode switch while a tooltip shows: the bubble is outside the
+    mode's `ExcludeSemantics` and the offstage `IndexedStack` child, the owner's node goes and the
+    bubble stays (`Tooltip.dismissAllToolTips()` on the switch clears it in the same frame), and
+    from an open `RawAutocomplete` list under a field wrapped in a `Tooltip`
+  - a view test calls `expectTooltipsInSemantics(t)` (`test/support/tooltip_semantics.dart`): it
+    shows every tooltip and fails on an orphan overlay node
+  - a bubble node has no label (the message is the owner's `tooltip` property): find orphans by
+    `traversalChildIdentifier`, not by text
 - Errors: `Session.run` returns the full error text (with Neovim's trace). Show a failed load
   with `ErrorPane` in place of the view, a failed action with `showActionError` (short snackbar,
   Details opens the selectable trace).

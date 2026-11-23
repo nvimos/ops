@@ -12,6 +12,7 @@ import 'package:nvimos_poc/ui/settings_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 
 import 'support/fake_system.dart';
+import 'support/tooltip_semantics.dart';
 
 /// A machine with VS Code and Windows Terminal on PATH and nothing else.
 ({Session session, Prefs prefs, FakeRunner runner, SettingsState state, Editors editors}) setUpSettings() {
@@ -155,5 +156,6 @@ void main() {
     await t.pump();
     expect(m.state.confirmDelete, isTrue);
     expect(m.prefs.flag(Settings.confirmDeleteFlag, fallback: false), isTrue);
+    await expectTooltipsInSemantics(t);
   });
 }

@@ -6,6 +6,7 @@ import 'package:nvimos_poc/state/commit_template.dart';
 import 'package:nvimos_poc/ui/changes_view.dart';
 import 'package:nvimos_poc/ui/commit_message_dialog.dart';
 import 'package:nvimos_poc/ui/theme.dart';
+import 'support/tooltip_semantics.dart';
 
 Status status() => Status({
   'branch': 'main',
@@ -65,6 +66,9 @@ void main() {
     expect(find.byIcon(Icons.close), findsNothing);
     await t.tap(find.byIcon(Icons.open_in_full));
     expect(expanded, 1);
+    controller.text = 'wip'; // both buttons, both tooltips
+    await t.pump();
+    await expectTooltipsInSemantics(t);
     focus.dispose();
     controller.dispose();
   });

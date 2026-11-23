@@ -4,6 +4,7 @@ import 'package:nvimos_poc/state/prefs.dart' show BackendKind;
 import 'package:nvimos_poc/ui/nvim_logo.dart';
 import 'package:nvimos_poc/ui/status_bar.dart';
 import 'package:nvimos_poc/ui/theme.dart';
+import 'support/tooltip_semantics.dart';
 
 Widget _app(Widget child) => MaterialApp(theme: buildTheme(), home: Scaffold(body: Center(child: child)));
 
@@ -16,5 +17,6 @@ void main() {
     await t.pumpWidget(_app(const BackendIndicator(kind: BackendKind.nvim, connected: true)));
     expect(find.byType(NvimLogo), findsOneWidget);
     expect(find.byTooltip('Backend is nvim'), findsOneWidget);
+    await expectTooltipsInSemantics(t);
   });
 }

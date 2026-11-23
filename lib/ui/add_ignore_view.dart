@@ -698,10 +698,16 @@ class _SideTab extends StatelessWidget {
   final String tip;
   final VoidCallback onTap;
 
+  /// Its own semantics node: the two tabs' tooltips would merge into one parent node, which keeps
+  /// only the first tooltip's overlay link, and the other bubble would be an orphan node the Windows
+  /// accessibility bridge rejects (see `test/support/tooltip_semantics.dart`).
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tip,
-    child: SmallButton(label, icon: icon, primary: chosen, onPressed: onTap),
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    child: Tooltip(
+      message: tip,
+      child: SmallButton(label, icon: icon, primary: chosen, onPressed: onTap),
+    ),
   );
 }
 

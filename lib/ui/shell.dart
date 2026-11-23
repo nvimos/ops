@@ -220,6 +220,10 @@ class _ShellState extends State<Shell> {
     click?.mark('tap'); // mouse down -> onTap: a gesture that waits (a double tap) shows here
     click?.markPainted();
     UiTiming.instance.span('shell.setMode').markPainted(); // setState -> the new mode on screen
+    // A shown tooltip's bubble lives in the root overlay, outside the mode's ExcludeSemantics: once
+    // its mode is hidden the bubble's semantics node has no parent, and the Windows accessibility
+    // bridge rejects it on every frame. Dismissing removes the bubble in the same frame.
+    if (m != _mode) Tooltip.dismissAllToolTips();
     setState(() => _mode = m);
     WidgetsBinding.instance.addPostFrameCallback((_) => onRail ? _focusRail() : _focusMode(m));
   }

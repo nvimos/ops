@@ -11,6 +11,7 @@ import 'package:nvimos_poc/ui/widgets.dart';
 
 import 'session_test.dart' show until;
 import 'support/nvim.dart';
+import 'support/tooltip_semantics.dart';
 import 'workspace_test.dart' show planRepo;
 
 /// Clicks through every Tasks screen on a real planning repo; a guard for UI refactors.
@@ -63,6 +64,7 @@ void main() {
     final area = find.ancestor(of: find.byType(PanelHeader), matching: find.byType(SelectionArea));
     expect(area, findsOneWidget);
     expect(find.descendant(of: area, matching: find.textContaining('try it', findRichText: true)), findsWidgets);
+    await expectTooltipsInSemantics(t); // the list rows and the detail panel
 
     // Widen: the panel doubles over the list (the list keeps its width), and narrows again.
     double panelWidth() => t.getSize(find.byType(DetailPanel)).width;
