@@ -31,6 +31,35 @@ void main() {
     expect(seen.last, 5, reason: 'the five oldest fell off');
   });
 
+  test('forward repeats a jump back undid, like a browser; a new jump drops the forward trail', () {
+    final history = NavHistory();
+    final seen = <String>[];
+    NavPlace place(String name) => NavPlace(name, () => seen.add(name));
+    history.push(place('a'), to: place('b'));
+    history.push(place('b'), to: place('c'));
+    expect(history.canGoForward, isFalse);
+
+    history.back();
+    history.back();
+    expect(seen, ['b', 'a']);
+    expect(history.forwardLabel, 'b');
+    expect(history.forward(), isTrue);
+    expect(history.forward(), isTrue);
+    expect(seen, ['b', 'a', 'b', 'c']);
+    expect(history.forward(), isFalse);
+
+    history.back();
+    history.push(place('b'), to: place('d'));
+    expect(history.canGoForward, isFalse, reason: 'a new jump: no forward to c');
+    expect(history.label, 'b');
+  });
+
+  test('a back-only jump (no destination) gives no forward', () {
+    final history = NavHistory()..push(NavPlace('a', () {}));
+    history.back();
+    expect(history.canGoForward, isFalse);
+  });
+
   test('clear empties the stack', () {
     final history = NavHistory()..push(NavPlace('somewhere', () {}));
     history.clear();

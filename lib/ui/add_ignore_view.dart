@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:ops_html/ops_html.dart' show htmlBuiltIn;
+import 'package:ops_markdown/ops_markdown.dart' show markdownBuiltIn;
 
 import '../state/action_queue.dart';
 import '../state/add_ignore.dart';
@@ -8,12 +10,14 @@ import '../local/file_manager.dart';
 import '../state/ignore_pane.dart';
 import '../state/prefs.dart';
 import '../state/preview.dart';
+import '../state/preview_links.dart';
 import '../timing/ui_timing.dart';
 import 'confirm_dialog.dart';
 import 'error_view.dart';
 import 'ignore_dialog.dart';
 import 'ignore_pane.dart';
 import 'key_sequence.dart';
+import 'nav_history.dart';
 import 'nav_keys.dart';
 import 'path_cells.dart';
 import 'preview_pane.dart';
@@ -226,8 +230,53 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
     final key = paths.join('|');
     if (key == _previewKey) return;
     _previewKey = key;
-    final p = _preview ??= PreviewState(root: () => st.session.repo?.root ?? '.')..renderPdf = st.session.prefs.flag('previewPdf', fallback: false);
-    p.load(paths);
+    _previewState.load(paths);
+  }
+
+  /// The preview's state, made when the pane first shows; PDF pages and the Rendered / Text view as
+  /// set, and the document kinds this build renders.
+  PreviewState get _previewState => _preview ??= PreviewState(
+    root: () => st.session.repo?.root ?? '.',
+    renderable: {if (markdownBuiltIn) DocKind.markdown, if (htmlBuiltIn) DocKind.html},
+  )
+    ..renderPdf = st.session.prefs.flag('previewPdf', fallback: false)
+    ..rendered = st.session.prefs.flag(_renderedPref, fallback: true);
+
+  static const _renderedPref = 'previewRendered';
+
+  /// The preview's Rendered / Text switch; remembered for the next file and the next start.
+  void _pickDocumentView(bool rendered) {
+    _previewState.rendered = rendered;
+    st.session.prefs.setFlag(_renderedPref, rendered);
+  }
+
+  /// A link in a rendered document: another markdown or HTML file shows in the preview (the mouse's
+  /// back and forward buttons walk the trail), a web address goes to the system, any other file opens.
+  void _followLink(String href, String from) {
+    final link = resolveLink(href, from: from, root: st.session.repo?.root ?? '.');
+    switch (link) {
+      case null:
+        return;
+      case WebLink(:final url):
+        _openUrl(url);
+      case FileLink(:final path):
+        _launch(path);
+      case DocumentLink(:final path):
+        final before = _previewState.paths;
+        NavScope.maybeOf(context)?.push(
+          NavPlace('Back to ${before.join(', ')}', () => _previewState.load(before)),
+          to: NavPlace('Forward to $path', () => _previewState.load([path])),
+        );
+        _previewState.load([path]);
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    try {
+      await FileManager().openUrl(url);
+    } on FileManagerException catch (e) {
+      if (mounted) showActionError(context, '$e');
+    }
   }
 
   Future<void> _launch(String file, {bool program = false}) async {
@@ -480,9 +529,10 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
                 wheelStep: st.session.wheelStep,
               )
             : PreviewPane(
-                state: _preview ??= PreviewState(root: () => st.session.repo?.root ?? '.')
-                  ..renderPdf = st.session.prefs.flag('previewPdf', fallback: false),
+                state: _previewState,
                 onLaunch: _launch,
+                onLink: _followLink,
+                onRender: _pickDocumentView,
               ),
       ),
     ],

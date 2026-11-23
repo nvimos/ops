@@ -1,0 +1,13 @@
+name: ops_markdown
+description: "Rendered markdown for the preview pane, the real one: flutter_markdown_plus. The default; make configure markdown=off swaps in packages/ops_markdown_off."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_markdown_plus: ^1.0.12
+  markdown: ^7.3.1

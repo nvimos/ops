@@ -80,6 +80,25 @@ class PreviewImage extends PreviewItem {
   static const maxHeight = 360.0;
 }
 
+/// What kind of document a [PreviewDocument] is, so the pane picks its renderer.
+enum DocKind { markdown, html }
+
+/// A markdown or HTML document: drawn rendered, or as its numbered [lines] when the preview shows
+/// text. [path] is absolute; [text] is what was read (cut at [previewLimit]).
+class PreviewDocument extends PreviewItem {
+  const PreviewDocument(this.kind, this.path, this.text, this.lines, {this.cut = false});
+
+  final DocKind kind;
+  final String path;
+  final String text;
+
+  /// The file is longer than what was read; the rendered view says so under the document.
+  final bool cut;
+
+  /// The text view of the same file, as [TextAdapter] draws it (with its cut-off note).
+  final List<PreviewItem> lines;
+}
+
 /// What an adapter is given: the file's start and a way to ask its full size.
 class PreviewSource {
   PreviewSource({required this.path, required this.bytes, required this.readSize, this.renderPdf = false});

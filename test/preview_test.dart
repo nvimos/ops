@@ -44,6 +44,7 @@ List<String> described(PreviewState state) => [
           PreviewNote(:final text) => '($text)',
           PreviewPdf() => '[pages]',
           PreviewImage() => '[picture]',
+          PreviewDocument(:final kind, :final text) => '[${kind.name}] ${text.split('\n').first}',
           PreviewLaunch(:final text, :final program, :final facts) =>
             '[${program ? 'run' : 'open'}] $text${[for (final (label, value) in facts) ' | $label: $value'].join()}',
         },
@@ -54,6 +55,60 @@ void main() {
     final state = previewOf({'a.txt': text('one\ntwo\n')});
     await state.load([untracked('a.txt')]);
     expect(described(state), ['# a.txt', '1 one', '2 two']);
+  });
+
+  test('a markdown file is one rendered document, or its lines; the switch swaps lists, it reads nothing', () async {
+    var reads = 0;
+    final files = {'README.md': text('# Title\nbody\n'), 'a.txt': text('x')};
+    final state = PreviewState(
+      root: () => 'C:/repo',
+      read: (path, limit) async {
+        reads++;
+        return files[path.substring('C:/repo/'.length)]!;
+      },
+    );
+    await state.load(['README.md', 'a.txt']);
+    expect(state.hasDocument, isTrue);
+    expect(described(state), ['# README.md', '[markdown] # Title', '# a.txt', '1 x']);
+    final rendered = state.items;
+    var notices = 0;
+    state.addListener(() => notices++);
+
+    state.rendered = false;
+    expect(described(state), ['# README.md', '1 # Title', '2 body', '# a.txt', '1 x']);
+    expect(reads, 2, reason: 'nothing read again');
+    state.rendered = true;
+    expect(identical(state.items, rendered), isTrue, reason: 'the same list, not rebuilt');
+    expect(notices, 2);
+
+    await state.load(['a.txt']);
+    expect(state.hasDocument, isFalse);
+    expect(state.paths, ['a.txt']);
+  });
+
+  test('an absolute path loads as it is (a link outside the repo)', () async {
+    final state = PreviewState(root: () => 'C:/repo', read: (path, limit) async => text('# $path'));
+    await state.load(['D:/notes/x.md']);
+    expect(described(state), ['# D:/notes/x.md', '[markdown] # D:/notes/x.md']);
+  });
+
+  test('an HTML file gets Open (the browser) above the page, and its lines as text', () async {
+    final state = previewOf({'index.html': text('<h1>Hi</h1>\n<p>there</p>\n')});
+    await state.load(['index.html']);
+    expect(described(state), ['# index.html', '[open] web page, 25 bytes', '[html] <h1>Hi</h1>']);
+    state.rendered = false;
+    expect(described(state), ['# index.html', '[open] web page, 25 bytes', '1 <h1>Hi</h1>', '2 <p>there</p>']);
+  });
+
+  test('a document kind this build cannot render shows its lines in both views, and no switch', () async {
+    final state = PreviewState(
+      root: () => 'C:/repo',
+      read: (path, limit) async => text('<p>x</p>'),
+      renderable: const {DocKind.markdown},
+    );
+    await state.load(['a.html']);
+    expect(state.hasDocument, isFalse);
+    expect(described(state), ['# a.html', '[open] web page, 8 bytes', '1 <p>x</p>']);
   });
 
   test('several files go one under the other, in the order given', () async {

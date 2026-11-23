@@ -1,0 +1,13 @@
+name: ops_html
+description: "Rendered HTML for the preview pane, the real one: flutter_widget_from_html_core (no JavaScript, basic CSS). The default; make configure html=off swaps in packages/ops_html_off."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_widget_from_html_core: ^0.17.4
+  html: ^0.15.0

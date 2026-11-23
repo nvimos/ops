@@ -14,6 +14,7 @@ const List<PreviewAdapter> previewAdapters = [
   PdfPagesAdapter(),
   PdfAdapter(),
   ProgramAdapter(),
+  DocumentAdapter(),
   TextAdapter(),
   BinaryAdapter(),
 ];
@@ -42,13 +43,46 @@ class TextAdapter extends PreviewAdapter {
   bool accepts(PreviewSource source) => !source.head.contains(0);
 
   @override
-  Future<List<PreviewItem>> render(PreviewSource source) async {
-    final bytes = source.bytes;
-    final text = utf8.decode(source.cut ? Uint8List.sublistView(bytes, 0, previewLimit) : bytes, allowMalformed: true);
+  Future<List<PreviewItem>> render(PreviewSource source) async => linesOf(source, _text(source));
+
+  static List<PreviewItem> linesOf(PreviewSource source, String text) {
     final lines = const LineSplitter().convert(text);
     return [
       for (final (index, line) in lines.take(previewMaxLines).indexed) PreviewLine(index + 1, line),
       if (source.cut || lines.length > previewMaxLines) const PreviewNote('the rest of the file is not shown'),
+    ];
+  }
+}
+
+String _text(PreviewSource source) {
+  final bytes = source.bytes;
+  return utf8.decode(source.cut ? Uint8List.sublistView(bytes, 0, previewLimit) : bytes, allowMalformed: true);
+}
+
+/// A markdown or HTML file: one [PreviewDocument] that carries both the text to render and the
+/// numbered lines, so the Rendered / Text switch swaps views without reading the file again. An
+/// HTML file also gets the sentence with Open (the browser shows it as it really is).
+class DocumentAdapter extends PreviewAdapter {
+  const DocumentAdapter();
+
+  /// The document kind of [path] by its extension; null for any other file.
+  static DocKind? kindOf(String path) {
+    final name = path.toLowerCase();
+    if (name.endsWith('.md') || name.endsWith('.markdown')) return DocKind.markdown;
+    if (name.endsWith('.html') || name.endsWith('.htm')) return DocKind.html;
+    return null;
+  }
+
+  @override
+  bool accepts(PreviewSource source) => kindOf(source.path) != null && !source.head.contains(0);
+
+  @override
+  Future<List<PreviewItem>> render(PreviewSource source) async {
+    final kind = kindOf(source.path)!;
+    final text = _text(source);
+    return [
+      if (kind == DocKind.html) PreviewLaunch(source.path, 'web page, ${sizeText(await source.size())}'),
+      PreviewDocument(kind, source.path, text, TextAdapter.linesOf(source, text), cut: source.cut),
     ];
   }
 }

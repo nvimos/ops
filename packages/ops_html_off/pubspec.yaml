@@ -1,0 +1,11 @@
+name: ops_html
+description: "Rendered HTML for the preview pane, the stub: no HTML library. make configure html=on swaps in packages/ops_html_on."
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter

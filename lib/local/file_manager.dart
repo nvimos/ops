@@ -50,6 +50,23 @@ class FileManager {
     }
   }
 
+  /// The command that hands a web address to the system: its default browser (or mail app) opens it.
+  (String, List<String>) urlCommand(String url) {
+    if (env.isWindows) return ('explorer.exe', [url]);
+    if (env.isMacOS) return ('open', [url]);
+    return ('xdg-open', [url]);
+  }
+
+  /// Open [url] the way the system opens a link. Detached, like [launch].
+  Future<void> openUrl(String url) async {
+    final (exe, args) = urlCommand(url);
+    try {
+      await runner.startDetached(exe, args);
+    } on ProcessException catch (error) {
+      throw FileManagerException('Could not open $url with $exe: ${error.message}');
+    }
+  }
+
   /// Show [folder]. Detached: Explorer answers 1 even when it worked, and the
   /// window is the user's, not ours.
   Future<void> open(String folder) async {

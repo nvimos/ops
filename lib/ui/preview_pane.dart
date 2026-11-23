@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:ops_html/ops_html.dart';
+import 'package:ops_markdown/ops_markdown.dart';
 import 'package:ops_pdf/ops_pdf.dart';
 
 import '../state/preview.dart';
@@ -11,18 +13,35 @@ import 'widgets.dart';
 /// PDF's first pages, or a sentence (and an Open button) for what cannot be drawn. One selection area
 /// across all of it, so a drag can take lines from several files. [PreviewState] does the reading.
 class PreviewPane extends StatelessWidget {
-  const PreviewPane({super.key, required this.state, this.onLaunch});
+  const PreviewPane({super.key, required this.state, this.onLaunch, this.onLink, this.onRender});
 
   final PreviewState state;
 
   /// The Open button of a PDF, a picture or a program: the file, and whether it runs code.
   final void Function(String file, {bool program})? onLaunch;
 
+  /// A link tapped in a rendered document: its href (as written in markdown, resolved to a URL in
+  /// HTML), and the document's absolute path.
+  final void Function(String href, String from)? onLink;
+
+  /// The Rendered / Text switch: true for rendered documents.
+  final ValueChanged<bool>? onRender;
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const PaneHeader(title: Text('Preview')),
+      PaneHeader(
+        title: const Text('Preview'),
+        trailing: [
+          ListenableBuilder(
+            listenable: state,
+            builder: (context, _) => state.hasDocument
+                ? RenderedSwitch(rendered: state.rendered, onPick: onRender ?? (v) => state.rendered = v)
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
       Expanded(
         child: ListenableBuilder(
           listenable: state,
@@ -44,6 +63,8 @@ class PreviewPane extends StatelessWidget {
     PreviewNote(:final text) => _Note(text: text),
     PreviewPdf(:final path) => PdfPages(path: path, maxPages: PreviewPdf.maxPages, style: T.small),
     PreviewImage(:final path) => _Picture(path: path),
+    PreviewDocument(kind: DocKind.markdown, :final path, :final text) => _Markdown(path: path, text: text, onLink: onLink),
+    PreviewDocument(kind: DocKind.html, :final path, :final text) => _Html(path: path, text: text, onLink: onLink),
     PreviewLaunch(:final path, :final text, :final program, :final facts) => _Launch(
       text: text,
       facts: facts,
@@ -82,6 +103,83 @@ class _Line extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(child: Text(text.replaceAll('\t', '  '), maxLines: 1, overflow: TextOverflow.ellipsis, style: T.code)),
       ],
+    ),
+  );
+}
+
+/// Rendered / Text for the markdown and HTML files of the preview; sits in the pane's header.
+class RenderedSwitch extends StatelessWidget {
+  const RenderedSwitch({super.key, required this.rendered, required this.onPick});
+
+  final bool rendered;
+  final ValueChanged<bool> onPick;
+
+  static final _style = SegmentedButton.styleFrom(
+    visualDensity: VisualDensity.compact,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    textStyle: T.small,
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+  ).copyWith(mouseCursor: const WidgetStatePropertyAll(SystemMouseCursors.click));
+
+  @override
+  Widget build(BuildContext context) => SegmentedButton<bool>(
+    segments: const [
+      ButtonSegment(value: true, label: Text('Rendered'), tooltip: 'Show markdown and HTML files rendered'),
+      ButtonSegment(value: false, label: Text('Text'), tooltip: 'Show markdown and HTML files as their text'),
+    ],
+    selected: {rendered},
+    showSelectedIcon: false,
+    style: _style,
+    onSelectionChanged: (picked) => onPick(picked.first),
+  );
+}
+
+/// A markdown document, rendered; its links go to [onLink] with the document's path.
+class _Markdown extends StatelessWidget {
+  const _Markdown({required this.path, required this.text, this.onLink});
+
+  final String path;
+  final String text;
+  final void Function(String href, String from)? onLink;
+
+  static const _look = MarkdownLook(
+    body: T.body,
+    code: T.code,
+    link: C.accent,
+    muted: C.muted,
+    codeBackground: C.surface2,
+    rule: C.border,
+  );
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    child: MarkdownView(
+      data: text,
+      folder: File(path).parent.path,
+      look: _look,
+      onLink: (href) => onLink?.call(href, path),
+    ),
+  );
+}
+
+/// An HTML document, drawn without a browser (tags and basic CSS, no scripts); its links go to
+/// [onLink] with the document's path. The Open button above it shows the page in the browser.
+class _Html extends StatelessWidget {
+  const _Html({required this.path, required this.text, this.onLink});
+
+  final String path;
+  final String text;
+  final void Function(String href, String from)? onLink;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    child: HtmlView(
+      html: text,
+      folder: File(path).parent.path,
+      style: T.body,
+      onLink: (url) => onLink?.call(url, path),
     ),
   );
 }

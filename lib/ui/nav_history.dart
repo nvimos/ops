@@ -11,39 +11,69 @@ class NavPlace {
   final VoidCallback show;
 }
 
-/// The app's back stack. A jump pushes where the user was; the mouse's back button pops it.
+/// One jump: where the user came [from], and, when the jump can be repeated, where it went [to].
+class _Jump {
+  const _Jump(this.from, this.to);
+
+  final NavPlace from;
+  final NavPlace? to;
+}
+
+/// The app's back and forward stacks, like a browser's. A jump pushes where the user was; the
+/// mouse's back button returns there, and its forward button repeats the jump.
 ///
 /// A place is a restore, not a route: the modes stay alive, so going back puts the right mode and
 /// its task selection back without rebuilding anything from scratch. Notifies so the debug bar
-/// follows the stack live.
+/// follows the stacks live.
 class NavHistory extends ChangeNotifier {
   /// Deep enough for a session's trail; the oldest place falls off.
   static const maxDepth = 50;
 
-  final _back = <NavPlace>[];
+  final _back = <_Jump>[];
+  final _forward = <_Jump>[];
 
   bool get canGoBack => _back.isNotEmpty;
+  bool get canGoForward => _forward.isNotEmpty;
 
   /// What the back button would show; for the debug bar.
-  String? get label => _back.isEmpty ? null : _back.last.label;
+  String? get label => _back.isEmpty ? null : _back.last.from.label;
 
-  void push(NavPlace place) {
-    _back.add(place);
+  /// What the forward button would show.
+  String? get forwardLabel => _forward.isEmpty ? null : _forward.last.to!.label;
+
+  /// Record a jump away from [place]. With [to] (how to show where the jump went), back can be
+  /// undone with forward; without it the jump is back-only. A new jump drops the forward trail.
+  void push(NavPlace place, {NavPlace? to}) {
+    _back.add(_Jump(place, to));
     if (_back.length > maxDepth) _back.removeAt(0);
+    _forward.clear();
     notifyListeners();
   }
 
   /// Show the previous place; false when there is none.
   bool back() {
     if (_back.isEmpty) return false;
-    _back.removeLast().show();
+    final jump = _back.removeLast();
+    if (jump.to != null) _forward.add(jump);
+    jump.from.show();
+    notifyListeners();
+    return true;
+  }
+
+  /// Repeat the jump the last back undid; false when there is none.
+  bool forward() {
+    if (_forward.isEmpty) return false;
+    final jump = _forward.removeLast();
+    _back.add(jump);
+    jump.to!.show();
     notifyListeners();
     return true;
   }
 
   void clear() {
-    if (_back.isEmpty) return;
+    if (_back.isEmpty && _forward.isEmpty) return;
     _back.clear();
+    _forward.clear();
     notifyListeners();
   }
 }

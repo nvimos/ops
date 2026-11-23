@@ -126,7 +126,8 @@ Global
 | `.`                | widen or narrow the detail panel (Tasks)                |
 | `Shift`+wheel      | over a list: the cursor moves Settings' wheel step (5 rows by default) |
 | middle click       | over a list: the wheel steps the cursor one row (like Up / Down) or scrolls |
-| back button        | the previous place: a task link, a review, a mode switch |
+| back button        | the previous place: a task link, a review, a mode switch, a markdown link |
+| forward button     | redo the jump back undid (a markdown link in the preview) |
 | `Esc`              | leave the filter, close a panel, undo a narrowing       |
 
 Any list (files, commits, branches, dirs, tasks)
@@ -224,8 +225,9 @@ Repos
 Back
 
 - The mouse's back button (X1) goes to the previous place, as in a browser. A jump records where
-  the user was; the button pops one place at a time and does nothing when there is none. There is
-  no forward button.
+  the user was; the button pops one place at a time and does nothing when there is none.
+- The forward button (X2) redoes what back undid, for jumps that say how to show where they went
+  (a markdown link in the preview); the others are back-only. A new jump drops the forward trail.
 - A place is a restore, not a route: the modes stay alive, so going back shows the right mode with
   the selection, detail panel and scroll it had.
 - What records a place:
@@ -240,7 +242,8 @@ Back
     not four places to go back through
 - A restore may show a mode that is hidden now: hiding means "off the rail", not "cannot be shown";
   the place the user came from wins. A deliberate choice, not an oversight.
-- `ui/nav_history.dart`: `NavHistory` holds up to 50 `NavPlace`s (a label and a `show` restore);
+- `ui/nav_history.dart`: `NavHistory` holds up to 50 `NavPlace`s (a label and a `show` restore;
+  `push(from, to:)` adds the destination that forward shows);
   `NavScope` hands it to every view. The shell owns it, listens for the back button at the root, and
   every jump records once, through `_setMode` (`_review` records the review as one place).
 - A view that adds another kind of jump records a `NavPlace` with the state it leaves behind; the
@@ -1308,6 +1311,21 @@ keyboard J/K/Enter/Esc/C and /.
     and a later resize does not undo that choice
   - the preview reads the highlighted files once per change of the highlight, and only while it is
     the shown view (`renderPdf` from Settings decides whether PDF pages are drawn)
+  - a markdown file (`.md`, `.markdown`) is drawn rendered: headings, lists, tables, code, quotes;
+    the text stays selectable. A **Rendered / Text** switch in the pane's header (only while a
+    markdown file is shown) flips to the numbered lines; the choice is remembered
+    (`previewRendered`). Both views are built at load, so the switch reads nothing
+  - links in rendered markdown work like a small browser: another markdown file shows in the
+    preview (the mouse's back and forward buttons walk the trail), a web address goes to the
+    system's browser, any other local file opens like the Open button; a picture from the repo is
+    drawn, a web picture shows its alt text
+  - rendering is a build option, on by default: `make configure markdown=off` builds without it
+    (`packages/ops_markdown_off`), and the preview shows markdown as text without the switch
+  - an HTML file (`.html`, `.htm`) gets the sentence with **Open** (the browser shows the real
+    page) and, under it, the page drawn without a browser: tags and basic CSS, no JavaScript, no web
+    requests (a web picture shows its alt text). The same switch, the same links (an HTML page opens
+    in the preview, an in-page anchor does nothing). `make configure html=off` builds without it
+    (`packages/ops_html_off`, `flutter_widget_from_html_core` in `ops_html_on`)
   - neither view reads while the switch hides it: they mark themselves stale and load when shown
 - both modes sit on one status store and one action queue (`Session.store`, `Session.actions`), so
   an action in one shows in the other; each keeps only its cursor, selection and filter

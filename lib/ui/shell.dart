@@ -1,5 +1,5 @@
 import 'package:material_ui/material_ui.dart';
-import 'package:flutter/gestures.dart' show kBackMouseButton;
+import 'package:flutter/gestures.dart' show kBackMouseButton, kForwardMouseButton;
 import 'package:flutter/services.dart';
 
 import '../state/add_ignore.dart';
@@ -233,9 +233,11 @@ class _ShellState extends State<Shell> {
 
   void _onRailPointerDown(PointerDownEvent _) => _railClick = UiTiming.instance.span('shell.railClick');
 
-  /// The mouse's back button: show the previous place (a task link, a review, a mode switch).
+  /// The mouse's back button: show the previous place (a task link, a review, a mode switch, a
+  /// markdown link); its forward button repeats the jump back undid.
   void _onPointerDown(PointerDownEvent e) {
     if (e.buttons & kBackMouseButton != 0) _history.back();
+    if (e.buttons & kForwardMouseButton != 0) _history.forward();
   }
 
   void _openSettings() {

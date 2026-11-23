@@ -10,6 +10,7 @@ library;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' show isAbsolute;
 
 import 'preview_adapters.dart';
 import 'preview_items.dart';
@@ -40,6 +41,7 @@ class PreviewState extends ChangeNotifier {
     FileReader? read,
     FileSizer? size,
     this.adapters = previewAdapters,
+    this.renderable = const {DocKind.markdown, DocKind.html},
   })  : _read = read ?? readStart,
         _size = size ?? ((path) => File(path).length());
 
@@ -51,6 +53,10 @@ class PreviewState extends ChangeNotifier {
 
   /// The file types the pane knows, asked in order.
   final List<PreviewAdapter> adapters;
+
+  /// The document kinds this build can render (`make configure markdown=` / `html=`); a document
+  /// of another kind shows as its lines in both views.
+  final Set<DocKind> renderable;
 
   /// Draw a PDF's pages (a Settings choice); off shows a sentence and Open.
   bool renderPdf = false;
@@ -64,15 +70,34 @@ class PreviewState extends ChangeNotifier {
   /// At most this many files are shown at once.
   static const maxFiles = 20;
 
-  List<PreviewItem> _items = const [];
+  List<PreviewItem> _rendered = const [];
+  List<PreviewItem> _text = const [];
+  List<String> _paths = const [];
   int _generation = 0;
   bool _disposed = false;
 
-  /// The flat list the pane draws.
-  List<PreviewItem> get items => _items;
+  /// Documents (markdown, HTML) are drawn rendered; false shows their numbered lines. Both lists
+  /// are built at load, so flipping this swaps the list and reads nothing.
+  bool get rendered => _renderedView;
+  bool _renderedView = true;
+  set rendered(bool value) {
+    if (value == _renderedView) return;
+    _renderedView = value;
+    notifyListeners();
+  }
 
-  /// Show [paths]: each file, in the order given, one under the other. A load
-  /// that is overtaken by a newer one is dropped.
+  /// A document this build can render is shown, so the Rendered / Text switch means something.
+  bool get hasDocument => _hasDocument;
+  bool _hasDocument = false;
+
+  /// The flat list the pane draws.
+  List<PreviewItem> get items => _renderedView ? _rendered : _text;
+
+  /// The paths the last load showed, as given; a link's way back.
+  List<String> get paths => _paths;
+
+  /// Show [paths]: each file, in the order given, one under the other. A path is relative to [root],
+  /// or absolute (a followed link outside the repo). A load that is overtaken by a newer one is dropped.
   Future<void> load(List<String> paths) async {
     final generation = ++_generation;
     final shown = paths.take(maxFiles).toList();
@@ -86,14 +111,27 @@ class PreviewState extends ChangeNotifier {
     if (paths.length > maxFiles) {
       items.add(PreviewNote('${paths.length - maxFiles} more highlighted files are not shown'));
     }
-    _items = items;
+    _paths = List.unmodifiable(paths);
+    bool drawn(PreviewItem item) => item is PreviewDocument && renderable.contains(item.kind);
+    _rendered = [
+      for (final item in items)
+        if (drawn(item)) ...[
+          item,
+          if ((item as PreviewDocument).cut) const PreviewNote('the rest of the file is not shown'),
+        ] else if (item is PreviewDocument) ...item.lines else item,
+    ];
+    _text = [
+      for (final item in items)
+        if (item is PreviewDocument) ...item.lines else item,
+    ];
+    _hasDocument = items.any(drawn);
     notifyListeners();
   }
 
   Future<List<PreviewItem>> _of(String relative) async {
     if (relative.endsWith('/')) return const [PreviewNote('folder')];
     try {
-      final path = '${root()}/$relative';
+      final path = isAbsolute(relative) ? relative : '${root()}/$relative';
       final bytes = await _read(path, limit + 1);
       if (bytes.isEmpty) return const [PreviewNote('empty file')];
       final source = PreviewSource(path: path, bytes: bytes, readSize: () => _size(path), renderPdf: renderPdf);

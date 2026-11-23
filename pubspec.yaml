@@ -13,10 +13,18 @@ dependencies:
   re_highlight: ^0.0.3
   git: ^2.5.0
   path: ^1.9.1
-  # PDF pages in the preview: the stub by default (nothing native to build). `make pdf-on` writes
-  # pubspec_overrides.yaml (not in git) that points this at packages/ops_pdf_on, with pdfrx and PDFium.
+  # PDF pages in the preview: the stub by default (nothing native to build). `make configure pdf=on`
+  # writes pubspec_overrides.yaml (not in git) that points this at packages/ops_pdf_on, with pdfrx and PDFium.
   ops_pdf:
     path: packages/ops_pdf_off
+  # Rendered markdown in the preview (flutter_markdown_plus): on by default, it builds nothing native.
+  # `make configure markdown=off` points this at the stub, packages/ops_markdown_off.
+  ops_markdown:
+    path: packages/ops_markdown_on
+  # Rendered HTML in the preview (flutter_widget_from_html_core: tags and basic CSS, no JavaScript):
+  # on by default, pure Dart. `make configure html=off` points this at packages/ops_html_off.
+  ops_html:
+    path: packages/ops_html_on
 
 dev_dependencies:
   flutter_test:
