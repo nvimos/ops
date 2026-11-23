@@ -1,5 +1,5 @@
 name: ops_pdf
-description: "PDF pages for the preview pane, the real one: pdfrx with PDFium, which takes long to build. Used only after make pdf-on."
+description: "PDF pages for the preview pane, the real one: pdfrx with PDFium, which takes long to build. Used only after make configure pdf=on."
 publish_to: 'none'
 version: 0.1.0
 

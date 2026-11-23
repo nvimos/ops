@@ -9,7 +9,7 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 
 - Never wait on a hung test. Every run has a timeout at two levels:
   - per test: `dart_test.yaml` sets `timeout: 11s`, and `make test` passes
-    `--timeout $(TEST_TIMEOUT)` (Makefile, 11s; keep the two equal);
+    `--timeout $(test_timeout)` (Makefile, 11s; keep the two equal);
     a test that needs longer sets its own `timeout:` explicitly
   - per command: give the shell tool call a timeout of a few minutes, not the 10-minute maximum,
     and run one test file (`flutter test test/<file>.dart`) while iterating.
@@ -37,13 +37,14 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   - a run that was killed or crashed leaves things behind: remove them (the folders, the headless
     `nvim --clean` processes, the daemons) and don't leave them for the user.
 - The whole suite takes about 7-8 minutes (2026-11-20, 2 files at a time). `workspace_test.dart` "archive merges deltas" and `status_store_test` "two mode states…" are flaky (also before 2026-11-20); don't chase them as regressions.
-- Flutter: `C:/tools/flutter` (Makefile `FLUTTER_ROOT`), `PUB_CACHE=C:/tools/pub-cache`. Use only
+- Flutter: `C:/tools/flutter` (Makefile `flutter_root`; Makefile variables are lowercase, 2026-11-23, except the exported
+  `PUB_CACHE` and `CMAKE_BUILD_PARALLEL_LEVEL`), `PUB_CACHE=C:/tools/pub-cache`. Use only
   this SDK, also for a quick `pub get`, analyze or test. Never `H:/flutter` (an older checkout):
   running it rewrites `.dart_tool/package_config.json` to its framework, and the next hot reload of
   `make live` (built with `C:`) fails on framework/engine mismatches such as `SemanticsRole` not
   exhaustively matched (2026-11-19). Check `"flutterRoot"` in `package_config.json` if a reload
   breaks oddly; `C:/tools/flutter/bin/flutter pub get` repairs it.
-- `make test` runs 2 files at a time (`TEST_CONCURRENCY ?= 2`, 2026-11-20; `dart_test.yaml` says
+- `make test` runs 2 files at a time (`test_concurrency ?= 2`, 2026-11-20; `dart_test.yaml` says
   the same). The Neovim tests `pr_state_test` "Down past the last file…" and `status_store_test`
   ("two mode states…") failed at 4 and passed one at a time; rerun them with `--concurrency=1`
   before treating them as regressions.
@@ -251,17 +252,21 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
   every build slow. A Dart define can't drop a pubspec dependency, so the switch is a package swap:
   - `pubspec.yaml` depends on `ops_pdf` from `packages/ops_pdf_off` (a stub: a PDF shows its facts,
     the Open button and "PDF pages are not in this build")
-  - `make pdf-on` (`tool/pdf.ps1`) writes the git-ignored `pubspec_overrides.yaml`, which points
-    `ops_pdf` at `packages/ops_pdf_on` (pdfrx), and runs `pub get`; `make pdf-off` removes it,
-    `make pdf-status` says which one is active
-  - PDF is off locally, and `make release` turns it off before it builds (2026-11-19: the PDF
+  - `make configure pdf=on` (`tool/configure.ps1`, 2026-11-23) writes the git-ignored
+    `pubspec_overrides.yaml`, which points `ops_pdf` at `packages/ops_pdf_on` (pdfrx), and runs
+    `pub get`; `pdf=off` takes the override out, `make configure` alone prints the options
+  - every build option works this way: a package in an `_on` and an `_off` variant, `pubspec.yaml`
+    on the default one, a line in the option table of `tool/configure.ps1`; the overrides file is
+    the configuration, there is no other state
+  - `make release` configures `release_config` (PDF off) before it builds
+  - PDF is off by default, and `make release` turns it off before it builds (2026-11-19: the PDF
     build is not tested yet, and an untested one was shipped once); build with PDF on now and then
     to check it still compiles
   - while PDF is on, `pubspec.lock` shows as modified; commit the lock from the off state
   - `analysis_options.yaml` excludes `packages/ops_pdf_on` (its pdfrx import only resolves when on)
-- `BUILD_CONCURRENCY ?= 4` in the Makefile is exported as `CMAKE_BUILD_PARALLEL_LEVEL` for the
+- `build_concurrency ?= 4` in the Makefile is exported as `CMAKE_BUILD_PARALLEL_LEVEL` for the
   native build (2026-11-19; not yet checked that `flutter build windows` honours it)
-- `make timings` shows the UI timings (`WHICH=totals` or `<n>` sessions back, `FILTER=tasks`);
+- `make timings` shows the UI timings (`which=totals` or `<n>` sessions back, `filter=tasks`);
   `make measure` prints the timings of Tasks clicks in a 300-task repo
 - new backlog tasks (`nvimos-meta/backlog/tasks`)
   - before taking a number, look at what other worktrees are doing: `git worktree list` in

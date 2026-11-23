@@ -1,5 +1,5 @@
 name: ops_pdf
-description: "PDF pages for the preview pane, the stub: no PDF library, so nothing native to build. make pdf-on swaps in packages/ops_pdf_on."
+description: "PDF pages for the preview pane, the stub: no PDF library, so nothing native to build. make configure pdf=on swaps in packages/ops_pdf_on."
 publish_to: 'none'
 version: 0.1.0
 

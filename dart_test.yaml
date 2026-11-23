@@ -1,6 +1,6 @@
 # Every test, widget tests included, fails after 11 s instead of hanging (Flutter's default for
 # testWidgets is 10 minutes). The Neovim tests take a few seconds each.
-# Keep equal to TEST_TIMEOUT in the Makefile (make test passes it on the command line).
+# Keep equal to test_timeout in the Makefile (make test passes it on the command line).
 timeout: 11s
 
 # The Neovim tests are the slow ones; two files at a time is less flaky than four.

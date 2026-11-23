@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// Whether this build draws PDF pages. False here: this is the stub, `make pdf-on` swaps in the real one.
+/// Whether this build draws PDF pages. False here: this is the stub, `make configure pdf=on` swaps in the real one.
 const bool pdfBuiltIn = false;
 
 /// The first [maxPages] pages of the PDF at [path], each as wide as the pane. The stub only says that
@@ -17,6 +17,6 @@ class PdfPages extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-    child: Text('PDF pages are not in this build (make pdf-on)', style: style),
+    child: Text('PDF pages are not in this build (make configure pdf=on)', style: style),
   );
 }

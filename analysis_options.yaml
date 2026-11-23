@@ -4,7 +4,7 @@ analyzer:
   exclude:
     - build/**
     - windows/**
-    # Needs pdfrx, which is only resolved after make pdf-on.
+    # Needs pdfrx, which is only resolved after make configure pdf=on.
     - packages/ops_pdf_on/**
 formatter:
   page_width: 120
