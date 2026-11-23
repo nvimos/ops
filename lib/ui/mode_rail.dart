@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../state/prefs.dart';
 import 'theme.dart';
+import 'threshold_draggable.dart';
 
 enum Mode { pullRequest, changes, addIgnore, history, tasks, repos, settings, log, help }
 
@@ -311,7 +312,7 @@ class ModeRail extends StatelessWidget {
     );
     if (mode == null || onReorder == null) return item;
     final target = modes.indexOf(mode);
-    return Draggable<Mode>(
+    return ThresholdDraggable<Mode>(
       data: mode,
       dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: _feedback(mode),

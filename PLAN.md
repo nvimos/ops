@@ -801,6 +801,8 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
 - one icon per mode, top to bottom (Alt+1 … Alt+9): Pull request, Changes, Add and Ignore, History, Tasks, Repos, Settings, Log, Help
   - the order is the user's: drag an icon up or down the rail; it is saved in the state file and the
     next start uses it
+  - a press becomes a drag only after the pointer moved 8 px (a finger: Flutter's touch slop,
+    18 px); a shorter wobble stays a click that opens the mode
   - right-click an icon to hide that mode; it leaves the rail, and Alt+1..9, Alt+[ / Alt+] and the
     wheel skip it
   - at least one mode stays visible; Settings lists the hidden modes and puts one back in the place

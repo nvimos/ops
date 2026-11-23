@@ -5,6 +5,7 @@ import 'package:nvimos_poc/state/diff_prefs.dart';
 import 'package:nvimos_poc/state/prefs.dart';
 import 'package:nvimos_poc/ui/mode_rail.dart';
 import 'package:nvimos_poc/ui/theme.dart';
+import 'package:nvimos_poc/ui/threshold_draggable.dart';
 import 'package:nvimos_poc/ui/view_bar.dart';
 
 /// The left line of every rail entry, in rail order: (colour, width).
@@ -209,6 +210,50 @@ void main() {
     expect(state.visible.take(4), [b, c, a, d], reason: 'down: below the target');
     await drag(d, c);
     expect(state.visible.take(4), [b, d, c, a], reason: 'up: above the target');
+  });
+
+  testWidgets('a press that moves less than the drag threshold is a click; a longer move picks the icon up', (t) async {
+    final state = RailState(Prefs.memory());
+    final picked = <Mode>[];
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Row(
+            children: [
+              ModeRail(
+                mode: Mode.pullRequest,
+                modes: state.visible,
+                expanded: false,
+                onSelect: picked.add,
+                onToggle: () {},
+                onReorder: state.reorderVisible,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    final order = state.visible;
+    final icon = find.byIcon(Mode.changes.icon);
+    bool dragging() => find.byType(Opacity).evaluate().any((e) => (e.widget as Opacity).opacity == .35);
+
+    final click = await t.startGesture(t.getCenter(icon), kind: PointerDeviceKind.mouse);
+    await click.moveBy(const Offset(0, kDragThreshold - 3));
+    await t.pump();
+    expect(dragging(), isFalse, reason: 'a wobble does not pick the icon up');
+    await click.up();
+    await t.pump();
+    expect(picked, [Mode.changes], reason: 'it stays a click');
+
+    final drag = await t.startGesture(t.getCenter(icon), kind: PointerDeviceKind.mouse);
+    await drag.moveBy(const Offset(0, kDragThreshold + 4));
+    await t.pump();
+    expect(dragging(), isTrue, reason: 'past the threshold the drag starts');
+    await drag.up();
+    await t.pump();
+    expect(picked, [Mode.changes], reason: 'a drag is not a click');
+    expect(state.visible, order, reason: 'dropped on itself: no reorder');
   });
 
   test('order, hidden and visible are cached until the saved state changes, and read-only', () {
