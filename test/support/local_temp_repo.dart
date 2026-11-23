@@ -37,6 +37,9 @@ class TempRepo {
     await repo.git(['config', 'user.email', 'test@example.com']);
     await repo.git(['config', 'user.name', 'test']);
     await repo.git(['config', 'core.fsmonitor', 'false']);
+    // Files come back from git as the test wrote them: the GitHub Windows runner sets
+    // core.autocrlf=true system-wide, and a checkout or restore there wrote CRLF.
+    await repo.git(['config', 'core.autocrlf', 'false']);
     if (withGitignore) {
       await repo.write('.gitignore', 'build/\n');
       await repo.git(['add', '.gitignore']);
@@ -55,6 +58,7 @@ class TempRepo {
     await repo.git(['config', 'user.email', 'test@example.com']);
     await repo.git(['config', 'user.name', 'test']);
     await repo.git(['config', 'core.fsmonitor', 'false']);
+    await repo.git(['config', 'core.autocrlf', 'false']);
     return repo;
   }
 
