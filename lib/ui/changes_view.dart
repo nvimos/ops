@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 
@@ -89,27 +88,6 @@ class ChangesViewState extends State<ChangesView> {
   void initState() {
     super.initState();
     _branchFocus.addListener(_onBranchFocus);
-    if (kDebugMode) _startCommitTrace();
-  }
-
-  // TEMPORARY (2026-11-22): a trace of the commit field, to find where a burst of typing after `cc`
-  // goes (only the first letter lands). Debug builds only; remove once found.
-  final _traceClock = Stopwatch()..start();
-  void _trace(String what) => debugPrint('[commit-trace] ${_traceClock.elapsedMilliseconds.toString().padLeft(7)} ms  $what');
-
-  bool _traceKey(KeyEvent e) {
-    if (e is KeyDownEvent || e is KeyRepeatEvent) {
-      final kind = e is KeyRepeatEvent ? 'repeat' : 'down';
-      final focus = FocusManager.instance.primaryFocus?.debugLabel ?? '${FocusManager.instance.primaryFocus}';
-      _trace('key $kind ${e.logicalKey.keyLabel} char=${e.character} focus=$focus pending=${_keys.pending}');
-    }
-    return false; // never claims the key
-  }
-
-  void _startCommitTrace() {
-    HardwareKeyboard.instance.addHandler(_traceKey);
-    _message.addListener(() => _trace('text "${_message.text}" sel=${_message.selection.baseOffset}'));
-    _messageFocus.addListener(() => _trace('field focus=${_messageFocus.hasFocus}'));
   }
 
   @override
@@ -120,7 +98,6 @@ class ChangesViewState extends State<ChangesView> {
 
   @override
   void dispose() {
-    if (kDebugMode) HardwareKeyboard.instance.removeHandler(_traceKey);
     _keys.dispose();
     _branchFocus.removeListener(_onBranchFocus);
     focus.dispose();
@@ -749,15 +726,22 @@ class _FieldButtons extends StatelessWidget {
     focus.requestFocus();
   }
 
+  /// The buttons are one semantics node of their own. Without it the X that comes with the first
+  /// letter reshapes the field's node: the editable text gets a new node id, the Windows
+  /// accessibility bridge sees its focus move and sends the old node "lost accessibility focus",
+  /// and a Material TextField on Windows unfocuses on that. Typing lost the keyboard after one letter.
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
-    builder: (context, _) => Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _FieldButton(icon: Icons.open_in_full, tip: 'Edit the message in a larger window', onTap: onExpand),
-        if (controller.text.isNotEmpty) _FieldButton(icon: Icons.close, tip: 'Clear the message', onTap: _clear),
-      ],
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    child: ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _FieldButton(icon: Icons.open_in_full, tip: 'Edit the message in a larger window', onTap: onExpand),
+          if (controller.text.isNotEmpty) _FieldButton(icon: Icons.close, tip: 'Clear the message', onTap: _clear),
+        ],
+      ),
     ),
   );
 }
@@ -786,6 +770,7 @@ class _FieldButton extends StatelessWidget {
 /// Message field and the Commit button.
 /// Ctrl+Enter in the message commits; Esc goes back to the file list; Tab goes on to the diff,
 /// Shift+Tab back to CHANGES.
+
 class CommitBox extends StatelessWidget {
   const CommitBox({
     super.key,

@@ -5,7 +5,9 @@ import 'package:nvimos_poc/backend/models.dart';
 import 'package:nvimos_poc/state/commit_template.dart';
 import 'package:nvimos_poc/ui/changes_view.dart';
 import 'package:nvimos_poc/ui/commit_message_dialog.dart';
+import 'package:nvimos_poc/ui/nav_keys.dart' show NavDir;
 import 'package:nvimos_poc/ui/theme.dart';
+import 'support/semantics_focus.dart';
 import 'support/tooltip_semantics.dart';
 
 Status status() => Status({
@@ -71,6 +73,88 @@ void main() {
     await expectTooltipsInSemantics(t);
     focus.dispose();
     controller.dispose();
+  });
+
+  testWidgets('the first letter keeps the keyboard in the field (Windows accessibility focus)', (t) async {
+    final semantics = t.ensureSemantics(); // disposed in the body: a tear-down runs after the check
+    final controller = TextEditingController();
+    final focus = FocusNode();
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: CommitBox(
+            controller: controller,
+            focus: focus,
+            onExpand: () {},
+            label: 'Commit',
+            enabled: true,
+            onCommit: () {},
+            onLeave: () {},
+            onTab: () {},
+            onShiftTab: () {},
+            onArrowAtEdge: (_) => false,
+          ),
+        ),
+      ),
+    );
+    await expectStableFocusWhileTyping(t, focus);
+    semantics.dispose();
+    focus.dispose();
+    controller.dispose();
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
+  testWidgets('hjkl and wasd type into the empty field; only the arrows step out of it', (t) async {
+    final controller = TextEditingController();
+    final focus = FocusNode();
+    addTearDown(controller.dispose);
+    addTearDown(focus.dispose);
+    final leaves = <NavDir>[];
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: CommitBox(
+            controller: controller,
+            focus: focus,
+            onExpand: () {},
+            label: 'Commit',
+            enabled: true,
+            onCommit: () {},
+            onLeave: () {},
+            onTab: () {},
+            onShiftTab: () {},
+            onArrowAtEdge: (dir) {
+              leaves.add(dir);
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+    focus.requestFocus();
+    await t.pump();
+
+    // The letters, and the D-position key the layout reads as Right (matched by scan code).
+    for (final (key, ch) in [
+      (LogicalKeyboardKey.keyH, 'h'),
+      (LogicalKeyboardKey.keyJ, 'j'),
+      (LogicalKeyboardKey.keyK, 'k'),
+      (LogicalKeyboardKey.keyL, 'l'),
+      (LogicalKeyboardKey.keyW, 'w'),
+      (LogicalKeyboardKey.keyA, 'a'),
+      (LogicalKeyboardKey.keyS, 's'),
+      (LogicalKeyboardKey.keyD, 'd'),
+    ]) {
+      final handled = await t.sendKeyEvent(key, character: ch);
+      await t.pump();
+      expect(handled, isFalse, reason: '$ch is typing, not a command');
+      expect(focus.hasFocus, isTrue, reason: '$ch keeps the keyboard in the field');
+    }
+    expect(leaves, isEmpty, reason: 'no letter steps out of the field');
+
+    await t.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    expect(leaves, [NavDir.left], reason: 'an arrow in the empty field still steps out');
   });
 
   testWidgets('the large window shows the message above git\'s comments and returns it without them', (t) async {

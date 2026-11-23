@@ -7,7 +7,9 @@ import 'package:nvimos_poc/ui/diff_view.dart';
 import 'package:nvimos_poc/ui/error_view.dart';
 import 'package:nvimos_poc/ui/shell.dart';
 import 'package:nvimos_poc/ui/theme.dart';
+import 'package:nvimos_poc/ui/widgets.dart' show ClearButton;
 
+import 'support/semantics_focus.dart';
 
 DiffFile file() => DiffFile({
   'path': 'a.txt',
@@ -35,6 +37,25 @@ DiffFile file() => DiffFile({
 Widget app(Widget child) => MaterialApp(theme: buildTheme(), home: Scaffold(body: child));
 
 void main() {
+  testWidgets('a filter field keeps the keyboard when its x appears (Windows accessibility focus)', (t) async {
+    final semantics = t.ensureSemantics(); // disposed in the body: a tear-down runs after the check
+    final controller = TextEditingController();
+    final focus = FocusNode();
+    await t.pumpWidget(app(TextField(
+      controller: controller,
+      focusNode: focus,
+      decoration: InputDecoration(
+        hintText: 'Filter',
+        suffixIcon: ClearButton(controller: controller, onCleared: (_) {}),
+        suffixIconConstraints: ClearButton.constraints,
+      ),
+    )));
+    await expectStableFocusWhileTyping(t, focus);
+    semantics.dispose();
+    focus.dispose();
+    controller.dispose();
+  }, variant: TargetPlatformVariant.only(TargetPlatform.windows));
+
   testWidgets('side-by-side pairs a deletion with the addition after it; extra additions get a blank left side', (t) async {
     final clicks = <(int, bool)>[];
     await t.pumpWidget(app(DiffView(file: file(), sideBySide: true, onLine: (l, old) => clicks.add((l, old)))));

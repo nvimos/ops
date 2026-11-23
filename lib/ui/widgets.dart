@@ -293,20 +293,26 @@ class ClearButton extends StatelessWidget {
     onCleared('');
   }
 
+  /// One semantics node of its own, whether the x shows or not: the x appearing with the first letter
+  /// would otherwise reshape the field's node, and on Windows the field loses the keyboard (see
+  /// `_FieldButtons` in `changes_view.dart`).
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<TextEditingValue>(
-    valueListenable: controller,
-    builder: (context, v, _) => v.text.isEmpty
-        ? const SizedBox.shrink()
-        : Tooltip(
-            message: 'Clear',
-            child: InkWell(
-              canRequestFocus: false,
-              borderRadius: BorderRadius.circular(8),
-              onTap: _clear,
-              child: const Padding(padding: EdgeInsets.all(3), child: Icon(Icons.close, size: 14, color: C.muted)),
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    child: ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, v, _) => v.text.isEmpty
+          ? const SizedBox.shrink()
+          : Tooltip(
+              message: 'Clear',
+              child: InkWell(
+                canRequestFocus: false,
+                borderRadius: BorderRadius.circular(8),
+                onTap: _clear,
+                child: const Padding(padding: EdgeInsets.all(3), child: Icon(Icons.close, size: 14, color: C.muted)),
+              ),
             ),
-          ),
+    ),
   );
 }
 
