@@ -65,7 +65,6 @@ release: release-configure build ## zip and single exe from one build configured
 	pwsh -NoProfile -File tool/dist.ps1 -Zip -Single -Version '$(version)'
 	gh release create 'v$(version)' dist/ops-windows-x64-$(version).zip dist/ops-windows-x64-$(version)-single.exe --repo nvimos/ops --title 'ops $(version)' --generate-notes
 
-# What a release ships, whatever is configured locally: PDF off (its build is not tested yet), markdown and HTML on.
 release_config := -Pdf on -Markdown on -Html on
 
 release-configure:
