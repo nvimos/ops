@@ -125,6 +125,14 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
     shows every tooltip and fails on an orphan overlay node
   - a bubble node has no label (the message is the owner's `tooltip` property): find orphans by
     `traversalChildIdentifier`, not by text
+- Buttons inside a text field (`suffixIcon`, `prefixIcon`) that come and go with the text (a clear
+  X) go inside `Semantics(container: true)`, as `ClearButton` and the commit field's buttons do.
+  Otherwise the first letter gives the field a new semantics node; on Windows with accessibility
+  active the bridge then sends the old node "lost accessibility focus", and the field unfocuses:
+  typing keeps one letter (2026-11-23, OpenSpec change `ops-commit-field-focus`, Flutter #197193).
+  - a new field like that gets a test with `expectStableFocusWhileTyping`
+    (`test/support/semantics_focus.dart`), running as Windows
+    (`TargetPlatformVariant.only(TargetPlatform.windows)`)
 - Errors: `Session.run` returns the full error text (with Neovim's trace). Show a failed load
   with `ErrorPane` in place of the view, a failed action with `showActionError` (short snackbar,
   Details opens the selectable trace).
