@@ -43,6 +43,84 @@ void main() {
     expect(state.rows, isEmpty, reason: 'a new status builds them again');
   });
 
+  test('all files: every tracked file in a Tracked section, once, kept across moves and same refreshes', () async {
+    final session = Session();
+    addTearDown(session.dispose);
+    session.store.status = Status({
+      'files': [
+        {'path': 'b.txt', 'index': ' ', 'worktree': 'M', 'unstaged': true},
+        {'path': 'new.txt', 'index': '?', 'worktree': '?', 'untracked': true},
+      ],
+    });
+    var tracked = ['a.txt', 'b.txt', 'c.txt'];
+    var reads = 0;
+    final state = AddIgnoreState(session, trackedFiles: () async {
+      reads++;
+      return [...tracked];
+    });
+    addTearDown(state.dispose);
+    expect(state.showTracked, isFalse);
+    expect(state.rows.map((r) => r.path), ['b.txt', 'new.txt']);
+    expect(reads, 0, reason: 'off: no ls-files');
+
+    state.toggleTracked();
+    await until(() => state.rows.length == 4);
+    expect([for (final r in state.rows) '${r.section.name}:${r.path}'], [
+      'changed:b.txt',
+      'untracked:new.txt',
+      'tracked:a.txt',
+      'tracked:c.txt',
+    ], reason: 'b.txt is changed, not listed twice');
+    expect(session.prefs.flag(AddIgnoreState.allFilesPref, fallback: false), isTrue, reason: 'remembered');
+
+    final rows = state.rows;
+    state.move(1);
+    state.move(1);
+    expect(identical(state.rows, rows), isTrue, reason: 'a cursor move keeps the rows');
+    session.store.refreshed.value++;
+    await until(() => reads == 2);
+    await Future<void>.delayed(Duration.zero);
+    expect(identical(state.rows, rows), isTrue, reason: 'a refresh with the same files keeps them');
+
+    tracked = ['a.txt', 'b.txt', 'c.txt', 'd.txt'];
+    session.store.refreshed.value++;
+    await until(() => state.rows.length == 5);
+
+    state.toggleTracked();
+    expect(state.rows.map((r) => r.path), ['b.txt', 'new.txt']);
+  });
+
+  test('all files reads git ls-files of the repository', () async {
+    final temp = await TempRepo.make();
+    await temp.write('kept.txt', 'k\n');
+    await temp.write('sub/deep file.txt', 'd\n');
+    await temp.git(['add', '.']);
+    await temp.git(['commit', '-q', '-m', 'files']);
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+    final session = Session()..backend = backend;
+    addTearDown(session.dispose);
+    final state = AddIgnoreState(session);
+    addTearDown(state.dispose);
+    state.toggleTracked();
+    await until(() => state.rows.length == 3);
+    expect(state.rows.map((r) => r.path), ['.gitignore', 'kept.txt', 'sub/deep file.txt'], reason: 'TempRepo commits a .gitignore');
+    expect(state.rows.every((r) => r.clean), isTrue);
+  });
+
+  test('a clean tracked row cannot be added, only untracked or ignored', () async {
+    final session = Session();
+    addTearDown(session.dispose);
+    session.store.status = Status({'files': const []});
+    final state = AddIgnoreState(session, trackedFiles: () async => ['a.txt']);
+    addTearDown(state.dispose);
+    state.toggleTracked();
+    await until(() => state.rows.isNotEmpty);
+    state.click(0);
+    expect(state.rows.single.clean, isTrue);
+    expect((await state.trackSelected()).error, 'nothing to add');
+  });
+
   test('track, untrack, ignore and delete through the action queue', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'a\n');

@@ -92,6 +92,18 @@ class Repo implements GitRepo {
     return parseStatusZ(result.stdout);
   }
 
+  /// Every path git tracks (the index), relative to the root, in git's order (`git ls-files -z`).
+  Future<List<String>> trackedFiles() async {
+    final result = await runner.run(
+      'git',
+      const ['--no-optional-locks', 'ls-files', '-z'],
+      cwd: path,
+      encoding: utf8,
+    );
+    if (!result.ok) throw GitException('git ls-files failed:\n${result.stderr}');
+    return [for (final p in result.stdout.split('\x00')) if (p.isNotEmpty) p];
+  }
+
   /// Stage a whole file, or a deletion when the file is gone.
   @override
   Future<void> track(Iterable<String> paths) async {

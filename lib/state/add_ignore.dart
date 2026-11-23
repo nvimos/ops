@@ -13,8 +13,8 @@ import 'action_queue.dart';
 import 'session.dart';
 import 'status_store.dart';
 
-/// The sections of the file-first list.
-enum AddIgnoreSection { conflicts, staged, changed, untracked }
+/// The sections of the file-first list; [tracked] (clean tracked files) only while all files show.
+enum AddIgnoreSection { conflicts, staged, changed, untracked, tracked }
 
 /// One row of the Add and Ignore list: a file side, not a whole status entry.
 class AddIgnoreRow {
@@ -47,6 +47,9 @@ class AddIgnoreRow {
 
   bool get untracked => section == AddIgnoreSection.untracked;
   bool get conflicted => section == AddIgnoreSection.conflicts;
+
+  /// A clean tracked file, listed only while all files show: nothing to stage.
+  bool get clean => section == AddIgnoreSection.tracked;
 }
 
 /// An Ignore dialog write: the file it went into, the rules it asked for, and what each one came to
@@ -64,15 +67,55 @@ class IgnoreWrite {
 /// the same queue as Changes; the mode owns only its cursor, selection and
 /// filter.
 class AddIgnoreState extends ChangeNotifier {
-  AddIgnoreState(this.session, {Future<void> Function(List<String> paths)? remove})
-    : _remove = remove ?? ((paths) => Trash().send(paths, permanent: !session.deleteToTrash)) {
+  AddIgnoreState(
+    this.session, {
+    Future<void> Function(List<String> paths)? remove,
+    Future<List<String>> Function()? trackedFiles,
+  }) : _remove = remove ?? ((paths) => Trash().send(paths, permanent: !session.deleteToTrash)) {
+    _trackedFiles = trackedFiles ?? _gitTrackedFiles;
     store.addListener(notifyListeners);
     store.refreshed.addListener(_onRefreshed);
     store.refresh();
+    if (showTracked) _loadTracked();
   }
 
   final Session session;
   final Future<void> Function(List<String> paths) _remove;
+  late final Future<List<String>> Function() _trackedFiles;
+
+  static const allFilesPref = 'addIgnoreAllFiles';
+
+  /// All files: every tracked file shows too, the clean ones in the Tracked section. Remembered.
+  bool get showTracked => session.prefs.flag(allFilesPref, fallback: false);
+
+  /// The tracked paths while [showTracked]; null until read. Replaced only when it changed, so the
+  /// rows built from it stay cached across refreshes that change nothing.
+  List<String>? _tracked;
+
+  /// Turn all files on or off.
+  void toggleTracked() {
+    session.prefs.setFlag(allFilesPref, !showTracked);
+    if (showTracked) {
+      _loadTracked();
+    } else {
+      _tracked = null;
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadTracked() async {
+    final List<String> paths;
+    try {
+      paths = await _trackedFiles();
+    } on GitException {
+      return; // not a git folder here: the Tracked section stays empty
+    }
+    if (_disposed || !showTracked || listEquals(paths, _tracked)) return;
+    _tracked = paths;
+    notifyListeners();
+  }
+
+  Future<List<String>> _gitTrackedFiles() async => await (await ensureRepo())?.trackedFiles() ?? const [];
 
   StatusStore get store => session.store;
   ActionQueue get actions => session.actions;
@@ -147,17 +190,20 @@ class AddIgnoreState extends ChangeNotifier {
   /// times (move, selected, actionRows, headersAbove, the build, the pane and the preview).
   List<AddIgnoreRow> get rows {
     final status = store.status;
-    if (_rows == null || !identical(status, _rowsOf)) {
+    final tracked = showTracked ? _tracked : null;
+    if (_rows == null || !identical(status, _rowsOf) || !identical(tracked, _rowsTracked)) {
       _rowsOf = status;
-      _rows = _buildRows(status?.files ?? const <StatusFile>[]);
+      _rowsTracked = tracked;
+      _rows = _buildRows(status?.files ?? const <StatusFile>[], tracked ?? const []);
     }
     return _rows!;
   }
 
   List<AddIgnoreRow>? _rows;
   Status? _rowsOf;
+  List<String>? _rowsTracked;
 
-  List<AddIgnoreRow> _buildRows(List<StatusFile> files) {
+  List<AddIgnoreRow> _buildRows(List<StatusFile> files, List<String> tracked) {
     final out = <AddIgnoreRow>[];
     for (final file in files) {
       if (file.conflicted) {
@@ -166,6 +212,12 @@ class AddIgnoreState extends ChangeNotifier {
         if (file.staged) out.add(AddIgnoreRow(file, AddIgnoreSection.staged));
         if (file.unstaged) out.add(AddIgnoreRow(file, AddIgnoreSection.changed));
         if (file.untracked) out.add(AddIgnoreRow(file, AddIgnoreSection.untracked));
+      }
+    }
+    if (tracked.isNotEmpty) {
+      final listed = {for (final file in files) file.path};
+      for (final path in tracked) {
+        if (!listed.contains(path)) out.add(AddIgnoreRow(StatusFile({'path': path}), AddIgnoreSection.tracked));
       }
     }
     out.sort((a, b) {
@@ -293,7 +345,7 @@ class AddIgnoreState extends ChangeNotifier {
   }
 
   Future<ActionResult> trackSelected() {
-    final paths = {for (final row in actionRows) if (!row.conflicted) row.path}.toList();
+    final paths = {for (final row in actionRows) if (!row.conflicted && !row.clean) row.path}.toList();
     if (paths.isEmpty) return Future.value(const ActionResult('track', 'nothing to add'));
     return actions.run(
       'track',
@@ -413,6 +465,7 @@ class AddIgnoreState extends ChangeNotifier {
   static String _targetName(IgnoreFileRef f) => f.exclude ? 'exclude' : f.path.split('/').last;
 
   void _onRefreshed() {
+    if (showTracked) _loadTracked();
     final keys = {for (final row in visible) row.key};
     _selection.retainWhere(keys.contains);
     _selectCursor();

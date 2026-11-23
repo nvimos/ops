@@ -88,6 +88,7 @@ const keyTable = [
       ('t  u', 'add or untrack the highlighted'),
       ('i  I', 'ignore: dialog, or at once (a tracked row is untracked too)'),
       ('x  p  v  r', 'delete; the side pane: ignore panes or preview; reload'),
+      ('T', 'all files: every tracked file too, to browse and preview'),
       ('Space  Ctrl+A', 'highlight the row, every row'),
     ],
   ),

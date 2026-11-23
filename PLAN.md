@@ -198,6 +198,7 @@ Add and Ignore
 | `I`                | ignore at once: a plain rule in the project `.gitignore` |
 | `x`, `Delete`      | delete the highlighted files: the trash or for good, as Settings says (a question only if Settings asks) |
 | `p` / `v`          | the one side pane: the ignore rules / the preview of the files (the same key again hides it; the view is remembered) |
+| `T`                | Add and Ignore: all files, every tracked file too in a Tracked section (again: only the changed and untracked; remembered) |
 | `Space`            | highlight / un-highlight the cursor row                 |
 | `Shift+Up/Down`    | extend the highlight                                    |
 | `Ctrl+A`           | highlight every row                                     |
@@ -1300,6 +1301,16 @@ keyboard J/K/Enter/Esc/C and /.
 - delete follows Settings: the trash by default, for good when that is chosen, and the question
   first only when Settings asks for one (`confirmDelete`, off by default) — the dialog's title and
   wording follow the choice (`Move to the trash?` / `Delete for good?`)
+- all files (2026-11-23): a button in the list's header, left of the preview, ignore panes and
+  reload buttons, and `T`, list every file git tracks too, so the mode doubles as a quick file
+  browser beside the preview. This stretches the mode beyond git and ignore, on purpose
+  - the clean tracked files come last, in a **Tracked** section; a changed file stays in its own
+    section and is not listed twice; their letter is a muted `·`
+  - a tracked row has untrack (`−`) and the eye (ignore and untrack), Open and Delete in the menu;
+    no add
+  - the paths come from `git ls-files`, read when it goes on and after each status refresh, and
+    replaced only when they changed; off, nothing runs. The button is lit while it is on; the
+    choice is remembered (`addIgnoreAllFiles`)
 - the right-hand pane is Purrage's: one view at a time (`p` the ignore panes, `v` the preview), open
   at start on the view last used, remembered in `Prefs` (`sideView`)
   - a visible switch above it picks the ignore panes or the preview; the same key again hides the

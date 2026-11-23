@@ -71,6 +71,7 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
     'v': () => _toggleSide(SideView.preview),
     'x': _delete,
     'r': () => st.store.refresh(),
+    'T': st.toggleTracked,
   });
 
   AddIgnoreState get st => widget.state;
@@ -548,6 +549,8 @@ class AddIgnoreViewState extends State<AddIgnoreView> {
           selected: st.selectionCount,
           lit: focus.hasFocus,
           view: _sideOpen ? _sideView : null,
+          allFiles: st.showTracked,
+          onAllFiles: st.toggleTracked,
           onReload: st.store.refresh,
           onIgnoreView: () => _toggleSide(SideView.ignore),
           onPreviewView: () => _toggleSide(SideView.preview),
@@ -655,6 +658,8 @@ class _Header extends StatelessWidget {
     required this.selected,
     required this.lit,
     required this.view,
+    required this.allFiles,
+    required this.onAllFiles,
     required this.onReload,
     required this.onIgnoreView,
     required this.onPreviewView,
@@ -667,7 +672,10 @@ class _Header extends StatelessWidget {
 
   /// The right-hand pane's view while it is open, or null when it is hidden.
   final SideView? view;
-  final VoidCallback onReload, onIgnoreView, onPreviewView;
+
+  /// Every tracked file shows too (the Tracked section).
+  final bool allFiles;
+  final VoidCallback onAllFiles, onReload, onIgnoreView, onPreviewView;
 
   @override
   Widget build(BuildContext context) => PaneHeader(
@@ -681,6 +689,14 @@ class _Header extends StatelessWidget {
       ],
     ),
     trailing: [
+      IconAction(
+        icon: Icons.folder_copy_outlined,
+        tooltip: allFiles
+            ? 'Show only what git has to say about: changed and untracked files (T)'
+            : 'All files: list every tracked file too, to browse and preview them (T)',
+        onPressed: onAllFiles,
+        color: allFiles ? C.accent : C.muted,
+      ),
       IconAction(
         icon: Icons.preview_outlined,
         tooltip: view == SideView.preview ? 'Hide the pane (v)' : 'Preview the highlighted files (v)',
@@ -862,6 +878,7 @@ String _sectionTitle(AddIgnoreSection s) => switch (s) {
   AddIgnoreSection.staged => 'Staged',
   AddIgnoreSection.changed => 'Changed',
   AddIgnoreSection.untracked => 'Untracked',
+  AddIgnoreSection.tracked => 'Tracked',
 };
 
 /// The section heading above its rows, as in Purrage: `Staged (3)` in the section style, at the bottom
@@ -893,6 +910,7 @@ class SectionHeader extends StatelessWidget {
     return (code.isEmpty ? 'U' : code, C.red);
   }
   if (row.untracked) return ('?', C.red);
+  if (row.clean) return ('·', C.muted);
   final staged = row.section == AddIgnoreSection.staged;
   final code = (staged ? file.index : file.worktree).trim();
   if (code.isEmpty) return ('M', staged ? C.green : C.red);
@@ -903,6 +921,7 @@ class SectionHeader extends StatelessWidget {
 String _kindTip(AddIgnoreRow row, String letter) {
   if (row.conflicted) return 'Unmerged: a conflict is waiting to be resolved';
   if (row.untracked) return 'Untracked: git does not track this path yet';
+  if (row.clean) return 'Tracked: committed and unchanged';
   final what = switch (letter) {
     'A' => 'Added',
     'D' => 'Deleted',
@@ -993,7 +1012,7 @@ class _Actions extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (!staged && !row.conflicted) IconAction(icon: Icons.add, tooltip: 'Add: stage the whole file (t)', onPressed: onAdd),
+        if (!staged && !row.conflicted && !row.clean) IconAction(icon: Icons.add, tooltip: 'Add: stage the whole file (t)', onPressed: onAdd),
         if (row.section != AddIgnoreSection.untracked && !row.conflicted)
           IconAction(icon: Icons.remove, tooltip: 'Untrack: take it out of the index (u)', onPressed: onUntrack),
         if (!row.conflicted)
