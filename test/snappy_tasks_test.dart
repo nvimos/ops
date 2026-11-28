@@ -19,7 +19,7 @@ import 'support/snappy.dart';
 import 'support/temp_dirs.dart';
 
 /// Snappy UI checks (OpenSpec change `ops-snappy-ui-checks`): the Tasks mode on a snapshot of a real
-/// project (`test/fixtures/tasks_snappy.json.gz`), every view, every interaction, from the input to
+/// project (`test/fixtures/tasks_snappy.json`), every view, every interaction, from the input to
 /// the painted frame.
 ///
 /// Two kinds of limits:

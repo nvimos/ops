@@ -5,8 +5,9 @@ import 'dart:typed_data' show BytesBuilder;
 import 'nvim.dart';
 import 'temp_dirs.dart';
 
-/// The snappy UI checks' fixture (`test/fixtures/tasks_snappy.json.gz`, refreshed by
-/// `make snapshot from=<planning repo>`): a real project's planning files and branches.
+/// The snappy UI checks' fixture (`test/fixtures/tasks_snappy.json`, refreshed by
+/// `make snapshot from=<planning repo>`): a real project's planning files (each as its lines) and
+/// branches, without `backlog/docs/` and `legacy/`.
 class SnappyFixture {
   SnappyFixture._(this.source, this.defaultBranch, this.files, this.branches);
 
@@ -14,14 +15,14 @@ class SnappyFixture {
   final List<({String path, String text, int mtime})> files;
   final List<({String name, int ahead, int date})> branches;
 
-  static SnappyFixture load([String path = 'test/fixtures/tasks_snappy.json.gz']) {
-    final j = jsonDecode(utf8.decode(gzip.decode(File(path).readAsBytesSync()))) as Map<String, Object?>;
+  static SnappyFixture load([String path = 'test/fixtures/tasks_snappy.json']) {
+    final j = jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
     return SnappyFixture._(
       j['source'] as String,
       j['default'] as String,
       [
         for (final f in (j['files'] as List).cast<Map<String, Object?>>())
-          (path: f['path'] as String, text: f['text'] as String, mtime: f['mtime'] as int),
+          (path: f['path'] as String, text: (f['lines'] as List).cast<String>().join('\n'), mtime: f['mtime'] as int),
       ],
       [
         for (final b in (j['branches'] as List).cast<Map<String, Object?>>())

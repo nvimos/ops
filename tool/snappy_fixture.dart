@@ -2,11 +2,14 @@
 //
 //   dart run tool/snappy_fixture.dart <planning repo> [out]
 //
-// Reads only: the files the Tasks mode loads (backlog/, openspec/, legacy/ as .md / .yml, plus
+// Reads only: the files the Tasks mode loads (backlog/ and openspec/ as .md / .yml, plus
 // milestones.md and index.tsv; tracked and untracked, as on disk) with their mtimes, and every
-// local branch with its commits ahead of the default branch and its last commit date. Writes one
-// gzipped JSON (default test/fixtures/tasks_snappy.json.gz); test/support/snappy.dart unpacks it
-// into a temp git repo.
+// local branch with its commits ahead of the default branch and its last commit date. Left out:
+// backlog/docs/ (the Tasks mode never reads it) and legacy/ (Legacy notes are out of the checks'
+// scope and leaving the app). Writes one plain, pretty-printed JSON (default
+// test/fixtures/tasks_snappy.json), each file's text as a list of lines (`text.split('\n')`, so
+// joining them gives the file back exactly), so a refreshed snapshot diffs line by line and git
+// compresses and deltas it itself; test/support/snappy.dart unpacks it into a temp git repo.
 import 'dart:convert';
 import 'dart:io';
 
@@ -22,13 +25,13 @@ Future<void> main(List<String> args) async {
     exit(2);
   }
   final repo = args[0];
-  final out = File(args.length > 1 ? args[1] : 'test/fixtures/tasks_snappy.json.gz');
+  final out = File(args.length > 1 ? args[1] : 'test/fixtures/tasks_snappy.json');
   final listed = await _git(repo, [
-    'ls-files', '--cached', '--others', '--exclude-standard', '--', 'backlog', 'openspec', 'legacy', 'milestones.md', 'index.tsv',
+    'ls-files', '--cached', '--others', '--exclude-standard', '--', 'backlog', 'openspec', 'milestones.md', 'index.tsv',
   ]);
   final paths = [
     for (final p in const LineSplitter().convert(listed))
-      if (p.endsWith('.md') || p.endsWith('.yml') || p == 'index.tsv') p,
+      if (!p.startsWith('backlog/docs/') && (p.endsWith('.md') || p.endsWith('.yml') || p == 'index.tsv')) p,
   ]..sort();
   final files = [
     for (final p in paths)
@@ -36,7 +39,7 @@ Future<void> main(List<String> args) async {
         {
           'path': p,
           'mtime': File('$repo/$p').lastModifiedSync().millisecondsSinceEpoch,
-          'text': File('$repo/$p').readAsStringSync(),
+          'lines': File('$repo/$p').readAsStringSync().split('\n'),
         },
   ];
   final names = const LineSplitter().convert(await _git(repo, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']));
@@ -57,7 +60,7 @@ Future<void> main(List<String> args) async {
     'branches': branches,
   };
   await out.parent.create(recursive: true);
-  await out.writeAsBytes(gzip.encode(utf8.encode(jsonEncode(blob))));
+  await out.writeAsString('${const JsonEncoder.withIndent('  ').convert(blob)}\n');
   stdout.writeln('   wrote ${out.path}');
   stdout.writeln('   files ${files.length}');
   stdout.writeln('branches ${branches.length}');
