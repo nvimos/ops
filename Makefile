@@ -17,7 +17,7 @@ test_concurrency ?= 2
 build_concurrency ?= 4
 export CMAKE_BUILD_PARALLEL_LEVEL := $(build_concurrency)
 
-.PHONY: help run live build dev all dist single bin-local release test test-fast analyze icon nvim timings measure configure release-configure
+.PHONY: help run live build dev all dist single bin-local release test test-fast analyze icon nvim timings measure configure release-configure snappy-app snappy-baseline
 
 # `make help` prints the `##@` lines as section headers and `target: ## text` as entries.
 .DEFAULT_GOAL := help
@@ -97,6 +97,14 @@ measure: ## time Tasks checkbox clicks in a 300-task repo with a headless Neovim
 
 snappy: ## Tasks responsiveness checks on the project snapshot, a table per view (also in make test)
 	$(flutter) test test/snappy_tasks_test.dart
+
+strict ?=
+
+snappy-app: ## the same views in the profile app on Windows: frame timings, recorded in out/snappy-app, compared with the baseline (strict=1: drift fails too)
+	pwsh -NoProfile -File tool/snappy_app.ps1 -Flutter "$(flutter)" $(if $(strict),-Strict,)
+
+snappy-baseline: ## the slowest of the last 3 snappy-app runs becomes the baseline (test/fixtures/snappy_app_baseline.json; commit it by hand)
+	$(flutter_root)/bin/dart.bat run tool/snappy_baseline.dart
 
 from ?= ../nvimos-meta
 

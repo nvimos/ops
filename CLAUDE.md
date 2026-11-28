@@ -276,6 +276,21 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
   native build (2026-11-19; not yet checked that `flutter build windows` honours it)
 - `make timings` shows the UI timings (`which=totals` or `<n>` sessions back, `filter=tasks`);
   `make measure` prints the timings of Tasks clicks in a 300-task repo
+- snappy checks (OpenSpec change `ops-snappy-ui-checks`), two levels on the same snapshot
+  (`test/fixtures/tasks_snappy.json`, `make snapshot from=<repo>`)
+  - `make snappy` (also in `make test`): the widget test; widget counts and "a move rebuilds no
+    sidebar" are the gate, the debug times are only printed (10x the limit fails)
+  - `make snappy-app` (2026-11-28): the profile app on Windows (`flutter drive --profile`,
+    `integration_test/snappy_app_test.dart`, local mode, APPDATA in a temp folder), the engine's
+    frame timings per `<view>/<interaction>`; a window opens for a few minutes
+  - it records every run in `out/snappy-app/<yyyy-mm-dd-HHMM>.json` and one line per key in
+    `out/snappy-app/history.tsv` (the trend), and compares with `test/fixtures/snappy_app_baseline.json`:
+    p90 build or raster over 16.7 ms fails, over 1.5x the baseline is drift (`strict=1` fails on it),
+    judged only above 4 ms build / 8 ms raster (raster varied up to 2x between two runs with no
+    code change, build within about 0.3 ms)
+  - `make snappy-baseline` takes the slowest of the last 3 runs per key as the baseline; take it on
+    purpose (after a speed-up, on a new machine) and commit it by hand
+  - in a profile build keys have no debug names: `sendKeyEvent` needs the `physicalKey`
 - new backlog tasks (`nvimos-meta/backlog/tasks`)
   - before taking a number, look at what other worktrees are doing: `git worktree list` in
     `nvimos-meta` and in the frontend, the tasks folder of each, the other branches
