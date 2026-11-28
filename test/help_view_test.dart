@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nvimos_poc/ui/help_view.dart';
@@ -19,6 +20,25 @@ void main() {
       [0],
       [1],
     ]);
+  });
+
+  testWidgets('Down in the search goes into the grid on its first key, whatever the field holds; arrows then move between keys', (tester) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: HelpView())));
+    final search = find.byType(TextField);
+    await tester.tap(search);
+    await tester.enterText(search, 'gg');
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pump();
+    final first = FocusManager.instance.primaryFocus?.debugLabel;
+    expect(first, 'help key ${keyTable.first.$2.first.$1}');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, isNot(first));
+    expect(FocusManager.instance.primaryFocus?.debugLabel, startsWith('help key'));
   });
 
   testWidgets('the key table lays out without overflowing; a narrow pane scrolls', (tester) async {

@@ -201,12 +201,53 @@ class HelpViewState extends State<HelpView> {
   /// A width change is being timed, from the new layout to the frame on screen (`help.resize`).
   Span? _resize;
 
+  /// One focus node per key cell, by group and key: a cell keeps its node when a resize lays the
+  /// columns out again.
+  final _keyNodes = <String, FocusNode>{};
+
+  FocusNode _keyNode(String group, String key) => _keyNodes.putIfAbsent('$group/$key', () => FocusNode(debugLabel: 'help key $key'));
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.onKeyEvent = _onSearchKey;
+  }
+
   @override
   void dispose() {
     _resizeTimer?.cancel();
+    _focus.onKeyEvent = null;
     _search.dispose();
     _focus.dispose();
+    for (final node in _keyNodes.values) {
+      node.dispose();
+    }
     super.dispose();
+  }
+
+  /// Down in the search field goes into the grid, on its first key, whatever the field holds.
+  KeyEventResult _onSearchKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    if (e.logicalKey != LogicalKeyboardKey.arrowDown) return KeyEventResult.ignored;
+    _keyNode(keyTable.first.$1, keyTable.first.$2.first.$1).requestFocus();
+    return KeyEventResult.handled;
+  }
+
+  /// The arrows move the focus from one key to the neighbour in that direction, by where the cells
+  /// lie on screen now, so a resize changes the neighbours. Letters keep typing in the search.
+  KeyEventResult _onGridKey(FocusNode node, KeyEvent e) {
+    if (e is! KeyDownEvent && e is! KeyRepeatEvent) return KeyEventResult.ignored;
+    final dir = switch (e.logicalKey) {
+      LogicalKeyboardKey.arrowUp => TraversalDirection.up,
+      LogicalKeyboardKey.arrowDown => TraversalDirection.down,
+      LogicalKeyboardKey.arrowLeft => TraversalDirection.left,
+      LogicalKeyboardKey.arrowRight => TraversalDirection.right,
+      _ => null,
+    };
+    final ctx = FocusManager.instance.primaryFocus?.context;
+    if (dir == null || ctx == null) return KeyEventResult.ignored;
+    Actions.maybeInvoke(ctx, DirectionalFocusIntent(dir));
+    return KeyEventResult.handled;
   }
 
   /// `/`: empty the field and the highlights, and type in the field.
@@ -283,12 +324,18 @@ class HelpViewState extends State<HelpView> {
     _columnArea = SelectionArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(_padding / 2, 4, _padding / 2, 20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final c in splitColumns(_heights, count))
-              Expanded(child: _KeyColumn(groups: c, query: _columnQuery, compact: compact)),
-          ],
+        child: Focus(
+          canRequestFocus: false,
+          onKeyEvent: _onGridKey,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final c in splitColumns(_heights, count))
+                Expanded(
+                  child: _KeyColumn(groups: c, query: _columnQuery, compact: compact, nodeFor: _keyNode),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -365,10 +412,11 @@ class HelpViewState extends State<HelpView> {
 }
 
 class _KeyColumn extends StatelessWidget {
-  const _KeyColumn({required this.groups, required this.query, this.compact = false});
+  const _KeyColumn({required this.groups, required this.query, required this.nodeFor, this.compact = false});
 
   final List<int> groups;
   final String query;
+  final FocusNode Function(String group, String key) nodeFor;
 
   /// One line per description (a window drag): fixed row heights, no wrapping to re-layout.
   final bool compact;
@@ -380,17 +428,24 @@ class _KeyColumn extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final i in groups)
-          _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2, query: query, compact: compact),
+          _KeyGroup(title: keyTable[i].$1, keys: keyTable[i].$2, query: query, compact: compact, nodeFor: nodeFor),
       ],
     ),
   );
 }
 
 class _KeyGroup extends StatelessWidget {
-  const _KeyGroup({required this.title, required this.keys, required this.query, this.compact = false});
+  const _KeyGroup({
+    required this.title,
+    required this.keys,
+    required this.query,
+    required this.nodeFor,
+    this.compact = false,
+  });
 
   final String title, query;
   final List<(String, String)> keys;
+  final FocusNode Function(String group, String key) nodeFor;
 
   /// One line per description (a window drag).
   final bool compact;
@@ -413,11 +468,11 @@ class _KeyGroup extends StatelessWidget {
     ],
   );
 
-  static TableRow _row(String keys, String what, String query, bool compact) => TableRow(
+  TableRow _row(String keys, String what, String query, bool compact) => TableRow(
     children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(0, 2, 12, 2),
-        child: KeyLabel(keys, query: query),
+        child: _KeyCell(node: nodeFor(title, keys), child: KeyLabel(keys, query: query)),
       ),
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -429,6 +484,26 @@ class _KeyGroup extends StatelessWidget {
         ),
       ),
     ],
+  );
+}
+
+/// A key cell in the grid: focusable, shaded while it has the focus. It does nothing on Enter or a click.
+class _KeyCell extends StatelessWidget {
+  const _KeyCell({required this.node, required this.child});
+
+  final FocusNode node;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Focus(
+    focusNode: node,
+    child: ListenableBuilder(
+      listenable: node,
+      builder: (context, _) => DecoratedBox(
+        decoration: BoxDecoration(color: node.hasFocus ? C.surface2 : null, borderRadius: BorderRadius.circular(3)),
+        child: child,
+      ),
+    ),
   );
 }
 
