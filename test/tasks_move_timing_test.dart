@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:nvimos_poc/state/session.dart';
 import 'package:nvimos_poc/tasks/workspace.dart';
+import 'package:nvimos_poc/ui/tasks/rows.dart';
+import 'package:nvimos_poc/ui/tasks/tasks_nav.dart';
 import 'package:nvimos_poc/ui/tasks/tasks_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
 
@@ -65,6 +67,15 @@ void main() {
     expect(identical(b.navTasks(), tasks) && identical(b.navLabels(), labels) && identical(b.navSources(), sources), isTrue,
         reason: 'a cursor move keeps the sidebar entries');
     expect(b.inboxCount, inboxCount);
+
+    // A cursor move rebuilds the rows' highlight and the detail, not the sidebar or the row contents.
+    final built = <Type, int>{};
+    debugOnRebuildDirtyWidget = (e, _) => built.update(e.widget.runtimeType, (n) => n + 1, ifAbsent: () => 1);
+    await t.sendKeyEvent(LogicalKeyboardKey.keyJ);
+    await t.pump();
+    debugOnRebuildDirtyWidget = null;
+    expect([built[TasksNav], built[TaskListHeader], built[TaskRow]], [null, null, null],
+        reason: 'rebuilt on a cursor move: $built');
 
     double each(void Function() f) {
       final sw = Stopwatch()..start();

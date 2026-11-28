@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:material_ui/material_ui.dart';
 
 import '../../tasks/browser.dart';
@@ -28,7 +29,9 @@ class TaskRows extends StatelessWidget {
 
   final List<ListRow> rows;
   final Workspace ws;
-  final Object? selected;
+
+  /// The selected item; only the rows' highlight listens to it, their content stays.
+  final ValueListenable<Object?> selected;
   final ScrollController scroll;
 
   /// False while the wheel steps through the rows instead (see `WheelMode`): no scrolling by it.
@@ -49,11 +52,14 @@ class TaskRows extends StatelessWidget {
       itemBuilder: (context, i) {
         final r = rows[i];
         if (r.isHeader) return GroupHeader(title: r.title!, count: r.count!, icon: headerIcons);
-        final sel = r.key == selected;
-        return HoverRow(
-          selected: sel,
-          onTap: () => onTap(r.key),
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+        return ValueListenableBuilder<Object?>(
+          valueListenable: selected,
+          builder: (context, sel, content) => HoverRow(
+            selected: r.key == sel,
+            onTap: () => onTap(r.key),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: content!,
+          ),
           child: SizedBox(height: rowHeight, child: rowContent(r.data!, ws)),
         );
       },

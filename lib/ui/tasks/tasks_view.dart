@@ -531,20 +531,28 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       children: [
         SizedBox(width: 220, child: _nav()),
         const VerticalDivider(width: 1),
-        Expanded(child: _listAndDetail(rows, width - 221)),
+        Expanded(
+          // A selection rebuilds only the detail and the list's place beside it; the list itself
+          // is the same instance (child), its rows' highlight listens on its own.
+          child: ListenableBuilder(
+            listenable: browser.selection,
+            builder: (context, list) => _listAndDetail(list!, width - 221),
+            child: _list(rows),
+          ),
+        ),
       ],
     );
   }
 
   /// The list, and the detail panel at its right; wide, the panel is twice as wide and covers the
   /// list instead of squeezing it.
-  Widget _listAndDetail(List<ListRow> rows, double area) {
+  Widget _listAndDetail(Widget list, double area) {
     final detail = _detail();
     final normal = (area * .45).clamp(360.0, 600.0);
     final panel = wide ? (normal * 2).clamp(normal, area) : normal;
     return Stack(
       children: [
-        Positioned.fill(right: detail == null ? 0 : normal, child: _list(rows)),
+        Positioned.fill(right: detail == null ? 0 : normal, child: list),
         Positioned(
           top: 0,
           bottom: 0,
@@ -609,7 +617,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
             builder: (context, steps) => TaskRows(
               rows: rows,
               ws: ws,
-              selected: browser.selected,
+              selected: browser.selection,
               scroll: scroll,
               scrolls: !steps,
               headerIcons:

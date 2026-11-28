@@ -134,20 +134,20 @@ class TaskBrowser extends ChangeNotifier {
       s.dispose();
     }
     if (_wsHooked) ws.removeListener(_wsChanged);
+    selection.dispose();
     super.dispose();
   }
 
   // The rows, cached --------------------------------------------------------------------------------
   //
   // rows() filters, sorts and groups every task; J/K called it in move() and again in the build. The
-  // rows are kept until something they depend on changes: any notice of the browser except a cursor
-  // move or selection ([_selectionOnly]), any notice of the workspace (every edit, reload or
-  // optimistic change notifies it), the task list itself, or the inbox's lastSeen.
+  // rows are kept until something they depend on changes: any notice of the browser (a cursor move
+  // or selection is not one, it goes to [selection]), any notice of the workspace (every edit,
+  // reload or optimistic change notifies it), the task list itself, or the inbox's lastSeen.
 
   List<ListRow>? _rows;
   Object? _rowsKey;
   bool _rowsStale = true;
-  bool _selectionOnly = false;
 
   /// Hooked on first use, not in the constructor, so a hot reload of a running browser gets it too.
   bool _wsHooked = false;
@@ -162,7 +162,7 @@ class TaskBrowser extends ChangeNotifier {
 
   @override
   void notifyListeners() {
-    if (!_selectionOnly) _rowsStale = _navStale = true;
+    _rowsStale = _navStale = true;
     super.notifyListeners();
   }
 
@@ -184,15 +184,10 @@ class TaskBrowser extends ChangeNotifier {
     return _nav.putIfAbsent(name, compute) as T;
   }
 
-  /// A notice that only the cursor or the selection moved: the rows stay.
-  void _notifySelection() {
-    _selectionOnly = true;
-    try {
-      notifyListeners();
-    } finally {
-      _selectionOnly = false;
-    }
-  }
+  /// The selected item, with a notifier of its own: a cursor move or a click notifies only this, not
+  /// the browser, so the sidebar, the list header and the row contents are not built again; only the
+  /// rows' highlight and the detail panel listen to it.
+  final selection = ValueNotifier<Object?>(null);
 
   final Workspace ws;
 
@@ -204,7 +199,9 @@ class TaskBrowser extends ChangeNotifier {
   String? labelFilter;
   String groupBy = 'status';
   String query = '';
-  Object? selected; // Task id (String), ChangeKey, LegacyKey, SpecKey or MilestoneKey
+  /// Task id (String), ChangeKey, LegacyKey, SpecKey or MilestoneKey; setting it notifies [selection].
+  Object? get selected => selection.value;
+  set selected(Object? key) => selection.value = key;
   int? cursor; // index into the current items, so J/K work when an item shows up twice
 
   static const groupings = ['status', 'priority', 'label'];
@@ -348,10 +345,7 @@ class TaskBrowser extends ChangeNotifier {
 
   // Selection --------------------------------------------------------------------------------------
 
-  void select(Object? key) {
-    selected = key;
-    _notifySelection();
-  }
+  void select(Object? key) => selected = key;
 
   /// A click on a row: open it, or close it when it is already open.
   void toggle(Object? key) => select(selected == key ? null : key);
@@ -371,7 +365,6 @@ class TaskBrowser extends ChangeNotifier {
     final next = i < 0 ? (delta > 0 ? 0 : positions.length - 1) : (i + delta).clamp(0, positions.length - 1);
     cursor = next;
     selected = all[positions[next]].key;
-    _notifySelection();
     return positions[next];
   }
 
