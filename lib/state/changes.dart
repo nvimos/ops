@@ -159,7 +159,8 @@ class ChangesState extends ChangeNotifier {
   void _onRefreshed() => _reconciling = _reconcile();
 
   /// A new status arrived: keep the selection when its file still has changes on that side, else
-  /// pick another, and load the selected file's diff.
+  /// pick another, and load the selected file's diff. An answer for a file or side that is no
+  /// longer selected is dropped: a click changes those without bumping [_gen].
   Future<void> _reconcile() async {
     final b = session.backend;
     if (b == null || _disposed) return;
@@ -169,6 +170,9 @@ class ChangesState extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    // Set once the request is chosen, so a failure after the await can use the same check.
+    String? path;
+    var requestedStaged = false;
     try {
       _handOverRoom();
       // Keep the selection if the file still has changes on that side; else pick another.
@@ -187,14 +191,28 @@ class ChangesState extends ChangeNotifier {
           selected = null;
         }
       }
-      diff = selected == null ? null : await b.diffFile(selected!, staged: selectedStaged);
-      if (gen != _gen) return;
+      // Captured before the await, not read again as what was requested. select() moves the
+      // file and the side without starting a new refresh.
+      path = selected;
+      requestedStaged = selectedStaged;
+      final fetched = path == null ? null : await b.diffFile(path, staged: requestedStaged);
+      if (!_stillSelected(gen, path, requestedStaged)) return;
+      diff = fetched;
       error = null;
     } catch (e) {
-      if (gen != _gen) return;
+      if (!_stillSelected(gen, path, requestedStaged)) return;
       error = '$e';
     }
     notifyListeners();
+  }
+
+  /// The diff just fetched may be stored. A missing selection is unchanged from before: the
+  /// generation counter is the only gate, and the pane is cleared. A requested file is kept only
+  /// while that path and side are still the ones on screen.
+  bool _stillSelected(int gen, String? path, bool requestedStaged) {
+    if (gen != _gen) return false;
+    if (path == null) return true;
+    return path == selected && requestedStaged == selectedStaged;
   }
 
   void select(String path, {required bool staged}) {

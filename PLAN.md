@@ -1123,7 +1123,7 @@ unstage and discard buttons, commit message and Commit button. Click a line: Neo
   flag, the flag goes to CHANGES, which unfolds
 - selecting a file shows it at once, but its diff is fetched after the selection has rested 120 ms,
   with one request (not status and branches again): holding an arrow key through many files asks for
-  only the last one's diff
+  only the last one's diff; a refresh that returns for a file or side no longer selected does not paint it
 - the commit message field has two buttons at its right end
   - an X that clears it, shown while there is text
   - a button for a large window ("Edit the message in a larger window"): a modal, about 60 % of the
