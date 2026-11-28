@@ -59,11 +59,16 @@ List<LineEdit> taskMilestoneEdits(Task t, String name, {String id = ''}) {
 }
 
 /// The proposal's `Milestone: <name>` line and `Milestone-Id: m-<N>` right under it: replaced, else
-/// added under `Status:` (or under the title); both removed for ''. Empty without a proposal.
+/// added right under `Status:`, or without a Status line as a paragraph of their own under the
+/// title (one blank line before and after, as the Status line sits); both removed for ''. Empty
+/// without a proposal.
 List<LineEdit> changeMilestoneEdits(Change c, String name, {String id = ''}) {
   final p = c.proposal;
   if (p == null) return [];
   final after = c.statusLine >= 0 ? c.statusLine : p.lines.indexWhere((l) => l.startsWith('# '));
+  if (c.statusLine < 0 && c.milestoneLine < 0 && c.milestoneIdLine < 0 && name.isNotEmpty) {
+    return [_paragraphUnder(p.lines, after, ['Milestone: $name', if (id.isNotEmpty) 'Milestone-Id: $id'])];
+  }
   return _milestonePair(
     p.lines,
     c.milestoneLine,
@@ -72,6 +77,17 @@ List<LineEdit> changeMilestoneEdits(Change c, String name, {String id = ''}) {
     name.isEmpty || id.isEmpty ? '' : 'Milestone-Id: $id',
     after + 1,
   );
+}
+
+/// [block] as a paragraph after line [at] (-1: at the top): one blank line before and one after,
+/// reusing a blank line that is already there, so blank lines never double.
+LineEdit _paragraphUnder(List<String> lines, int at, List<String> block) {
+  bool blank(int i) => i >= 0 && i < lines.length && lines[i].trim().isEmpty;
+  var i = at + 1;
+  final before = at >= 0 && !blank(i);
+  if (blank(i)) i++; // the blank line under the title stays the one before the block
+  final after = i < lines.length && !blank(i);
+  return LineEdit(i, i, [if (before) '', ...block, if (after) ''], expect: []);
 }
 
 /// The order of the Neovim tilde plugin (`genja/ext/tilde.lua`): open, done, in progress,

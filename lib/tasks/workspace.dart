@@ -325,7 +325,7 @@ class Workspace extends ChangeNotifier {
     span.mark('saved');
     if (err != null) await load();
     span.end();
-    return err;
+    return err ?? await _fixProposalOf(path);
   }
 
   /// Status of a task, kept in sync in its change's proposal and in index.tsv.
@@ -638,17 +638,39 @@ class Workspace extends ChangeNotifier {
     return t != null ? taskMilestone(t) : _milestoneName(c.milestoneId, c.milestone);
   }
 
-  /// A task whose `milestone_id` names a file with another title (renamed since): the edit that
-  /// writes the current title into `milestone:`, unless [edits] touch that line already. Only on an
-  /// edit of the task, never just from reading it.
+  /// A task whose `milestone_id` (or a task-less proposal whose `Milestone-Id:`) names a file with
+  /// another title (renamed since): the edit that writes the current title into its name line,
+  /// unless [edits] touch that line already. Only on an edit of the file, never just from reading.
   List<LineEdit> _milestoneNameFix(String path, List<LineEdit> edits) {
-    final t = _taskOf[path];
-    if (t == null) return [];
-    final i = t.front.keyLines['milestone'];
-    final m = t.milestoneId.isEmpty ? null : milestoneFile(t.milestoneId, '');
-    if (i == null || m == null || m.name == t.milestone) return [];
+    final (lines, i, id, name, line) = switch (_taskOf[path]) {
+      final t? => (t.lines, t.front.keyLines['milestone'] ?? -1, t.milestoneId, t.milestone, (String n) => 'milestone: ${yamlScalar(n)}'),
+      null => switch (_ownProposal(path)) {
+        final c? => (c.proposal!.lines, c.milestoneLine, c.milestoneId, c.milestone, (String n) => 'Milestone: $n'),
+        null => (const <String>[], -1, '', '', (String n) => n),
+      },
+    };
+    final m = id.isEmpty ? null : milestoneFile(id, '');
+    if (i < 0 || m == null || m.name == name) return [];
     if (edits.any((e) => e.first <= i && i < e.last || e.first == i)) return [];
-    return [LineEdit(i, i + 1, ['milestone: ${yamlScalar(m.name)}'], expect: [t.lines[i]])];
+    return [LineEdit(i, i + 1, [line(m.name)], expect: [lines[i]])];
+  }
+
+  /// The change whose own `proposal.md` is [path], when it has no task (with a task, the task
+  /// holds the milestone).
+  Change? _ownProposal(String path) {
+    final dir = _changeDir(path);
+    final c = dir == null ? null : _changeOf[dir];
+    if (c == null || c.proposal?.path != path || taskFor(c) != null) return null;
+    return c;
+  }
+
+  /// After an edit of another file of a change (a box in its tasks.md): the proposal's stale
+  /// milestone name, if any, gets the current title too, as an edit of the proposal itself would.
+  Future<String?> _fixProposalOf(String path) async {
+    final dir = _changeDir(path);
+    final p = dir == null ? null : _changeOf[dir]?.proposal?.path;
+    if (p == null || p == path || _milestoneNameFix(p, const []).isEmpty) return null;
+    return edit(p, const []);
   }
 
   /// A new Backlog.md milestone file (`backlog/milestones/m-<N> - <title>.md`) for [title], unless

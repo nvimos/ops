@@ -1260,17 +1260,22 @@ keyboard J/K/Enter/Esc/C and /.
   - a change is planned by hand, archived or not, with one owner so two files never disagree
     - a change with a task: the task's `milestone:` (Backlog.md's field, the name); a `Milestone:`
       line in its proposal is ignored
-    - a change without a task: the `Milestone: <name>` line of its `proposal.md`, under `Status:`
-  - the name and the id of the milestone file
+    - a change without a task: the `Milestone: <name>` line of its `proposal.md`, right under
+      `Status:`; without a Status line a paragraph of its own under the `# title` (one blank line
+      before and after, not doubled)
+  - the name and the id of the milestone file, both always (a decision: Backlog.md's `milestone:`
+    is a free string, and whether its CLI writes the id or the title there is not documented)
     - a task: `milestone: <title>` and `milestone_id: m-<N>` next to it; a proposal:
       `Milestone: <title>` and `Milestone-Id: m-<N>` right under it; no id for a name without a file
     - `milestone_id` / `Milestone-Id` are Ops keys Backlog.md doesn't know: its CLI may drop them
-      when it rewrites a task, and the name is the fallback
+      when it rewrites a task, and the name is the fallback; a `milestone:` that holds an id
+      (`m-3`) resolves too
     - read: by the id first when it names a milestone file, else the name matched against the ids
       (`m-3`), then the titles, ignoring case
     - a renamed milestone still resolves by its id; when the two disagree the id wins, and the next
-      edit of that task (any edit) writes the current title into `milestone:`; reading never
-      rewrites a file
+      edit of that task (any edit) writes the current title into `milestone:`; the same for a
+      proposal without a task: any edit of the change through Ops (its proposal, a box in its
+      `tasks.md`) writes the current title into `Milestone:`; reading never rewrites a file
   - assigned in the app (`Workspace.setTaskMilestone` / `setChangeMilestone`, optimistic)
     - the task's detail: a Milestone menu under Status and Priority (No milestone, the
       milestones, New milestone… with a name and an optional due date, YYYY-MM-DD)

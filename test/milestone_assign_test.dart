@@ -49,6 +49,7 @@ Future<Directory> milestoneFileRepo() async {
   );
   await w('backlog/tasks/task-2 - second.md', '---\nid: TASK-2\ntitle: second\nstatus: In Progress\nmilestone: alpha\n---\n');
   await w('openspec/changes/2-free/proposal.md', '# 2. free\n\nStatus: To Do\nMilestone: Alpha\nMilestone-Id: m-0\n\n## Why\n\nBecause.\n');
+  await w('openspec/changes/2-free/tasks.md', '# Tasks\n\n## 1. Build\n\n- [ ] 1.1 build it\n');
   await git(d, ['add', '.']);
   await git(d, ['commit', '-q', '-m', 'milestone files']);
   return d;
@@ -120,6 +121,14 @@ void main() {
     expect(await ws.setTaskPriority(ws.task('TASK-1')!, 'high'), isNull);
     await until(() => read(repo, 'backlog/tasks/task-1 - first.md').contains('milestone: Beta Renamed\nmilestone_id: m-0'));
     expect(read(repo, 'backlog/tasks/task-1 - first.md'), contains('priority: high'));
+
+    // The same for a proposal without a task: reading leaves its stale name, the next edit of the
+    // change (here a box in its tasks.md) writes the current title into Milestone:.
+    const free = 'openspec/changes/2-free/proposal.md';
+    expect(read(repo, free), contains('Milestone: Alpha\nMilestone-Id: m-0'));
+    expect(await ws.toggleCheck('openspec/changes/2-free/tasks.md', ch('2-free').allChecks.single), isNull);
+    await until(() => read(repo, free).contains('Milestone: Beta Renamed\nMilestone-Id: m-0'));
+    expect(read(repo, 'openspec/changes/2-free/tasks.md'), contains('- [x] 1.1 build it'));
 
     // A new milestone: m-2 (above the archived m-1), in memory at once, then on disk as Backlog.md
     // writes it; planning a task for it writes the name and the id.

@@ -46,6 +46,15 @@ void main() {
       expect(applyEdits(both.lines, taskMilestoneEdits(both, '')), ['---', 'id: TASK-1', 'status: To Do', '---', '', 'body']);
     });
 
+    test('without a Status: line the milestone lines are a paragraph under the title, blank lines not doubled', () {
+      List<String> add(List<String> p) => applyEdits(p, changeMilestoneEdits(change(p), 'v1', id: 'm-1'));
+      const block = ['Milestone: v1', 'Milestone-Id: m-1'];
+      expect(add(['# x', '', '## Why']), ['# x', '', ...block, '', '## Why']); // the blank line is reused
+      expect(add(['# x', '## Why']), ['# x', '', ...block, '', '## Why']); // none: both added
+      expect(add(['# x', '', '', '## Why']), ['# x', '', ...block, '', '## Why']);
+      expect(add(['# x']), ['# x', '', ...block]); // nothing after the title
+    });
+
     test("a proposal's Milestone: line goes under Status:, else under the title; Milestone-Id: under it", () {
       final p = ['# x', '', 'Status: To Do', '', '## Why'];
       final c = change(p);
@@ -53,7 +62,7 @@ void main() {
       expect(applyEdits(p, changeMilestoneEdits(c, 'Beta', id: 'm-0')),
           ['# x', '', 'Status: To Do', 'Milestone: Beta', 'Milestone-Id: m-0', '', '## Why']);
       final noStatus = ['# x', '', '## Why'];
-      expect(applyEdits(noStatus, changeMilestoneEdits(change(noStatus), 'v1')), ['# x', 'Milestone: v1', '', '## Why']);
+      expect(applyEdits(noStatus, changeMilestoneEdits(change(noStatus), 'v1')), ['# x', '', 'Milestone: v1', '', '## Why']);
       final has = ['# x', 'Status: To Do', 'Milestone: v1', 'Milestone-Id: m-1'];
       expect(change(has).milestoneId, 'm-1');
       expect(applyEdits(has, changeMilestoneEdits(change(has), 'v2', id: 'm-2')),
