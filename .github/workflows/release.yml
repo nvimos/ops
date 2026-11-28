@@ -95,7 +95,12 @@ jobs:
           channel: stable
           flutter-version: 3.50.0
           cache: true
-      - run: flutter pub get
+      # A release has every build option on (PDF, Markdown, HTML), like make release and make single;
+      # configure.ps1 runs pub get. dist.ps1 only packs: the Release folder is built here.
+      - name: every build option on
+        shell: pwsh
+        run: pwsh -NoProfile -File tool/configure.ps1 -Pdf on -Markdown on -Html on
+      - run: flutter build windows --release
       # Enigma Virtual Box packs the single-file exe through enigmavbconsole.exe, which dist.ps1's
       # -Single drives. It is not on chocolatey; install it with winget and pass the exe's path
       # to dist.ps1 via -Evb, wherever winget put it.

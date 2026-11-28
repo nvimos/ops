@@ -1,9 +1,22 @@
 # Ops (nvimos-poc-frontend)
 
 Flutter Windows app, GitHub `nvimos/ops`, exe `ops.exe`; `PLAN.md` is the spec.
-Backend plugin: relay (`nvimos/relay`), checkout `../nvimos-poc-backend`.
+Backend plugin: relay (`nvimos/relay`), checkout `../nvimos-relay` (git calls in `lua/nvimos/git.lua`).
+`../nvimos-poc-backend` is gone, but `make live` still puts it on the rtp (Makefile line 28).
 The original idea files (`~/ws/nvimos-meta/poc-nvim-backend/flutter*.md`) hold main ideas only;
 the plan wins where they disagree. Keep them vague (no buttons, no keys) when updating them.
+
+## Working with the user
+
+- Several pieces of work at once go to forks in the background, each in its own worktree (Git and
+  files), so the main thread stays free for the user's input; the main thread merges, answers and
+  asks. Report a fork's result in a few lines when it comes back.
+- When a batch of work is done and the user asked for it, ask whether to continue with the
+  audible wizard (skill `audible-wizard`): one question, `Continue` / `Stop here` (+ `Read
+  again`), and a second one with concrete next steps only when there are some to offer.
+- A question the user picks "clarify" on: explain each option in plain words, then ask again.
+- Explain a decision through user scenarios (what I do, what I see, what lands in which file) when
+  the user doesn't follow a question.
 
 ## Running tests
 
@@ -51,8 +64,23 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
 - A test that needs another platform uses `variant: TargetPlatformVariant.only(TargetPlatform.windows)`,
   not `debugDefaultTargetPlatformOverride` with `addTearDown`: the tear-down runs after Flutter's
   check that debug variables are reset, so the test fails.
+- `tasks_meta_test` "every OpenSpec change parses and names its task" fails on main (2026-11-28, the
+  same with the day's changes stashed); it reads the real `nvimos-meta`, not a fixture. Not a
+  regression of a Tasks change.
+- The user's settings: `Prefs.load()` reads and writes `%APPDATA%/nvimos/state.json` (last seen per
+  repo, branch links). A test that shows `TasksView` or touches `Prefs` sets `Prefs.baseOverride` to
+  a `keepForCleanup` temp folder; an ad hoc run on a real repo sets `$env:APPDATA` to a temp folder
+  (deleted after), so the user's file is never written.
+- Measuring a Tasks interaction in a widget test
+  - a tap on a sidebar entry leaves the keys in the sidebar: `j` then moves the sidebar, not the
+    list. Press Right first; check `browser.view` / `selected` before trusting a number (a "26 ms
+    per move" on 2026-11-28 was sidebar moves)
+  - the view's build runs inside a `LayoutBuilder`, so a phase split (buildScope / flushLayout)
+    shows build ~0 and all the cost as layout; profile instead (_For future Flutter projects_)
+  - a synthetic repo hides per-item costs that real content shows: measure on the snappy fixture
 - `make analyze` lists `package:flutter/material.dart` deprecation infos on every file
-  (Flutter 3.50); anything else is a real finding.
+  (Flutter 3.50); anything else is a real finding. Also accepted: the info in
+  `test/browser_labels_test.dart:12` (prefer_function_declarations_over_variables), old.
 - New code uses no deprecated APIs (Flutter, Dart, packages): look up the replacement instead. The
   `material.dart` import infos are the one accepted exception, until the move to `material_ui`.
 
@@ -158,16 +186,36 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   - Changes and Tasks: the same per read (`staged` / `unstaged`, `rows()`), several times per key
   - Add and Ignore pane edge: each drag event was a `setState` on the whole view, rebuilding the
     list and the preview; now only `SidePane` listens to the width (`ValueNotifier`)
+- Tasks list moves, 2026-11-28 (150-380 ms per `j` on `nvimos-meta` in a widget test, felt as a
+  delay); three causes stacked:
+  - per-read parsing: `Task.labels` / `acceptance` / `verify` and `Change.taskId` / `status` /
+    `stage` re-parsed front matter and proposals (with a `RegExp` built per call) on every read,
+    and `inbox()`, the label counts, `changeFor` and `branchFor` read them for every task per
+    build. The sidebar's Inbox count alone was 15 ms
+  - the whole view under one listener: a selection notified the browser, so the sidebar, the
+    header and every row rebuilt (about 4,400 elements) to move one highlight
+  - the detail panel keyed by the task's path: every move threw it away and built 950-1,180
+    elements anew
 - How this project applies the general rules (_For future Flutter projects_, at the end)
+  - model objects are replaced, never edited (the workspace makes a new `Task` / `Change` per
+    parse), so what is parsed out of one is a `late final` field, computed once; a new derived
+    field on them follows suit
   - derived lists are keyed on the identity of their input: the status store replaces `Status`
-    and never edits one (`AddIgnoreState.rows`, `ChangesState.staged`); `TaskBrowser.rows()` has
-    no single input, so it is dropped on every notice of the browser or the workspace except a
-    cursor or selection move
+    and never edits one (`AddIgnoreState.rows`, `ChangesState.staged`); `TaskBrowser.rows()` and
+    the sidebar's entries and counts (`_navCached`) have no single input, so they are dropped on
+    every notice of the browser or the workspace
+  - a selection is not a browser notice: `TaskBrowser.selection` is its own `ValueNotifier`; the
+    rows' highlight listens to it per row (`ValueListenableBuilder`, the row content as `child`),
+    the list is handed to the selection's builder as a ready `child`, and only the detail panel
+    is built again
+  - the detail panel has no key: the next task updates it in place, its sections are keyed by
+    title, and the view scrolls it back to the top on a new selection
   - the shell hands the same mode view instances down until their inputs change (`_modeViews`)
   - the rail snaps its width and fades only its labels
   - per-item work stays trivial: `Task.number` once built a `RegExp` per call inside a sort
   - checked with a `UiTiming` span (`<area>.<action>`, `markPainted()` for the frame on screen) and
-    a test that a cursor move keeps the derived data (`identical`)
+    a test that a cursor move keeps the derived data (`identical`); for the Tasks mode the snappy
+    checks (Build notes) hold all of it per view
 
 ## Keys
 
@@ -240,6 +288,23 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
     documented setting collapses it to a one-liner. Closest, unverified: `viewMode` (`focus`) in
     `~/.claude/settings.json`, `Ctrl+O` toggles the detailed transcript, `/diff` opens a diff panel.
 - Python on Windows writes CRLF in text mode: open files with `newline=''` to keep LF.
+- Never run `dart format` on a whole file: the code is hand-wrapped, not formatter-clean
+  (`page_width: 120` notwithstanding), and one run on `pr_view.dart` reflowed ~100 untouched lines
+  (2026-11-28). Write new code in the file's style by hand. Undoing such churn with
+  `git checkout -- <file>` is blocked as destructive: ask the user first.
+- Parallel work in forks (the user asks for threads so the main thread stays free): one worktree
+  per fork beside the repo, `git worktree add -b PR-<slug> ../nvimos-ops-<slug> main`, one commit,
+  no merge. Its `pub get` touches `pubspec.lock`, `windows/flutter/generated_plugin*` and adds
+  `.flutter_tool_state`: never commit those from a worktree. After the merge, remove it with
+  `git worktree remove --force` (only that noise is lost) and `git branch -d` the PR branch.
+  Two forks that touch the same file (a test one deletes, another edits) give a modify/delete
+  conflict at the merge: carry the edits into the surviving file.
+- Tags: lightweight, `v<yyyy-mm-dd>`, with `-HHMM` when asked for a timestamp
+  (`v2026-11-28-0414`); local only unless asked to push.
+- A new git query goes into both backends: `RepoBackend` (`lib/backend/repo_backend.dart`),
+  `NvimBackend` calling the relay's Lua (`nvimos.git.<fn>` in `../nvimos-relay`, committed there
+  on its own) and `LocalBackend` running git itself. An older relay lacks a new function: the
+  caller catches and degrades (`PrState.merged` shows nothing struck through).
 - `PLAN.md` uses fold markers in HTML comments (`<!-- {{{ -->`) and list items as a topic line
   with one point per line underneath. Sections marked _not strictly normative_ describe what is,
   not what must be.
@@ -266,15 +331,20 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
   - every build option works this way: a package in an `_on` and an `_off` variant, `pubspec.yaml`
     on the default one, a line in the option table of `tool/configure.ps1`; the overrides file is
     the configuration, there is no other state
-  - `make release` configures `release_config` (PDF off) before it builds
-  - the working checkout keeps PDF on (`make configure pdf=on`, the user's choice, 2026-11-28):
-    build, test and run with it on; don't switch it off for a build or a test run, and if
-    something did (`make release`), put it back with `make configure pdf=on`
-  - `pubspec.yaml` still points at the off stub (a fresh clone builds without PDFium), and
-    `make release` still turns PDF off before it builds (2026-11-19: an untested PDF build was
-    shipped once)
-  - commit `pubspec.lock` from the on state, as it is in the checkout (since 2026-11-28; it was
-    the off state before)
+  - which builds have what (the user's rule, 2026-11-28): everyday builds and tests run fast, and
+    PDF doesn't need testing all the time
+    - every build and test has PDF off: `dev`, `live`, `run`, `build`, `dist`, `test`, `snappy`,
+      `snappy-app`, the test workflows; Markdown and HTML keep their default (on)
+    - the exceptions have every option on (PDF, Markdown, HTML): `make single`, `make release`
+      (`release_config`) and the release workflow (`.github/workflows/release.yml`, a configure
+      step before its `flutter build`)
+    - `single` and `release` switch back to `everyday_config` (PDF off) when they are done; a run
+      that failed halfway leaves PDF on: `make configure pdf=off`
+    - a new build option goes into `release_config`, the workflow's configure step and the table of
+      `tool/configure.ps1`
+  - the checkout stays on PDF off; don't switch it on for a build or a test run
+  - `pubspec.yaml` points at the off stub (a fresh clone builds without PDFium)
+  - while PDF is on, `pubspec.lock` shows as modified; commit the lock from the off state
   - `analysis_options.yaml` excludes `packages/ops_pdf_on` (its pdfrx import only resolves when on)
 - `build_concurrency ?= 4` in the Makefile is exported as `CMAKE_BUILD_PARALLEL_LEVEL` for the
   native build (2026-11-19; not yet checked that `flutter build windows` honours it)
@@ -282,6 +352,12 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
   `make measure` prints the timings of Tasks clicks in a 300-task repo
 - snappy checks (OpenSpec change `ops-snappy-ui-checks`), two levels on the same snapshot
   (`test/fixtures/tasks_snappy.json`, `make snapshot from=<repo>`)
+  - the snapshot, as the user wants it: plain pretty-printed JSON (not gzip: git compresses and
+    deltas text itself, and a refresh stays reviewable), each file's text as a list of lines, its
+    mtime, the branch list; the structure verbatim (front matter, headings, checkboxes, `Status:`
+    / `Milestone:` lines, fences, tables), prose lines cut to ~40 chars, the 3 longest tasks and
+    2 longest proposals kept whole (`"full": true`); only what the Tasks mode reads (no
+    `backlog/docs`, no `legacy/`, no unparsed notes in a change folder); about 580 KB
   - `make snappy` (also in `make test`): the widget test; widget counts and "a move rebuilds no
     sidebar" are the gate, the debug times are only printed (10x the limit fails)
   - `make snappy-app` (2026-11-28): the profile app on Windows (`flutter drive --profile`,
@@ -304,6 +380,23 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
     a worktree is adding
   - a worktree that adds tasks reads the main checkout's numbers the same way
   - the number is in the id, the file name (`task-<n> - <slug>.md`) and the `ordinal` (`<n>000`)
+  - hands-on checks go in a plain `## Verify` section ("Hands-on checks, kept apart from the build
+    steps." then `- [ ]` lines), no marker comments; a feature built but not tried by the user is
+    `Needs Test`, `Done` once the user says it works
+- milestones are Backlog.md's own milestone files (its docs say to use its CLI; the format was read
+  from its source, 2026-11-28; its `milestones:` list in `config.yml` is deprecated). Ops reads and
+  creates them; the root `milestones.md` is no longer read
+  - `backlog/milestones/m-<N> - <title>.md`; completed = moved to `backlog/archive/milestones/`;
+    `N` is one above the highest in both folders, from `m-0`; the title in the file name is
+    lowercased, whitespace to `-`, `<>:"/\|?*` removed, at most 50 chars
+  - front matter `id: m-0`, `title: "..."`, `due_date: "yyyy-mm-dd"` (only when set), then
+    `## Description`
+  - a task stores both: `milestone: <title>` (Backlog.md's key; whether Backlog.md itself writes
+    the id or the title there is not documented) and `milestone_id: m-<N>` (an Ops key Backlog.md
+    doesn't know and its CLI may drop); the id wins when they disagree, the next Ops edit writes
+    the current title; reading never rewrites a file
+  - a proposal without a task: `Milestone: <title>` and `Milestone-Id: m-<N>` under `Status:` (or
+    as their own paragraph under the title); a proposal with a task follows the task
 - Flutter on exFAT (`H:`): if builds fail on symlinks or file locks, move the SDK to an NTFS drive.
 
 ### Build order (one commit each)
@@ -406,3 +499,24 @@ says the rule, why, and the trap it came from.
 - Measure: a stopwatch from the input event to the next painted frame
   (`addPostFrameCallback` after `scheduleFrame`), recorded per interaction, says where the time
   goes. "It waits for a double click" was a rebuild of every page; the measurement tells them apart.
+- Profile when the stopwatch says "slow" but not why: a CPU profile from inside a widget test.
+  - run `flutter test --enable-vmservice <file>`; in the test, `Service.getInfo()`
+    (`dart:developer`) gives the VM service URI, `vmServiceConnectUri` (package `vm_service`,
+    import `dart:isolate` with a prefix: `Isolate` clashes) connects
+  - take `getVMTimelineMicros()` before and after ~30 interactions, then
+    `getCpuSamples(isolateId, start, end - start)`; count each function once per sample
+    (inclusive) and keep only frames whose `resolvedUrl` is the app's own `lib/`: framework frames
+    hide the app's share
+  - the app's getters showing up at all (`Task.labels`, `FrontMatter.list`, `inbox`) points at
+    per-read work; mostly `Element.mount` / `inflateWidget` points at a subtree remounted per
+    interaction (a key that changes, a fresh instance); mostly `updateChild` at a rebuild too wide
+  - count what rebuilds with `debugOnRebuildDirtyWidget` (per widget type, one interaction): the
+    deterministic check a test can gate on, where times on a busy machine vary 2-3x
+  - drop the profiler from the committed test (`vm_service` is only a transitive dependency)
+- Model objects that are replaced, never edited, can compute what they derive once (`late final`);
+  a getter that parses on every read looks free at the call site and costs a frame once a sidebar
+  count or a filter calls it for every item.
+- A selection is a narrower notice than a data change: give it its own `ValueNotifier`, let each
+  row's highlight listen (the row content as the builder's `child`), and pass the list itself as a
+  ready `child` to whatever rebuilds on the selection. A detail panel keyed by its item remounts on
+  every move; leave the key off, key its sections, and reset its scroll explicitly.

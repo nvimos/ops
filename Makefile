@@ -52,8 +52,9 @@ version ?= $(shell pwsh -NoProfile -Command "Get-Date -Format yyyy-MM-dd")
 dist: build ## release build zipped as dist/ops-windows-x64-<version>.zip (version= defaults to today)
 	pwsh -NoProfile -File tool/dist.ps1 -Zip -Version '$(version)'
 
-single: build ## one-file exe dist/ops-windows-x64-<version>-single.exe (needs Enigma Virtual Box)
+single: release-configure build ## one-file exe dist/ops-windows-x64-<version>-single.exe with every option on (needs Enigma Virtual Box)
 	pwsh -NoProfile -File tool/dist.ps1 -Single -Version '$(version)'
+	pwsh -NoProfile -File tool/configure.ps1 $(everyday_config) -Flutter "$(flutter)"
 
 all: dev single bin-local ## every build: the debug, release and one-file exes, the one-file one copied to ~/.local/bin
 
@@ -64,8 +65,12 @@ bin-local: single ## build the one-file exe and copy it to ~/.local/bin/ops.exe 
 release: release-configure build ## zip and single exe from one build configured as release_config, uploaded as GitHub release v<version> (nvimos/ops)
 	pwsh -NoProfile -File tool/dist.ps1 -Zip -Single -Version '$(version)'
 	gh release create 'v$(version)' dist/ops-windows-x64-$(version).zip dist/ops-windows-x64-$(version)-single.exe --repo nvimos/ops --title 'ops $(version)' --generate-notes
+	pwsh -NoProfile -File tool/configure.ps1 $(everyday_config) -Flutter "$(flutter)"
 
+# single, release and the release workflow build with every option on; everything else (dev, live,
+# test, snappy) with PDF off, which keeps builds and tests fast. single and release switch back.
 release_config := -Pdf on -Markdown on -Html on
+everyday_config := -Pdf off
 
 release-configure:
 	pwsh -NoProfile -File tool/configure.ps1 $(release_config) -Flutter "$(flutter)"
