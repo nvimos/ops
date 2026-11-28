@@ -317,16 +317,26 @@ class ChoiceMenu extends StatelessWidget {
   );
 }
 
-/// The bar of buttons at the bottom of a detail panel.
+/// The bar of buttons at the bottom of a detail panel: [leading] at the left, [trailing] at the
+/// right. In a narrow panel the trailing group goes on a line of its own, and either group wraps,
+/// instead of running past the edge (a change's three buttons overflowed by 95 px).
 class PanelFooter extends StatelessWidget {
-  const PanelFooter({super.key, required this.children});
+  const PanelFooter({super.key, this.leading = const [], this.trailing = const []});
 
-  final List<Widget> children;
+  final List<Widget> leading, trailing;
+
+  static Widget _group(List<Widget> buttons) => Wrap(spacing: 8, runSpacing: 6, children: buttons);
 
   @override
   Widget build(BuildContext context) => Container(
+    width: double.infinity,
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
     decoration: const BoxDecoration(border: Border(top: BorderSide(color: C.border))),
-    child: Row(children: children),
+    child: OverflowBar(
+      alignment: MainAxisAlignment.spaceBetween,
+      overflowAlignment: OverflowBarAlignment.end,
+      overflowSpacing: 6,
+      children: [_group(leading), if (trailing.isNotEmpty) _group(trailing)],
+    ),
   );
 }

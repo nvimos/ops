@@ -44,9 +44,8 @@ class LegacyDetail extends StatelessWidget {
         ),
       ),
       PanelFooter(
-        children: [
-          if (onOpen != null) SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen),
-          const Spacer(),
+        leading: [if (onOpen != null) SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen)],
+        trailing: [
           SmallButton(
             promotedAs == null ? 'Promote to task' : 'Promote again',
             icon: Icons.upgrade,

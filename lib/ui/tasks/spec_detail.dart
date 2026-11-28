@@ -50,7 +50,7 @@ class SpecDetail extends StatelessWidget {
           ],
         ),
       ),
-      PanelFooter(children: [if (onOpen != null) SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen)]),
+      PanelFooter(leading: [if (onOpen != null) SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen)]),
     ],
   );
 }

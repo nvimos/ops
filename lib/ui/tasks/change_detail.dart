@@ -186,13 +186,11 @@ class _ChangeFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PanelFooter(
-    children: [
-      if (onOpen != null) ...[
-        SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen),
-        const SizedBox(width: 8),
-      ],
+    leading: [
+      if (onOpen != null) SmallButton('Open in Neovim', icon: Icons.open_in_new, onPressed: onOpen),
       SmallButton(raw ? 'Rendered' : 'View raw', onPressed: onRaw),
-      const Spacer(),
+    ],
+    trailing: [
       if (onArchive != null)
         SmallButton('Archive into spec', icon: Icons.inventory_2_outlined, primary: true, onPressed: onArchive),
     ],
