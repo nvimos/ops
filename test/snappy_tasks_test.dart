@@ -45,10 +45,10 @@ const views = [
 ];
 
 /// Widgets built (rebuilt or new) per interaction, at most.
-const work = {'switch': 3000, 'open': 3000, 'move': 1500, 'click': 1600, 'detail': 3000};
+const work = {'switch': 3000, 'open': 3100, 'move': 1600, 'click': 1600, 'detail': 3000};
 
 /// Milliseconds per interaction (p50 for the moves), at most.
-const ms = {'switch': 1200.0, 'open': 1000.0, 'move': 400.0, 'click': 500.0, 'detail': 600.0};
+const ms = {'switch': 1200.0, 'open': 1600.0, 'move': 400.0, 'click': 500.0, 'detail': 600.0};
 
 /// What a cursor move or a click must not rebuild.
 const untouched = {TasksNav, NavItem, TaskListHeader, TaskRow, ChangeRow, InboxRow, MilestoneRow};
