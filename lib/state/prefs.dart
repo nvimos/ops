@@ -9,8 +9,12 @@ class Prefs {
   final File? _file;
   final Map<String, Object?> _data;
 
+  /// Where [load] reads and writes instead of %APPDATA% (tests: a temp folder, so a test never
+  /// touches the user's state.json).
+  static String? baseOverride;
+
   static Prefs load() {
-    final base = Platform.environment['APPDATA'] ?? Platform.environment['HOME'];
+    final base = baseOverride ?? Platform.environment['APPDATA'] ?? Platform.environment['HOME'];
     if (base == null) return Prefs._(null, {});
     final f = File('$base/nvimos/state.json');
     try {
