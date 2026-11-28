@@ -150,6 +150,11 @@ class _ShellState extends State<Shell> {
 
   @override
   void dispose() {
+    // Unsubscribe, then dispose. super.dispose() does not unmount the mode views, and they are
+    // still listening when this runs, so they drop those listeners first. A mode switch does not
+    // come through here: the views stay mounted and stay subscribed until the window closes.
+    _tasksKey.currentState?.detach();
+    _rail?.removeListener(_onRailChanged);
     _prKeys.dispose();
     _focus.dispose();
     _railFocus.dispose();
