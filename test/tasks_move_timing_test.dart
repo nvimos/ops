@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:nvimos_poc/state/session.dart';
 import 'package:nvimos_poc/tasks/workspace.dart';
 import 'package:nvimos_poc/ui/tasks/rows.dart';
+import 'package:nvimos_poc/ui/tasks/task_detail.dart';
 import 'package:nvimos_poc/ui/tasks/tasks_nav.dart';
 import 'package:nvimos_poc/ui/tasks/tasks_view.dart';
 import 'package:nvimos_poc/ui/theme.dart';
@@ -76,6 +77,16 @@ void main() {
     debugOnRebuildDirtyWidget = null;
     expect([built[TasksNav], built[TaskListHeader], built[TaskRow]], [null, null, null],
         reason: 'rebuilt on a cursor move: $built');
+
+    // The next task updates the detail panel in place (no new tree), and its scroll starts at the top.
+    final detail = t.element(find.byType(TaskDetail));
+    final detailList = find.descendant(of: find.byType(TaskDetail), matching: find.byType(Scrollable)).first;
+    t.state<ScrollableState>(detailList).position.jumpTo(200);
+    await t.pump();
+    await t.sendKeyEvent(LogicalKeyboardKey.keyJ);
+    await t.pump();
+    expect(identical(t.element(find.byType(TaskDetail)), detail), isTrue, reason: 'a cursor move remounts the detail');
+    expect(t.state<ScrollableState>(detailList).position.pixels, 0, reason: 'the next task starts at the top');
 
     double each(void Function() f) {
       final sw = Stopwatch()..start();

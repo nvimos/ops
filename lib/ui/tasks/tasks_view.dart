@@ -162,6 +162,13 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   final filterFocus = FocusNode(debugLabel: 'tasks filter');
   final filter = TextEditingController();
   final scroll = ScrollController();
+
+  /// The task detail's scroll; a new selection starts at its top.
+  final _detailScroll = ScrollController();
+
+  void _onSelection() {
+    if (_detailScroll.hasClients) _detailScroll.jumpTo(0);
+  }
   late final _keys = KeySequence({
     '{': () => _step(-3),
     '}': () => _step(3),
@@ -194,6 +201,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     _session = SessionScope.read(context);
     session.jobs.addListener(_onJobs);
     ws.autoStatus.addListener(_onAutoStatus);
+    browser.selection.addListener(_onSelection);
     ws.links.addAll(prefs.branchLinks(_repoKey));
   }
 
@@ -218,6 +226,7 @@ class TasksViewState extends State<TasksView> implements TaskActions {
     filterFocus.dispose();
     filter.dispose();
     scroll.dispose();
+    _detailScroll.dispose();
     super.dispose();
   }
 
@@ -667,7 +676,9 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Widget? _detail() => switch (browser.selected) {
     null => null,
     final String id when ws.task(id) != null =>
-      TaskDetail(key: ValueKey(ws.task(id)!.path), task: ws.task(id)!, ws: ws, actions: this),
+      // Not keyed by the task: the next task's panel updates this one's elements in place instead
+      // of mounting a new tree (most of a cursor move's time); its scroll goes back to the top.
+      TaskDetail(task: ws.task(id)!, ws: ws, actions: this, scroll: _detailScroll),
     final ChangeKey k when _change(k) != null => ChangeDetail(change: _change(k)!, ws: ws, actions: this, onArchive: archive),
     final SpecKey k => _specDetail(k),
     final MilestoneKey k => MilestoneDetail(
