@@ -1249,7 +1249,16 @@ keyboard J/K/Enter/Esc/C and /.
     creation time is suspicious
   - any list can have the buttons: give it a `Sorter` and one `SortButtons`
 - Milestones hold changes (`tasks/milestones.dart`)
-  - a change goes to its task's `milestone:` (Backlog.md's field), archived or not
+  - a change is planned by hand, archived or not, with one owner so two files never disagree
+    - a change with a task: the task's `milestone:` (Backlog.md's field); a `Milestone:` line in
+      its proposal is ignored
+    - a change without a task: the `Milestone: <name>` line of its `proposal.md`, under `Status:`
+  - assigned in the app (`Workspace.setTaskMilestone` / `setChangeMilestone`, optimistic)
+    - the task's detail: a Milestone menu under Status and Priority (No milestone, the
+      milestones, New milestone… with a name field)
+    - a change's detail: the same menu; it writes the task's field when the change has a task,
+      and its tooltip says which file it writes
+    - the Milestones view: a change's right-click menu, Move to each milestone, none, or a new one
   - else, archived: the first dated milestone closing on or after its archive date
   - else: Next, the open one
   - dated milestones are the `## Name (YYYY-MM-DD)` sections of `milestones.md`,

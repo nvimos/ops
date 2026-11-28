@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nvimos_poc/tasks/edits.dart';
 import 'package:nvimos_poc/tasks/milestones.dart';
 import 'package:nvimos_poc/tasks/model.dart';
 import 'package:nvimos_poc/tasks/parse.dart';
@@ -6,7 +7,42 @@ import 'package:nvimos_poc/tasks/parse.dart';
 MilestoneInput c(String key, {DateTime? archived, String planned = ''}) =>
     (key: key, archived: archived != null, archiveDate: archived, planned: planned);
 
+Change change(List<String> proposal) =>
+    parseChanges({'openspec/changes/x/proposal.md': proposal}, {}).single;
+
 void main() {
+  test("a proposal's own milestone comes from its Milestone: line", () {
+    expect(change(['# x', '', 'Status: To Do', 'Milestone: v1 launch ', '']).milestone, 'v1 launch');
+    expect(change(['# x', '', 'Status: To Do']).milestone, '');
+  });
+
+  group('milestone edits', () {
+    final task = parseTask('backlog/tasks/task-1 - a.md', ['---', 'id: TASK-1', 'status: To Do', '---', '', 'body']);
+    final planned = parseTask('backlog/tasks/task-1 - a.md', ['---', 'id: TASK-1', 'milestone: 2027 Q1', '---']);
+
+    test("a task's milestone: field is added, replaced and removed", () {
+      expect(applyEdits(task.lines, [taskMilestoneEdit(task, '2027 Q1')]),
+          ['---', 'id: TASK-1', 'status: To Do', 'milestone: 2027 Q1', '---', '', 'body']);
+      expect(applyEdits(planned.lines, [taskMilestoneEdit(planned, 'v1 launch')]),
+          ['---', 'id: TASK-1', 'milestone: v1 launch', '---']);
+      expect(applyEdits(planned.lines, [taskMilestoneEdit(planned, '')]), ['---', 'id: TASK-1', '---']);
+      final back = parseTask(task.path, applyEdits(task.lines, [taskMilestoneEdit(task, '2027 Q1')]));
+      expect(back.milestone, '2027 Q1');
+    });
+
+    test("a proposal's Milestone: line goes under Status:, else under the title", () {
+      final p = ['# x', '', 'Status: To Do', '', '## Why'];
+      final c = change(p);
+      expect(applyEdits(p, [changeMilestoneEdit(c, '2027 Q1')!]), ['# x', '', 'Status: To Do', 'Milestone: 2027 Q1', '', '## Why']);
+      final noStatus = ['# x', '', '## Why'];
+      expect(applyEdits(noStatus, [changeMilestoneEdit(change(noStatus), 'v1')!]), ['# x', 'Milestone: v1', '', '## Why']);
+      final has = ['# x', 'Status: To Do', 'Milestone: v1'];
+      expect(applyEdits(has, [changeMilestoneEdit(change(has), 'v2')!]), ['# x', 'Status: To Do', 'Milestone: v2']);
+      expect(applyEdits(has, [changeMilestoneEdit(change(has), '')!]), ['# x', 'Status: To Do']);
+      expect(changeMilestoneEdit(c, ''), isNull); // nothing to remove
+    });
+  });
+
   test("a task's milestone comes from its front matter", () {
     final t = parseTask('backlog/tasks/task-1 - a.md', ['---', 'id: TASK-1', "milestone: '2027 Q1'", '---']);
     expect(t.milestone, '2027 Q1');

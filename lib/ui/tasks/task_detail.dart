@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'detail_parts.dart';
 import 'icons.dart';
+import 'milestone_menu.dart';
 import 'rich.dart';
 
 /// What the detail panels can ask the Tasks view to do.
@@ -23,6 +24,10 @@ abstract class TaskActions {
   bool get hasEditor;
   Future<void> setStatus(Task t, String status);
   Future<void> setPriority(Task t, String priority);
+
+  /// Plan a change for a milestone ('' for none); through its task when it has one.
+  Future<void> setChangeMilestone(Change c, String name);
+  Future<void> setMilestone(Task t, String name);
   Future<void> toggleCheck(String path, Check c, {bool cycle = false});
   Future<void> review(Task t, String branch);
   Future<void> linkBranch(Task t, String? branch);
@@ -103,6 +108,12 @@ class _TaskProps extends StatelessWidget {
         children: [
           Prop('Status', _statusMenu()),
           Prop('Priority', _priorityMenu()),
+          Prop('Milestone', MilestoneMenu(
+              value: t.milestone,
+              choices: milestoneChoices(ws),
+              tip: "Milestone (the task's milestone: field)",
+              onPick: (m) => actions.setMilestone(t, m),
+            )),
           if (t.labels.isNotEmpty) Prop('Labels', pillRow(t.labels.map(labelPill).toList())),
           if (change != null)
             Prop('Change', LinkChip(icon: Icons.description_outlined, label: change.title, onTap: () => actions.openChange(change))),

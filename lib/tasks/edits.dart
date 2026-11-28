@@ -24,6 +24,32 @@ LineEdit taskPriorityEdit(Task t, String priority) {
   return LineEdit(end, end, priority.isEmpty ? [] : [line], expect: []);
 }
 
+/// `milestone: X` in the front matter; added before the closing `---`, removed for ''.
+LineEdit taskMilestoneEdit(Task t, String name) {
+  final i = t.front.keyLines['milestone'];
+  final line = 'milestone: ${yamlScalar(name)}';
+  if (i != null) {
+    return LineEdit(i, i + 1, name.isEmpty ? [] : [line], expect: [t.lines[i]]);
+  }
+  final end = t.front.end;
+  if (end < 0) throw StateError('${t.id} has no front matter');
+  return LineEdit(end, end, name.isEmpty ? [] : [line], expect: []);
+}
+
+/// The proposal's `Milestone: X` line: replaced, else added under `Status:` (or under the title),
+/// removed for ''. Null without a proposal, or when there is nothing to remove.
+LineEdit? changeMilestoneEdit(Change c, String name) {
+  final p = c.proposal;
+  if (p == null) return null;
+  final line = 'Milestone: $name';
+  final i = c.milestoneLine;
+  if (i >= 0) return LineEdit(i, i + 1, name.isEmpty ? [] : [line], expect: [p.lines[i]]);
+  if (name.isEmpty) return null;
+  final after = c.statusLine >= 0 ? c.statusLine : p.lines.indexWhere((l) => l.startsWith('# '));
+  if (after < 0) return LineEdit(0, 0, [line, ''], expect: []);
+  return LineEdit(after + 1, after + 1, [line], expect: []);
+}
+
 /// The order of the Neovim tilde plugin (`genja/ext/tilde.lua`): open, done, in progress,
 /// partly done, will not do, and round again.
 const checkCycle = [' ', 'x', '.', '~', 'n'];
