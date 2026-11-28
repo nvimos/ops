@@ -385,26 +385,8 @@ class LocalBackend implements RepoBackend {
   }
 
   /// One hunk as a patch `git apply` can take, with the file's own headers.
-  String _hunkPatch(DiffFile file, Hunk h) {
-    final oldPath = file.oldPath.isEmpty ? file.path : file.oldPath;
-    final from = file.status == 'added' ? '/dev/null' : 'a/$oldPath';
-    final to = file.status == 'deleted' ? '/dev/null' : 'b/${file.path}';
-    final buf = StringBuffer()
-      ..writeln('diff --git a/$oldPath b/${file.path}')
-      ..writeln('--- $from')
-      ..writeln('+++ $to')
-      ..writeln(h.header);
-    for (final line in h.lines) {
-      buf.write(switch (line.kind) {
-        LineKind.context => ' ',
-        LineKind.add => '+',
-        LineKind.del => '-',
-      });
-      buf.writeln(line.text);
-      if (line.noEol) buf.writeln('\\ No newline at end of file');
-    }
-    return buf.toString();
-  }
+  /// A path with a space, or a byte git quotes, is quoted; a plain path is not.
+  String _hunkPatch(DiffFile file, Hunk h) => hunkPatch(file, h);
 
   Future<void> _applyPatch(String patch, {bool cached = false, bool reverse = false}) async {
     await _git([
