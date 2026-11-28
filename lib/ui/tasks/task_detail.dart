@@ -36,12 +36,19 @@ abstract class TaskActions {
 String priorityLabel(String p) => p.isEmpty ? 'No priority' : p[0].toUpperCase() + p.substring(1);
 
 /// A Backlog.md task: properties, then its sections, checklists and original notes.
+///
+/// Not keyed by the task in the view: the next task updates these elements in place. So the parts
+/// are keyed by what they are (a section by its title), a same section of the next task reuses its
+/// elements, and the state that belongs to one task (the folded original notes) is keyed by it.
 class TaskDetail extends StatelessWidget {
-  const TaskDetail({super.key, required this.task, required this.ws, required this.actions});
+  const TaskDetail({super.key, required this.task, required this.ws, required this.actions, this.scroll});
 
   final Task task;
   final Workspace ws;
   final TaskActions actions;
+
+  /// The scroll of the sections; the view puts it back to the top on a new selection.
+  final ScrollController? scroll;
 
   void _check(Check c, bool cycle) => actions.toggleCheck(task.path, c, cycle: cycle);
 
@@ -60,6 +67,7 @@ class TaskDetail extends StatelessWidget {
         ),
         Expanded(
           child: ListView(
+            controller: scroll,
             padding: const EdgeInsets.only(bottom: 30),
             children: [
               _TaskProps(task: t, ws: ws, actions: actions),
@@ -76,16 +84,25 @@ class TaskDetail extends StatelessWidget {
     final t = task;
     return [
       if (t.description.isNotEmpty)
-        DetailSection('Description', Blocks(t.description, onTask: actions.openTask, onCheck: _check)),
+        DetailSection('Description', Blocks(t.description, onTask: actions.openTask, onCheck: _check),
+            key: const ValueKey('section Description')),
       for (final (title, checks) in [
         ('Acceptance criteria', t.acceptance),
         ('Verify', t.verify),
         ('Definition of done', t.definitionOfDone),
       ])
-        if (checks.isNotEmpty) ChecksSection(title: title, checks: checks, onCheck: _check, onTask: actions.openTask),
+        if (checks.isNotEmpty)
+          ChecksSection(
+            key: ValueKey('checks $title'),
+            title: title,
+            checks: checks,
+            onCheck: _check,
+            onTask: actions.openTask,
+          ),
       for (final s in t.otherSections)
-        DetailSection(s.title, Blocks(blocksIn(t.lines, s.start + 1, s.end), onTask: actions.openTask, onCheck: _check)),
-      if (t.originalNotes.isNotEmpty) _OriginalNotes(t.originalNotes),
+        DetailSection(s.title, Blocks(blocksIn(t.lines, s.start + 1, s.end), onTask: actions.openTask, onCheck: _check),
+            key: ValueKey('section ${s.title}')),
+      if (t.originalNotes.isNotEmpty) _OriginalNotes(t.originalNotes, key: ValueKey('notes ${t.path}')),
     ];
   }
 }
@@ -220,7 +237,7 @@ class _UnlinkButton extends StatelessWidget {
 
 /// The notes the task was promoted from, folded until asked for.
 class _OriginalNotes extends StatefulWidget {
-  const _OriginalNotes(this.lines);
+  const _OriginalNotes(this.lines, {super.key});
 
   final List<String> lines;
 
