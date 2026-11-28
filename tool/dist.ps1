@@ -2,7 +2,7 @@
 #   -Zip      dist/ops-windows-x64-<version>.zip: the Release folder, unzip anywhere and run the exe
 #   -Single   dist/ops-windows-x64-<version>-single.exe: one file, made by Enigma Virtual Box, which
 #             serves flutter_windows.dll and data/ from inside the exe (nothing is unpacked)
-# Run `flutter build windows --release` first (make dist and make single do).
+# Run `flutter build windows --release` first (make single and make release do).
 param(
     [string]$Version = (Get-Date -Format 'yyyy-MM-dd'),
     [switch]$Zip,
@@ -14,7 +14,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $release = Join-Path $root 'build/windows/x64/runner/Release'
 $dist = Join-Path $root 'dist'
 $exe = Join-Path $release 'ops.exe'
-if (-not (Test-Path $exe)) { throw "no release build: $exe (run make build)" }
+if (-not (Test-Path $exe)) { throw "no release build: $exe (run make single)" }
 New-Item -ItemType Directory -Force $dist | Out-Null
 $name = "ops-windows-x64-$Version"
 

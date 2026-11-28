@@ -1,8 +1,8 @@
 # Ops (nvimos-poc-frontend)
 
 Flutter Windows app, GitHub `nvimos/ops`, exe `ops.exe`; `PLAN.md` is the spec.
-Backend plugin: relay (`nvimos/relay`), checkout `../nvimos-relay` (git calls in `lua/nvimos/git.lua`).
-`../nvimos-poc-backend` is gone, but `make live` still puts it on the rtp (Makefile line 28).
+Backend plugin: relay (`nvimos/relay`), checkout `../nvimos-relay` (git calls in `lua/nvimos/git.lua`;
+`make nvim` puts it on the rtp; the old `../nvimos-poc-backend` is gone).
 The original idea files (`~/ws/nvimos-meta/poc-nvim-backend/flutter*.md`) hold main ideas only;
 the plan wins where they disagree. Keep them vague (no buttons, no keys) when updating them.
 
@@ -333,8 +333,10 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
     the configuration, there is no other state
   - which builds have what (the user's rule, 2026-11-28): everyday builds and tests run fast, and
     PDF doesn't need testing all the time
-    - every build and test has PDF off: `dev`, `live`, `run`, `build`, `dist`, `test`, `snappy`,
-      `snappy-app`, the test workflows; Markdown and HTML keep their default (on)
+    - every build and test has PDF off: `dev`, `live`, `run`, `test`, `snappy`, `snappy-app`, the
+      test workflows; Markdown and HTML keep their default (on)
+    - the build targets are only `dev`, `single` (also installs to `~/.local/bin`) and `release`
+      (2026-11-28: `dist`, `all` and `bin-local` were dropped; `build` is a hidden step of the two)
     - the exceptions have every option on (PDF, Markdown, HTML): `make single`, `make release`
       (`release_config`) and the release workflow (`.github/workflows/release.yml`, a configure
       step before its `flutter build`)
