@@ -42,8 +42,21 @@ class Workspace extends ChangeNotifier {
   List<Spec> specs = [];
   List<LegacyItem> legacy = [];
   List<Milestone> milestones = [];
+
+  /// There are Backlog.md milestone files; without any, the archive months stand in.
   bool milestonesFromFile = false;
-  List<Milestone>? _fileMilestones;
+
+  /// The Backlog.md milestone files, active and archived (completed), by due date.
+  List<Milestone> milestoneFiles = [];
+
+  /// The milestone files by lowercased id and title.
+  Map<String, Milestone> _milestoneByKey = {};
+
+  static int _byDate(Milestone a, Milestone b) {
+    final x = a.date, y = b.date;
+    if (x == null || y == null) return x != null ? -1 : (y != null ? 1 : a.name.compareTo(b.name));
+    return x.compareTo(y);
+  }
 
   /// Each change's milestone name, by change folder (see `planMilestones`).
   Map<String, String> _milestoneOf = {};
@@ -118,7 +131,7 @@ class Workspace extends ChangeNotifier {
       tracking = await _tracking(b);
       final entries = await b.listFiles(dirs);
       final wanted = entries.where((e) => e.path.endsWith('.md') || e.path.endsWith('.yml')).toList();
-      final texts = await b.readFiles([...wanted.map((e) => e.path), 'milestones.md', 'index.tsv']);
+      final texts = await b.readFiles([...wanted.map((e) => e.path), 'index.tsv']);
       if (gen != _gen) return;
       final fresh = {
         for (final t in texts)
@@ -230,9 +243,15 @@ class Workspace extends ChangeNotifier {
     _filter();
     specs = _specOf.values.toList()..sort((a, b) => a.capability.compareTo(b.capability));
     legacy = [for (final p in files.keys) ...?_legacyOf[p]];
-    final ms = files['milestones.md'];
-    milestonesFromFile = ms != null;
-    _fileMilestones = ms == null ? null : parseMilestones(ms);
+    milestoneFiles = [
+      for (final MapEntry(key: p, value: lines) in files.entries) ?parseMilestoneFile(p, lines),
+    ]..sort(_byDate);
+    _milestoneByKey = {
+      // a title can't shadow an id: the ids go in last
+      for (final m in milestoneFiles) m.name.toLowerCase(): m,
+      for (final m in milestoneFiles) m.id.toLowerCase(): m,
+    };
+    milestonesFromFile = milestoneFiles.isNotEmpty;
     _planMilestones();
   }
 
@@ -291,6 +310,7 @@ class Workspace extends ChangeNotifier {
   Future<String?> edit(String path, List<LineEdit> edits) async {
     final lines = _files[path];
     if (lines == null) return '$path is not loaded';
+    edits = [...edits, ..._milestoneNameFix(path, edits)];
     final span = UiTiming.instance.span('tasks.edit');
     _files[path] = applyEdits(lines, edits);
     _editedAt[path] = ++_edits;
@@ -328,21 +348,32 @@ class Workspace extends ChangeNotifier {
   Future<String?> setTaskPriority(Task t, String priority) =>
       t.priority == priority ? Future.value(null) : edit(t.path, [taskPriorityEdit(t, priority)]);
 
-  /// Plan a task for the milestone [name] ('' takes the plan off): its `milestone:` field.
+  /// The name and the file id to write for a milestone picked by [name]: the file's title and id,
+  /// or the name alone when it has no file.
+  (String, String) _milestoneRef(String name) {
+    final m = milestoneFile('', name.trim());
+    return m == null ? (name.trim(), '') : (m.name, m.id);
+  }
+
+  /// Plan a task for the milestone [name] ('' takes the plan off): its `milestone:` field, and
+  /// `milestone_id:` when the milestone has a file.
   Future<String?> setTaskMilestone(Task t, String name) => UiTiming.instance.time('tasks.setMilestone', () async {
-    if (t.milestone == name.trim()) return null;
-    return edit(t.path, [taskMilestoneEdit(t, name.trim())]);
+    final (n, id) = _milestoneRef(name);
+    if (t.milestone == n && t.milestoneId == id) return null;
+    return edit(t.path, taskMilestoneEdits(t, n, id: id));
   });
 
   /// Plan a change: through its task when it has one (the task owns the milestone), else the
-  /// proposal's `Milestone:` line.
+  /// proposal's `Milestone:` and `Milestone-Id:` lines.
   Future<String?> setChangeMilestone(Change c, String name) {
     final t = taskFor(c);
     if (t != null) return setTaskMilestone(t, name);
     return UiTiming.instance.time('tasks.setMilestone', () async {
-      if (c.milestone == name.trim()) return null;
-      final e = changeMilestoneEdit(c, name.trim());
-      return e == null ? '${c.dir} has no proposal.md' : edit(c.proposal!.path, [e]);
+      final (n, id) = _milestoneRef(name);
+      if (c.milestone == n && c.milestoneId == id) return null;
+      if (c.proposal == null) return '${c.dir} has no proposal.md';
+      final edits = changeMilestoneEdits(c, n, id: id);
+      return edits.isEmpty ? null : edit(c.proposal!.path, edits);
     });
   }
 
@@ -585,17 +616,64 @@ class Workspace extends ChangeNotifier {
     return out;
   }
 
-  /// The milestone a change is planned for by hand: its task's `milestone:` when it has a task,
-  /// else the proposal's own `Milestone:` line; '' when neither.
-  String plannedMilestone(Change c) {
-    final t = taskFor(c);
-    return t != null ? t.milestone : c.milestone;
+  /// The milestone file an id and a name mean: by the id first when it names a file (so a renamed
+  /// milestone still resolves, and the id wins when the two disagree), else the name matched
+  /// against the ids (`m-3`), then the titles, ignoring case. Null for a name without a file.
+  Milestone? milestoneFile(String id, String name) {
+    final byId = id.isEmpty ? null : _milestoneByKey[id.toLowerCase()];
+    if (byId != null && byId.id.toLowerCase() == id.toLowerCase()) return byId;
+    return name.isEmpty ? null : _milestoneByKey[name.toLowerCase()];
   }
 
-  /// The milestones from milestones.md or the archive months, plus the planned ones.
+  /// The milestone name an id and a name come to: the file's current title, else the name.
+  String _milestoneName(String id, String name) => milestoneFile(id, name)?.name ?? name;
+
+  /// The milestone a task is planned for (its `milestone_id`, else its `milestone:`); '' for none.
+  String taskMilestone(Task t) => _milestoneName(t.milestoneId, t.milestone);
+
+  /// The milestone a change is planned for by hand: its task's when it has a task, else the
+  /// proposal's own `Milestone:` / `Milestone-Id:` lines; '' when neither.
+  String plannedMilestone(Change c) {
+    final t = taskFor(c);
+    return t != null ? taskMilestone(t) : _milestoneName(c.milestoneId, c.milestone);
+  }
+
+  /// A task whose `milestone_id` names a file with another title (renamed since): the edit that
+  /// writes the current title into `milestone:`, unless [edits] touch that line already. Only on an
+  /// edit of the task, never just from reading it.
+  List<LineEdit> _milestoneNameFix(String path, List<LineEdit> edits) {
+    final t = _taskOf[path];
+    if (t == null) return [];
+    final i = t.front.keyLines['milestone'];
+    final m = t.milestoneId.isEmpty ? null : milestoneFile(t.milestoneId, '');
+    if (i == null || m == null || m.name == t.milestone) return [];
+    if (edits.any((e) => e.first <= i && i < e.last || e.first == i)) return [];
+    return [LineEdit(i, i + 1, ['milestone: ${yamlScalar(m.name)}'], expect: [t.lines[i]])];
+  }
+
+  /// A new Backlog.md milestone file (`backlog/milestones/m-<N> - <title>.md`) for [title], unless
+  /// one with that title exists. In memory first, so a task can be planned for it at once.
+  Future<String?> createMilestone(String title, {DateTime? due, String description = ''}) async {
+    title = title.trim();
+    if (title.isEmpty || milestoneFile('', title) != null) return null;
+    final span = UiTiming.instance.span('tasks.createMilestone');
+    final (path, lines) = newMilestoneFile(nextMilestoneId(milestoneFiles), title, due: due, description: description);
+    _files[path] = lines;
+    _ownWrites[path] = DateTime.now();
+    _rebuild();
+    _notify();
+    span.markPainted();
+    final err = await session.run((b) => b.create(path, lines));
+    _ownWrites[path] = DateTime.now();
+    if (err != null) await load();
+    span.end();
+    return err;
+  }
+
+  /// The milestones from the milestone files or the archive months, plus the planned ones.
   void _planMilestones() {
     final planned = plannedMilestone;
-    final dated = _fileMilestones ?? monthlyMilestones(changes.where((c) => planned(c).isEmpty).toList());
+    final dated = milestonesFromFile ? milestoneFiles : monthlyMilestones(changes.where((c) => planned(c).isEmpty).toList());
     final plan = planMilestones(dated, [
       for (final c in changes) (key: c.dir, archived: c.archived, archiveDate: c.archiveDate, planned: planned(c)),
     ]);

@@ -1249,22 +1249,44 @@ keyboard J/K/Enter/Esc/C and /.
     creation time is suspicious
   - any list can have the buttons: give it a `Sorter` and one `SortButtons`
 - Milestones hold changes (`tasks/milestones.dart`)
+  - the milestones are Backlog.md's own milestone files; Ops reads them and creates them
+    - `backlog/milestones/m-<N> - <title>.md`, completed (archived) ones in
+      `backlog/archive/milestones/`, in the format Backlog.md writes: front matter `id: m-<N>`,
+      `title: "<title>"`, `due_date: "YYYY-MM-DD"` (only when set), then `## Description`
+    - the file name: the title lowercased, whitespace to hyphens, `<>:"/\|?*` removed, at most 50
+      characters; the next id is one above the highest in both folders, `m-0` first
+    - the due date is the milestone's date; a completed one is not offered in the menus
+    - the deprecated `milestones:` list of `config.yml` and a root `milestones.md` are not read
   - a change is planned by hand, archived or not, with one owner so two files never disagree
-    - a change with a task: the task's `milestone:` (Backlog.md's field); a `Milestone:` line in
-      its proposal is ignored
+    - a change with a task: the task's `milestone:` (Backlog.md's field, the name); a `Milestone:`
+      line in its proposal is ignored
     - a change without a task: the `Milestone: <name>` line of its `proposal.md`, under `Status:`
+  - the name and the id of the milestone file
+    - a task: `milestone: <title>` and `milestone_id: m-<N>` next to it; a proposal:
+      `Milestone: <title>` and `Milestone-Id: m-<N>` right under it; no id for a name without a file
+    - `milestone_id` / `Milestone-Id` are Ops keys Backlog.md doesn't know: its CLI may drop them
+      when it rewrites a task, and the name is the fallback
+    - read: by the id first when it names a milestone file, else the name matched against the ids
+      (`m-3`), then the titles, ignoring case
+    - a renamed milestone still resolves by its id; when the two disagree the id wins, and the next
+      edit of that task (any edit) writes the current title into `milestone:`; reading never
+      rewrites a file
   - assigned in the app (`Workspace.setTaskMilestone` / `setChangeMilestone`, optimistic)
     - the task's detail: a Milestone menu under Status and Priority (No milestone, the
-      milestones, New milestone… with a name field)
+      milestones, New milestone… with a name and an optional due date, YYYY-MM-DD)
+    - New milestone… creates the Backlog.md milestone file (`Workspace.createMilestone`, in memory
+      at once, then written) and plans the task for it; a title that has a file already makes none
+    - the menu lists the milestone files not completed, and the names tasks and proposals use
+      without a file
     - a change's detail: the same menu; it writes the task's field when the change has a task,
       and its tooltip says which file it writes
     - the Milestones view: a change's right-click menu, Move to each milestone, none, or a new one
   - else, archived: the first dated milestone closing on or after its archive date
   - else: Next, the open one
-  - dated milestones are the `## Name (YYYY-MM-DD)` sections of `milestones.md`,
-    without it one per month of archive dates
-  - a planned name not among them is a milestone of its own, listed under Planned with Next;
+  - without milestone files the archive months stand in, one milestone per month
+  - a planned name without a file is a milestone of its own, listed under Planned with Next;
     `2027 Q1`, `2027-03` or `2027` give its closing date
+  - a milestone's detail: its due date, completed state, description and file, then its changes
 - Facets labels: collapsed at first under a LABELS header that shows how many there are
   - the chevron expands and collapses the list
   - a click on the title sorts them by name or by number of tasks (most first); the header says which

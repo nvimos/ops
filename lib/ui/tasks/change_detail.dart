@@ -87,6 +87,7 @@ class _ChangeDetailState extends State<ChangeDetail> {
         onTask: widget.actions.openTask,
         ws: widget.ws,
         onMilestone: _setMilestone,
+        onCreateMilestone: widget.actions.createMilestone,
       ),
       _TabBar(tabs: ChangeTab.values.where((t) => t.shownFor(c)).toList(), selected: _tab, onSelect: _select),
       Expanded(child: _raw ? _RawView(_tab.docOf(c)) : _body()),
@@ -114,7 +115,16 @@ class _ChangeDetailState extends State<ChangeDetail> {
 // Organisms ----------------------------------------------------------------------------------------
 
 class _ChangeProps extends StatelessWidget {
-  const _ChangeProps({required this.change, required this.task, required this.onTask, required this.ws, required this.onMilestone});
+  const _ChangeProps({
+    required this.change,
+    required this.task,
+    required this.onTask,
+    required this.ws,
+    required this.onMilestone,
+    required this.onCreateMilestone,
+  });
+
+  final MilestoneCreate onCreateMilestone;
 
   final Change change;
   final Task? task;
@@ -127,6 +137,7 @@ class _ChangeProps extends StatelessWidget {
     choices: milestoneChoices(ws),
     tip: task != null ? "Milestone (from ${task!.id}: the task's milestone: field)" : "Milestone (the proposal's Milestone: line)",
     onPick: onMilestone,
+    onCreate: onCreateMilestone,
   );
 
   @override

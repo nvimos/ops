@@ -143,18 +143,101 @@ List<LegacyItem> parseLegacy(String file, List<String> lines) {
   return out;
 }
 
-/// `## Name (YYYY-MM-DD)` sections of milestones.md, oldest first, plus the open one.
-List<Milestone> parseMilestones(List<String> lines) {
-  final out = <Milestone>[];
-  for (final l in lines) {
-    final m = RegExp(r'^##\s+(.*?)\s*\((\d{4}-\d{2}-\d{2})\)\s*$').firstMatch(l);
-    if (m != null) out.add(Milestone(m.group(1)!, DateTime.tryParse(m.group(2)!)));
-  }
-  out.sort((a, b) => a.date!.compareTo(b.date!));
-  return out;
+// Backlog.md milestone files ------------------------------------------------------------------------
+//
+// The format Backlog.md writes (MrLesk/Backlog.md, src/file-system/operations.ts):
+//   backlog/milestones/m-<N> - <safe title>.md, done ones in backlog/archive/milestones/
+//   ---
+//   id: m-0
+//   title: "Release 1.0"
+//   due_date: "2026-08-10"        (only when set)
+//   ---
+//
+//   ## Description
+//
+//   Milestone: Release 1.0        (the default text)
+
+/// A path of a Backlog.md milestone file, active or archived.
+final milestoneFileRe = RegExp(r'^backlog/(archive/)?milestones/(m-\d+)[^/]*\.md$', caseSensitive: false);
+
+/// The number of a milestone id (`m-3` -> 3); null for anything else.
+int? milestoneNumber(String id) => int.tryParse(RegExp(r'^m-(\d+)$', caseSensitive: false).firstMatch(id.trim())?.group(1) ?? '');
+
+/// A milestone file; null when [path] is not one.
+Milestone? parseMilestoneFile(String path, List<String> lines) {
+  final m = milestoneFileRe.firstMatch(path);
+  if (m == null) return null;
+  final front = parseFrontMatter(lines);
+  final id = milestoneNumber(front.str('id')) != null ? front.str('id').trim() : m.group(2)!;
+  final title = front.str('title').replaceAll(r'\\', r'\').trim();
+  return Milestone(
+    title.isEmpty ? id : title,
+    DateTime.tryParse(front.str('due_date').trim()),
+    id: id,
+    path: path,
+    description: _section(lines, front.end + 1, 'description'),
+    completed: m.group(1) != null,
+  );
 }
 
-/// Milestones from archive dates when there is no milestones.md: one per month.
+/// The text of the `## <name>` section (case-insensitive), trimmed; '' when there is none.
+String _section(List<String> lines, int from, String name) {
+  final out = <String>[];
+  var inside = false;
+  for (var i = from; i < lines.length; i++) {
+    final h = RegExp(r'^##\s+(.*?)\s*$').firstMatch(lines[i]);
+    if (h != null) {
+      if (inside) break;
+      inside = h.group(1)!.toLowerCase() == name;
+      continue;
+    }
+    if (inside) out.add(lines[i]);
+  }
+  return out.join('\n').trim();
+}
+
+/// Backlog.md's file name of a milestone: `m-0 - release-1.0.md` (title lowercased, whitespace to
+/// hyphens, `<>:"/\|?*` removed, at most 50 characters).
+String milestoneFilename(String id, String title) {
+  var safe = title.replaceAll(RegExp(r'[<>:"/\\|?*]'), '').replaceAll(RegExp(r'\s+'), '-').toLowerCase();
+  if (safe.length > 50) safe = safe.substring(0, 50);
+  return '$id - $safe.md';
+}
+
+/// The id of the next milestone: one above the highest in both folders (an archived id is never
+/// reused), `m-0` for the first.
+String nextMilestoneId(Iterable<Milestone> files) {
+  var top = -1;
+  for (final m in files) {
+    final n = milestoneNumber(m.id);
+    if (n != null && n > top) top = n;
+  }
+  return 'm-${top + 1}';
+}
+
+/// A new milestone file as Backlog.md writes it: its path and lines.
+(String, List<String>) newMilestoneFile(String id, String title, {DateTime? due, String description = ''}) {
+  final escaped = title.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+  final text = description.trim().isEmpty ? 'Milestone: $title' : description.trim();
+  return (
+    'backlog/milestones/${milestoneFilename(id, title)}',
+    [
+      '---',
+      'id: $id',
+      'title: "$escaped"',
+      if (due != null) 'due_date: "${_ymd(due)}"',
+      '---',
+      '',
+      '## Description',
+      '',
+      ...text.split('\n'),
+    ],
+  );
+}
+
+String _ymd(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// Milestones from archive dates when there are no milestone files: one per month.
 List<Milestone> monthlyMilestones(List<Change> changes) {
   final months = <String>{};
   for (final c in changes) {

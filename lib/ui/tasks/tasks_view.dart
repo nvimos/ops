@@ -382,6 +382,11 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Future<void> setChangeMilestone(Change c, String name) async => _snack(await ws.setChangeMilestone(c, name));
 
   @override
+  void createMilestone(String name, DateTime? due) => _createMilestone(name, due);
+
+  Future<void> _createMilestone(String name, DateTime? due) async => _snack(await ws.createMilestone(name, due: due));
+
+  @override
   Future<void> toggleCheck(String path, Check c, {bool cycle = false}) async =>
       _snack(await ws.toggleCheck(path, c, cycle: cycle));
 

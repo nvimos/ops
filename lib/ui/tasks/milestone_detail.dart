@@ -31,9 +31,17 @@ class MilestoneDetail extends StatelessWidget {
   final void Function(Change c, String milestone)? onMove;
 
   Future<void> _menu(BuildContext context, Change c, Offset at) async {
-    final to = await showMoveToMenu(context, at, choices: milestoneChoices(ws), current: ws.plannedMilestone(c));
+    final to = await showMoveToMenu(
+      context,
+      at,
+      choices: milestoneChoices(ws),
+      current: ws.plannedMilestone(c),
+      onCreate: _create,
+    );
     if (to != null) onMove?.call(c, to);
   }
+
+  void _create(String name, DateTime? due) => ws.createMilestone(name, due: due);
 
   Widget _line(BuildContext context, Change c) => ChangeLine(
     change: c,
@@ -82,7 +90,9 @@ class _MilestoneProps extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
       child: Column(
         children: [
-          if (date != null) Prop('Closes', Text(fmtDate(date), style: T.body)),
+          if (date != null) Prop(m!.path.isNotEmpty ? 'Due' : 'Closes', Text(fmtDate(date), style: T.body)),
+          if (m?.completed ?? false) Prop('State', Text('completed (archived)', style: T.body)),
+          if (m?.description.isNotEmpty ?? false) Prop('Description', Text(m!.description, style: T.body)),
           Prop('Changes', Text('${changes.length}', style: T.body)),
           Prop('Progress', Progress(done, changes.length, width: 140)),
           if (reqs > 0) Prop('Requirements', Text('$reqs changed', style: T.body)),
@@ -94,7 +104,8 @@ class _MilestoneProps extends StatelessWidget {
 
   String _source(Milestone? m) {
     if (m == null) return 'changes not archived and not planned';
-    if (m.planned) return "planned by hand: a task's milestone: field or a proposal's Milestone: line";
-    return ws.milestonesFromFile ? 'milestones.md' : 'archive dates, one per month';
+    if (m.path.isNotEmpty) return m.path;
+    if (m.planned) return "planned by hand: a task's milestone: field or a proposal's Milestone: line, no milestone file";
+    return 'archive dates, one per month';
   }
 }

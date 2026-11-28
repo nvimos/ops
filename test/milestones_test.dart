@@ -21,25 +21,75 @@ void main() {
     final planned = parseTask('backlog/tasks/task-1 - a.md', ['---', 'id: TASK-1', 'milestone: 2027 Q1', '---']);
 
     test("a task's milestone: field is added, replaced and removed", () {
-      expect(applyEdits(task.lines, [taskMilestoneEdit(task, '2027 Q1')]),
+      expect(applyEdits(task.lines, taskMilestoneEdits(task, '2027 Q1')),
           ['---', 'id: TASK-1', 'status: To Do', 'milestone: 2027 Q1', '---', '', 'body']);
-      expect(applyEdits(planned.lines, [taskMilestoneEdit(planned, 'v1 launch')]),
+      expect(applyEdits(planned.lines, taskMilestoneEdits(planned, 'v1 launch')),
           ['---', 'id: TASK-1', 'milestone: v1 launch', '---']);
-      expect(applyEdits(planned.lines, [taskMilestoneEdit(planned, '')]), ['---', 'id: TASK-1', '---']);
-      final back = parseTask(task.path, applyEdits(task.lines, [taskMilestoneEdit(task, '2027 Q1')]));
+      expect(applyEdits(planned.lines, taskMilestoneEdits(planned, '')), ['---', 'id: TASK-1', '---']);
+      final back = parseTask(task.path, applyEdits(task.lines, taskMilestoneEdits(task, '2027 Q1')));
       expect(back.milestone, '2027 Q1');
     });
 
-    test("a proposal's Milestone: line goes under Status:, else under the title", () {
+    test("with a milestone file, the task also gets milestone_id: next to milestone:", () {
+      final added = applyEdits(task.lines, taskMilestoneEdits(task, 'Release 1.0', id: 'm-2'));
+      expect(added, ['---', 'id: TASK-1', 'status: To Do', 'milestone: Release 1.0', 'milestone_id: m-2', '---', '', 'body']);
+      expect(parseTask(task.path, added).milestoneId, 'm-2');
+      // only milestone: there: the id goes right under it
+      expect(applyEdits(planned.lines, taskMilestoneEdits(planned, 'Beta', id: 'm-0')),
+          ['---', 'id: TASK-1', 'milestone: Beta', 'milestone_id: m-0', '---']);
+      // both there: each replaced; a name without a file drops the id; '' drops both
+      final both = parseTask(task.path, added);
+      expect(applyEdits(both.lines, taskMilestoneEdits(both, 'Beta', id: 'm-0')),
+          ['---', 'id: TASK-1', 'status: To Do', 'milestone: Beta', 'milestone_id: m-0', '---', '', 'body']);
+      expect(applyEdits(both.lines, taskMilestoneEdits(both, '2027 Q1')),
+          ['---', 'id: TASK-1', 'status: To Do', 'milestone: 2027 Q1', '---', '', 'body']);
+      expect(applyEdits(both.lines, taskMilestoneEdits(both, '')), ['---', 'id: TASK-1', 'status: To Do', '---', '', 'body']);
+    });
+
+    test("a proposal's Milestone: line goes under Status:, else under the title; Milestone-Id: under it", () {
       final p = ['# x', '', 'Status: To Do', '', '## Why'];
       final c = change(p);
-      expect(applyEdits(p, [changeMilestoneEdit(c, '2027 Q1')!]), ['# x', '', 'Status: To Do', 'Milestone: 2027 Q1', '', '## Why']);
+      expect(applyEdits(p, changeMilestoneEdits(c, '2027 Q1')), ['# x', '', 'Status: To Do', 'Milestone: 2027 Q1', '', '## Why']);
+      expect(applyEdits(p, changeMilestoneEdits(c, 'Beta', id: 'm-0')),
+          ['# x', '', 'Status: To Do', 'Milestone: Beta', 'Milestone-Id: m-0', '', '## Why']);
       final noStatus = ['# x', '', '## Why'];
-      expect(applyEdits(noStatus, [changeMilestoneEdit(change(noStatus), 'v1')!]), ['# x', 'Milestone: v1', '', '## Why']);
-      final has = ['# x', 'Status: To Do', 'Milestone: v1'];
-      expect(applyEdits(has, [changeMilestoneEdit(change(has), 'v2')!]), ['# x', 'Status: To Do', 'Milestone: v2']);
-      expect(applyEdits(has, [changeMilestoneEdit(change(has), '')!]), ['# x', 'Status: To Do']);
-      expect(changeMilestoneEdit(c, ''), isNull); // nothing to remove
+      expect(applyEdits(noStatus, changeMilestoneEdits(change(noStatus), 'v1')), ['# x', 'Milestone: v1', '', '## Why']);
+      final has = ['# x', 'Status: To Do', 'Milestone: v1', 'Milestone-Id: m-1'];
+      expect(change(has).milestoneId, 'm-1');
+      expect(applyEdits(has, changeMilestoneEdits(change(has), 'v2', id: 'm-2')),
+          ['# x', 'Status: To Do', 'Milestone: v2', 'Milestone-Id: m-2']);
+      expect(applyEdits(has, changeMilestoneEdits(change(has), '')), ['# x', 'Status: To Do']);
+      expect(changeMilestoneEdits(c, ''), isEmpty); // nothing to remove
+    });
+  });
+
+  group('Backlog.md milestone files', () {
+    final lines = ['---', 'id: m-3', 'title: "Release \\"1.0\\""', 'due_date: "2026-08-10"', '---', '', '## Description', '', 'The first cut.', ''];
+
+    test('a file parses into its id, title, due date and description; archived is completed', () {
+      final m = parseMilestoneFile('backlog/milestones/m-3 - release-"1.0".md', lines)!;
+      expect((m.id, m.name, m.date, m.description, m.completed), ('m-3', 'Release "1.0"', DateTime(2026, 8, 10), 'The first cut.', false));
+      expect(parseMilestoneFile('backlog/archive/milestones/m-3 - x.md', lines)!.completed, isTrue);
+      expect(parseMilestoneFile('backlog/tasks/task-1 - a.md', lines), isNull);
+      // no id in the front matter: the one in the file name
+      expect(parseMilestoneFile('backlog/milestones/m-7 - y.md', ['---', 'title: y', '---'])!.id, 'm-7');
+    });
+
+    test('the file name and the next id follow Backlog.md', () {
+      expect(milestoneFilename('m-0', 'Release 1.0'), 'm-0 - release-1.0.md');
+      expect(milestoneFilename('m-1', 'a/b: c?'), 'm-1 - ab-c.md');
+      expect(milestoneFilename('m-2', 'x' * 60).length, 'm-2 - '.length + 50 + '.md'.length);
+      expect(nextMilestoneId([]), 'm-0');
+      expect(nextMilestoneId([Milestone('a', null, id: 'm-0'), Milestone('b', null, id: 'm-4', completed: true)]), 'm-5');
+    });
+
+    test('a new file is what Backlog.md writes, and reads back', () {
+      final (path, out) = newMilestoneFile('m-0', 'Release "1.0"', due: DateTime(2026, 8, 10));
+      expect(path, 'backlog/milestones/m-0 - release-1.0.md');
+      expect(out, ['---', 'id: m-0', 'title: "Release \\"1.0\\""', 'due_date: "2026-08-10"', '---', '', '## Description', '', 'Milestone: Release "1.0"']);
+      final back = parseMilestoneFile(path, out)!;
+      expect((back.id, back.name, back.date), ('m-0', 'Release "1.0"', DateTime(2026, 8, 10)));
+      expect(newMilestoneFile('m-1', 'Beta').$2, isNot(contains(startsWith('due_date'))));
     });
   });
 
