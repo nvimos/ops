@@ -95,6 +95,14 @@ timings: ## UI timings the app recorded, ms per action (which=last|totals|<n bac
 measure: ## time Tasks checkbox clicks in a 300-task repo with a headless Neovim
 	$(flutter) test test/timing_measure_test.dart
 
+snappy: ## Tasks responsiveness checks on the project snapshot, a table per view (also in make test)
+	$(flutter) test test/snappy_tasks_test.dart
+
+from ?= ../nvimos-meta
+
+snapshot: ## refresh the snapshot the snappy checks run on from a planning repo (from=<path>)
+	$(flutter_root)/bin/dart.bat run tool/snappy_fixture.dart '$(from)'
+
 ##@ other
 
 help: ## this list

@@ -10,6 +10,7 @@ import '../../tasks/browser.dart';
 import '../../tasks/markdown.dart';
 import '../../tasks/model.dart';
 import '../../tasks/workspace.dart';
+import '../../timing/ui_timing.dart';
 import '../error_view.dart';
 import '../key_sequence.dart';
 import '../nav_history.dart';
@@ -396,7 +397,11 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   // Keys -----------------------------------------------------------------------------------------
 
-  void move(int delta) => _scrollTo(browser.move(delta));
+  void move(int delta) {
+    final span = UiTiming.instance.span('tasks.move');
+    _scrollTo(browser.move(delta));
+    span.markPainted(); // the key press -> the frame with the new highlight and detail
+  }
 
   void _toRail() => widget.onRail?.call();
 
@@ -502,8 +507,10 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   }
 
   void _tapRow(Object? key) {
+    final span = UiTiming.instance.span('tasks.select');
     focus.requestFocus();
     browser.toggle(key);
+    span.markPainted(); // the click -> the frame with the detail
   }
 
   /// A click in a pane makes it the one the keys act on, as a key that goes there does (so the
