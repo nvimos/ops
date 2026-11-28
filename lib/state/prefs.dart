@@ -4,24 +4,64 @@ import 'dart:io';
 /// Small per-user settings in %APPDATA%/nvimos/state.json (last seen times per repo, branch links,
 /// view choices such as line wrapping).
 class Prefs {
-  Prefs._(this._file, this._data);
+  Prefs._(this._file, this._data, {this.recoveryNotice});
 
   final File? _file;
   final Map<String, Object?> _data;
+
+  /// Why a broken state file was kept aside, or left in place. Null when the file was missing or
+  /// valid; the app shows this once in the notice bar.
+  final String? recoveryNotice;
 
   /// Where [load] reads and writes instead of %APPDATA% (tests: a temp folder, so a test never
   /// touches the user's state.json).
   static String? baseOverride;
 
+  /// Read the state file. A missing file is a fresh start. A file that cannot be read, or is not a
+  /// JSON object, is renamed to `state.json.bad-<yyyy-mm-dd-HHmmss>` first; [recoveryNotice] names it.
   static Prefs load() {
     final base = baseOverride ?? Platform.environment['APPDATA'] ?? Platform.environment['HOME'];
     if (base == null) return Prefs._(null, {});
     final f = File('$base/nvimos/state.json');
+    if (!f.existsSync()) return Prefs._(f, {});
     try {
-      return Prefs._(f, (jsonDecode(f.readAsStringSync()) as Map).cast<String, Object?>());
+      final decoded = jsonDecode(f.readAsStringSync());
+      if (decoded is Map) return Prefs._(f, decoded.cast<String, Object?>());
     } catch (_) {
-      return Prefs._(f, {});
+      if (!f.existsSync()) return Prefs._(f, {});
     }
+    return _keepBroken(f);
+  }
+
+  /// The file is there but not settings. Move it aside before a save can replace it. If the move
+  /// fails, drop the path so a later save cannot write `{}` over the original bytes.
+  static Prefs _keepBroken(File f) {
+    final aside = _asideFile(f);
+    if (aside != null) {
+      try {
+        f.renameSync(aside.path);
+        return Prefs._(f, {}, recoveryNotice: 'Settings file could not be read. The old file was kept at ${aside.path}');
+      } catch (_) {}
+    }
+    return Prefs._(null, {}, recoveryNotice: 'Settings file could not be read and was left in place: ${f.path}');
+  }
+
+  /// A free `state.json.bad-<yyyy-mm-dd-HHmmss>` beside [f]. A taken name gets a numeric suffix.
+  static File? _asideFile(File f) {
+    final stamp = _badStamp(DateTime.now());
+    final dir = f.parent.path;
+    final sep = Platform.pathSeparator;
+    for (var n = 0; n < 1000; n++) {
+      final suffix = n == 0 ? '' : '-${n + 1}';
+      final candidate = File('$dir${sep}state.json.bad-$stamp$suffix');
+      if (!candidate.existsSync()) return candidate;
+    }
+    return null;
+  }
+
+  static String _badStamp(DateTime t) {
+    String p(int n, int w) => n.toString().padLeft(w, '0');
+    return '${p(t.year, 4)}-${p(t.month, 2)}-${p(t.day, 2)}-${p(t.hour, 2)}${p(t.minute, 2)}${p(t.second, 2)}';
   }
 
   /// In memory only (tests).
