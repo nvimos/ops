@@ -152,12 +152,36 @@ class TaskBrowser extends ChangeNotifier {
   /// Hooked on first use, not in the constructor, so a hot reload of a running browser gets it too.
   bool _wsHooked = false;
 
-  void _wsChanged() => _rowsStale = true;
+  void _wsChanged() => _rowsStale = _navStale = true;
+
+  void _hook() {
+    if (_wsHooked) return;
+    _wsHooked = true;
+    ws.addListener(_wsChanged);
+  }
 
   @override
   void notifyListeners() {
-    if (!_selectionOnly) _rowsStale = true;
+    if (!_selectionOnly) _rowsStale = _navStale = true;
     super.notifyListeners();
+  }
+
+  // The sidebar's entries and counts, cached like the rows: the inbox count alone walks every task,
+  // change and branch, and the sidebar is built again on every cursor move.
+
+  final _nav = <String, Object>{};
+  Object? _navKey;
+  bool _navStale = true;
+
+  T _navCached<T extends Object>(String name, T Function() compute) {
+    _hook();
+    final key = (ws.tasks, ws.changes, ws.branches, lastSeen());
+    if (_navStale || _navKey != key) {
+      _nav.clear();
+      _navKey = key;
+      _navStale = false;
+    }
+    return _nav.putIfAbsent(name, compute) as T;
   }
 
   /// A notice that only the cursor or the selection moved: the rows stay.
@@ -189,7 +213,9 @@ class TaskBrowser extends ChangeNotifier {
 
   // Navigation -----------------------------------------------------------------------------------
 
-  List<NavTarget> navTasks() {
+  List<NavTarget> navTasks() => _navCached('tasks', _navTasks);
+
+  List<NavTarget> _navTasks() {
     int count(bool Function(Task) f) => ws.tasks.where(f).length;
     return [
       NavTarget('Open tasks', TView.tasks, status: 'open', count: count(isOpen)),
@@ -198,7 +224,9 @@ class TaskBrowser extends ChangeNotifier {
     ];
   }
 
-  List<NavTarget> navSources() => [
+  List<NavTarget> navSources() => _navCached('sources', _navSources);
+
+  List<NavTarget> _navSources() => [
     NavTarget('Changes', TView.changes, count: ws.changes.where((c) => !c.archived).length),
     NavTarget('Specs', TView.specs, count: ws.specs.fold<int>(0, (n, s) => n + s.requirements.length)),
     NavTarget('Milestones', TView.milestones, count: ws.milestones.length + 1),
@@ -221,7 +249,9 @@ class TaskBrowser extends ChangeNotifier {
     notifyListeners();
   }
 
-  List<NavTarget> navLabels() {
+  List<NavTarget> navLabels() => _navCached('labels', _navLabels);
+
+  List<NavTarget> _navLabels() {
     final out = [
       for (final l in ws.labels) NavTarget(l, TView.tasks, byLabel: l, count: ws.tasks.where((t) => t.labels.contains(l)).length),
     ];
@@ -229,7 +259,7 @@ class TaskBrowser extends ChangeNotifier {
     return out;
   }
 
-  int get inboxCount => inbox(ws, lastSeen()).length;
+  int get inboxCount => _navCached('inbox', () => inbox(ws, lastSeen()).length);
 
   /// Every sidebar entry in the order shown: Inbox, the task views by status, the sources, and the
   /// labels when they are open.
@@ -379,10 +409,7 @@ class TaskBrowser extends ChangeNotifier {
 
   /// The list's rows for the current view, filters and sort; cached (see above).
   List<ListRow> rows() {
-    if (!_wsHooked) {
-      _wsHooked = true;
-      ws.addListener(_wsChanged);
-    }
+    _hook();
     final key = (ws.tasks, lastSeen());
     if (_rows == null || _rowsStale || _rowsKey != key) {
       _rows = _buildRows();

@@ -21,12 +21,15 @@ class Task {
   final bool archived;
   final DateTime mtime;
 
-  String get id => front.str('id');
-  String get title => front.str('title');
-  String get status => front.str('status');
-  String get priority => front.str('priority');
-  List<String> get labels => front.list('labels');
-  List<String> get dependencies => front.list('dependencies');
+  // A task is never edited, the workspace replaces it; so what is parsed out of it is parsed once
+  // (`late final`). The rows, the sidebar counts and the inbox read these for every task per frame.
+
+  late final String id = front.str('id');
+  late final String title = front.str('title');
+  late final String status = front.str('status');
+  late final String priority = front.str('priority');
+  late final List<String> labels = List.unmodifiable(front.list('labels'));
+  late final List<String> dependencies = List.unmodifiable(front.list('dependencies'));
 
   /// Backlog.md's `milestone:`, the milestone the task is planned for; empty when none.
   String get milestone => front.str('milestone').trim();
@@ -34,7 +37,9 @@ class Task {
   /// A creation date recorded elsewhere in the task, for when `created_date` is no use: a label
   /// `created:2026-01-31` (or `created-2026-01-31`), else the front matter's `created_at` or
   /// `created`. Empty when there is none. How it is recorded is not settled yet.
-  String get createdHint {
+  late final String createdHint = _createdHint();
+
+  String _createdHint() {
     for (final l in labels) {
       final m = _createdTag.firstMatch(l);
       if (m != null) return m.group(1)!;
@@ -55,9 +60,9 @@ class Task {
     return s == null ? [] : blocksIn(lines, s.start + 1, s.end);
   }
 
-  List<Check> get acceptance => checksIn(lines, section('Acceptance Criteria'));
-  List<Check> get verify => checksIn(lines, section('Verify'));
-  List<Check> get definitionOfDone => checksIn(lines, section('Definition of Done'));
+  late final List<Check> acceptance = List.unmodifiable(checksIn(lines, section('Acceptance Criteria')));
+  late final List<Check> verify = List.unmodifiable(checksIn(lines, section('Verify')));
+  late final List<Check> definitionOfDone = List.unmodifiable(checksIn(lines, section('Definition of Done')));
 
   /// The fenced block under "Original notes", if any.
   List<String> get originalNotes {
@@ -138,36 +143,34 @@ class Change {
   final List<Delta> deltas;
   final DateTime mtime;
 
-  String get title {
-    final h1 = proposal?.sections.where((s) => s.level == 1).firstOrNull;
-    return h1?.title ?? id;
-  }
+  // Never edited, replaced (see Task): parsed once.
+
+  late final String title = proposal?.sections.where((s) => s.level == 1).firstOrNull?.title ?? id;
 
   /// The proposal's `Status: X (backlog TASK-n)` line.
-  int get statusLine => proposal?.lines.indexWhere((l) => l.startsWith('Status:')) ?? -1;
+  late final int statusLine = proposal?.lines.indexWhere((l) => l.startsWith('Status:')) ?? -1;
 
-  String get status {
-    final i = statusLine;
-    if (i < 0) return archived ? 'Done' : 'To Do';
-    final m = RegExp(r'^Status:\s*([^(]+?)\s*(\(|$)').firstMatch(proposal!.lines[i]);
-    return m?.group(1) ?? '';
-  }
+  late final String status = statusLine < 0
+      ? (archived ? 'Done' : 'To Do')
+      : _statusRe.firstMatch(proposal!.lines[statusLine])?.group(1) ?? '';
 
   /// The linked Backlog.md task id, from the Status line.
-  String? get taskId {
-    final i = statusLine;
-    if (i < 0) return null;
-    return RegExp(r'TASK-\d+', caseSensitive: false).firstMatch(proposal!.lines[i])?.group(0)?.toUpperCase();
-  }
+  late final String? taskId =
+      statusLine < 0 ? null : _taskRe.firstMatch(proposal!.lines[statusLine])?.group(0)?.toUpperCase();
+
+  static final _statusRe = RegExp(r'^Status:\s*([^(]+?)\s*(\(|$)');
+  static final _taskRe = RegExp(r'TASK-\d+', caseSensitive: false);
 
   /// Draft / Active / Completed, as OpenSpec's view groups changes.
-  String get stage {
-    if (archived || status == 'Done') return 'Completed';
-    if (allChecks.isEmpty || allChecks.every((c) => !c.done)) return 'Draft';
-    return 'Active';
-  }
+  late final String stage = archived || status == 'Done'
+      ? 'Completed'
+      : allChecks.isEmpty || allChecks.every((c) => !c.done)
+      ? 'Draft'
+      : 'Active';
 
-  List<Check> get allChecks => tasks == null ? [] : checksIn(tasks!.lines, Section(0, '', -1, tasks!.lines.length));
+  late final List<Check> allChecks = List.unmodifiable(
+    tasks == null ? <Check>[] : checksIn(tasks!.lines, Section(0, '', -1, tasks!.lines.length)),
+  );
 
   /// Build and Verify checklists of tasks.md (`## 1. Build`, `## 2. Verify`); other `##`
   /// sections come as their own groups.
