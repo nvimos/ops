@@ -69,8 +69,11 @@ if ($Single) {
 "@
     $evbFile = Join-Path $dist "$name.evb"
     Set-Content -Path $evbFile -Value $project -Encoding ascii
-    & $console $evbFile
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $out)) { throw "enigmavbconsole failed ($LASTEXITCODE)" }
+    # The console's output goes to one log in the temp folder, overwritten on every run.
+    $log = Join-Path ([System.IO.Path]::GetTempPath()) 'ops-enigmavb.log'
+    & $console $evbFile *> $log
+    if ($LASTEXITCODE -ne 0 -or -not (Test-Path $out)) { throw "enigmavbconsole failed ($LASTEXITCODE), see $log" }
     Remove-Item $evbFile
     '  wrote {0}' -f (Resolve-Path -Relative $out)
+    '    log {0}' -f $log
 }
