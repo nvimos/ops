@@ -480,7 +480,7 @@ class TaskBrowser extends ChangeNotifier {
   List<ListRow> _milestoneRows() {
     final planned = [openMilestone, ...ws.milestones.reversed.where((m) => m.planned).map((m) => m.name)];
     final dated = ws.milestones.reversed.where((m) => !m.planned).map((m) => m.name);
-    final title = ws.milestonesFromFile ? 'milestones.md' : 'By month of archiving';
+    final title = ws.milestonesFromFile ? 'Milestones' : 'By month of archiving';
     return grouped(
       ['Planned', title],
       {'Planned': planned.where(_matches).toList(), title: dated.where(_matches).toList()},

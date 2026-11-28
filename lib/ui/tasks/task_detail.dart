@@ -28,6 +28,9 @@ abstract class TaskActions {
   /// Plan a change for a milestone ('' for none); through its task when it has one.
   Future<void> setChangeMilestone(Change c, String name);
   Future<void> setMilestone(Task t, String name);
+
+  /// A new milestone, as a Backlog.md milestone file (picked as "New milestone…").
+  void createMilestone(String name, DateTime? due);
   Future<void> toggleCheck(String path, Check c, {bool cycle = false});
   Future<void> review(Task t, String branch);
   Future<void> linkBranch(Task t, String? branch);
@@ -109,10 +112,11 @@ class _TaskProps extends StatelessWidget {
           Prop('Status', _statusMenu()),
           Prop('Priority', _priorityMenu()),
           Prop('Milestone', MilestoneMenu(
-              value: t.milestone,
+              value: ws.taskMilestone(t),
               choices: milestoneChoices(ws),
               tip: "Milestone (the task's milestone: field)",
               onPick: (m) => actions.setMilestone(t, m),
+              onCreate: actions.createMilestone,
             )),
           if (t.labels.isNotEmpty) Prop('Labels', pillRow(t.labels.map(labelPill).toList())),
           if (change != null)

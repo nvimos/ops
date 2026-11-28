@@ -186,8 +186,6 @@ void main() {
     );
     expect(spec.purpose, 'Symbols of the file.');
     expect(spec.requirements.single.name, 'Sidebar width');
-    final ms = parseMilestones(['# Milestones', '## v2027 (2027-01-31)', '## v2026 (2026-11-30)']);
-    expect(ms.map((m) => m.name), ['v2026', 'v2027']);
     final (statuses, name) = parseBacklogConfig([
       'project_name: "nvimos meta"',
       'statuses: ["To Do", "Needs Test", "Done"]',

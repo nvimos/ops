@@ -33,6 +33,10 @@ class Task {
 
   /// Backlog.md's `milestone:`, the milestone the task is planned for; empty when none.
   String get milestone => front.str('milestone').trim();
+
+  /// `milestone_id: m-<N>`, an Ops key next to `milestone:` (Backlog.md doesn't know it): which
+  /// milestone file the name meant, so a renamed milestone still resolves. Empty when none.
+  String get milestoneId => front.str('milestone_id').trim();
   String get created => front.str('created_date');
   /// A creation date recorded elsewhere in the task, for when `created_date` is no use: a label
   /// `created:2026-01-31` (or `created-2026-01-31`), else the front matter's `created_at` or
@@ -165,7 +169,14 @@ class Change {
   late final String milestone =
       milestoneLine < 0 ? '' : _milestoneRe.firstMatch(proposal!.lines[milestoneLine])!.group(1)!.trim();
 
+  /// `Milestone-Id: m-<N>` right under it, as `milestone_id` in a task.
+  late final int milestoneIdLine = proposal?.lines.indexWhere(_milestoneIdRe.hasMatch) ?? -1;
+
+  late final String milestoneId =
+      milestoneIdLine < 0 ? '' : _milestoneIdRe.firstMatch(proposal!.lines[milestoneIdLine])!.group(1)!.trim();
+
   static final _milestoneRe = RegExp(r'^Milestone:\s*(.*)$');
+  static final _milestoneIdRe = RegExp(r'^Milestone-Id:\s*(.*)$');
   static final _statusRe = RegExp(r'^Status:\s*([^(]+?)\s*(\(|$)');
   static final _taskRe = RegExp(r'TASK-\d+', caseSensitive: false);
 
@@ -247,10 +258,19 @@ class LegacyItem {
 
 /// A milestone: a name and the date it closes. Changes planned for it (their task's `milestone:`)
 /// belong to it, and so do unplanned changes archived on or before it (and after the previous one).
+///
+/// The defined ones are Backlog.md milestone files (`backlog/milestones/m-<N> - <title>.md`, done
+/// ones in `backlog/archive/milestones/`); without any, the archive months stand in.
 class Milestone {
-  Milestone(this.name, this.date, {this.planned = false});
+  Milestone(this.name, this.date, {this.planned = false, this.id = '', this.path = '', this.description = '', this.completed = false});
   final String name;
-  final DateTime? date; // null: a planned name without a date in it
-  /// Only named by a task's `milestone:`, not in milestones.md or an archive month.
+  final DateTime? date; // the file's due_date, or the date a name implies; null: none
+  /// Only named by a task's `milestone:` or a proposal's `Milestone:`, no file and no archive month.
   final bool planned;
+
+  /// Of a milestone file: its id (`m-0`), its path, its `## Description`; archived = completed.
+  final String id;
+  final String path;
+  final String description;
+  final bool completed;
 }
