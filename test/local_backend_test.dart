@@ -194,6 +194,27 @@ void main() {
     expect(await File('${temp.path}/task.md').exists(), isFalse);
   });
 
+  test('merged lists the branches merged into base, not base or a branch at its tip', () async {
+    final temp = await TempRepo.make();
+    Future<void> commit(String text) async {
+      await temp.write('a.txt', text);
+      await temp.git(['add', 'a.txt']);
+      await temp.git(['commit', '-m', text]);
+    }
+
+    await commit('one\n');
+    await temp.git(['branch', 'old']); // left behind: main went on past it
+    await commit('two\n');
+    await temp.git(['branch', 'fresh']); // at main's tip: nothing of its own yet
+    await temp.git(['checkout', '-q', '-b', 'open']);
+    await commit('three\n'); // not in main
+    await temp.git(['checkout', '-q', 'main']);
+
+    final backend = await LocalBackend.open(temp.path);
+    addTearDown(backend.close);
+    expect(await backend.merged('main'), {'old'});
+  });
+
   test('read-only queries answer from the repository', () async {
     final temp = await TempRepo.make();
     await temp.write('a.txt', 'one\ntwo\n');

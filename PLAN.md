@@ -972,6 +972,10 @@ Decisions to make and proposals, drawn from the findings above. None of it is de
         - each picker leaves out the branch the other one has: no `main` in the head list while
           the base is `main`, and the other way round (the same on both sides is an empty diff)
         - a revision typed by hand (`HEAD~2`) is still taken, whatever the other picker has
+        - a branch already merged into base is struck through and muted in the head list, with the
+          tooltip "already merged into base"; it can still be picked (a first try, TASK-227)
+          - merged: all its commits are in base (`for-each-ref --merged`); base itself and a branch
+            at base's tip are not marked; a backend without the call marks nothing
       - Files Changed
       - Commits list
     - main pane, takes the remaining width (diff view)

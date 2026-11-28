@@ -161,6 +161,16 @@ class LocalBackend implements RepoBackend {
   }
 
   @override
+  Future<Set<String>> merged(String base) async {
+    final tip = (await _git(['rev-parse', base])).stdout.trim();
+    final result = await _git(['for-each-ref', '--merged=$base', '--format=%(refname:short)%1f%(objectname)', 'refs/heads']);
+    return {
+      for (final line in result.stdout.split('\n'))
+        if (line.trim().split('\u001f') case [final name, final sha] when name != base && sha != tip) name,
+    };
+  }
+
+  @override
   Future<List<Commit>> log(String base, String head) async {
     final range = base.trim().isEmpty ? head : '$base..$head';
     final result = await _git([

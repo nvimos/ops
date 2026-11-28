@@ -83,6 +83,18 @@ class PrState extends ChangeNotifier {
   /// is an empty diff).
   List<String> get baseNames => branchNames.where((n) => n != head).toList();
 
+  /// The branches already merged into base; the head picker strikes them through. A hint: a backend
+  /// without the call (an older relay) gives none.
+  Set<String> merged = const {};
+
+  static Future<Set<String>> _mergedInto(RepoBackend b, String base) async {
+    try {
+      return await b.merged(base);
+    } catch (_) {
+      return const {};
+    }
+  }
+
   /// What the head picker lists: the branches but the one picked as base.
   List<String> get headNames => branchNames.where((n) => n != base).toList();
 
@@ -139,6 +151,8 @@ class PrState extends ChangeNotifier {
         diff = null;
         narrowed = null;
       }
+      merged = base == null ? const {} : await _mergedInto(b, base!);
+      if (gen != _gen) return;
       // The files that would conflict if head were merged into base (read only; a hint, not an error).
       conflictFiles = base != null && head != null && base != head && narrowed == null
           ? await _conflictsIfMerged(b, base!, head!)

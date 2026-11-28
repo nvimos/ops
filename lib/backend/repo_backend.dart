@@ -49,6 +49,9 @@ abstract interface class RepoBackend {
 
   Future<Branches> branches();
   Future<List<Commit>> log(String base, String head);
+
+  /// The local branches already merged into [base]: not [base] itself, nor a branch at its tip.
+  Future<Set<String>> merged(String base);
   Future<PrDiff> diff(String base, String head);
   Future<Status> status();
   Future<DiffFile?> diffFile(String path, {required bool staged});

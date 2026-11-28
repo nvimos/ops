@@ -140,6 +140,8 @@ class NvimBackend implements RepoBackend, EditorSession {
   Future<List<Commit>> log(String base, String head) async =>
       asList(await _git('log', [base, head])).map((e) => Commit(asMap(e))).toList();
   @override
+  Future<Set<String>> merged(String base) async => asList(await _git('merged', [base])).map(str).toSet();
+  @override
   Future<PrDiff> diff(String base, String head) async => PrDiff(asMap(await _git('diff', [base, head])));
   @override
   Future<Status> status() async => Status(asMap(await _git('status')));

@@ -134,6 +134,33 @@ void main() {
     expect(find.text('dev'), findsNothing); // the list closed with the pick
   });
 
+  testWidgets('a branch already merged into base is struck through in the list, and says so', (t) async {
+    final focus = PickerFocusNode();
+    addTearDown(focus.dispose);
+    await t.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 300,
+              child: RevPicker(value: 'dev', names: const ['dev', 'done'], merged: const {'done'}, focus: focus, onPick: (_) {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.byType(TextField)); // opens the list of all branches
+    await t.pump();
+    TextDecoration? deco(String name) =>
+        t.widget<Text>(find.descendant(of: find.byType(ListView), matching: find.text(name))).style?.decoration;
+    expect(deco('done'), TextDecoration.lineThrough);
+    expect(deco('dev'), isNot(TextDecoration.lineThrough));
+    expect(find.byTooltip('done: already merged into base'), findsOneWidget);
+    await expectTooltipsInSemantics(t);
+  });
+
   testWidgets('Down past the visible rows moves the highlight on; Space picks it', (t) async {
     final focus = PickerFocusNode();
     final picked = <String>[];

@@ -321,6 +321,7 @@ class PrPickers extends StatelessWidget {
           label: 'head',
           value: pr.head,
           names: pr.headNames,
+          merged: pr.merged,
           focus: pr.headFocus,
           onPick: pr.pickHead,
           openList: pr.openHead,
@@ -593,6 +594,7 @@ class RevPicker extends StatefulWidget {
     this.label,
     required this.value,
     required this.names,
+    this.merged = const {},
     required this.focus,
     required this.onPick,
     this.next,
@@ -607,6 +609,9 @@ class RevPicker extends StatefulWidget {
   final String? label;
   final String? value;
   final List<String> names;
+
+  /// Names already merged into the other side: the list shows them struck through.
+  final Set<String> merged;
   final PickerFocusNode focus;
   final FocusNode? next;
   final ValueChanged<String> onPick;
@@ -858,7 +863,13 @@ class _RevPickerState extends State<RevPicker> {
 
   Widget _itemFor(int i, List<String> names, ValueChanged<String> onSelected) {
     final on = _inList && i == _hi;
-    return _BranchOption(key: on ? _hiKey : null, name: names[i], selected: on, onTap: () => onSelected(names[i]));
+    return _BranchOption(
+      key: on ? _hiKey : null,
+      name: names[i],
+      merged: widget.merged.contains(names[i]),
+      selected: on,
+      onTap: () => onSelected(names[i]),
+    );
   }
 
   void _onOpenList() {
@@ -998,27 +1009,47 @@ class _RevOptions extends StatelessWidget {
 // Atoms -------------------------------------------------------------------------------------------
 
 class _BranchOption extends StatelessWidget {
-  const _BranchOption({super.key, required this.name, required this.selected, required this.onTap});
+  const _BranchOption({
+    super.key,
+    required this.name,
+    required this.selected,
+    required this.onTap,
+    this.merged = false,
+  });
 
   /// The highlight of the item the keyboard is on: the box is [C.surface2], a plain selected row.
   static final _highlight = Color.alphaBlend(C.accent.withValues(alpha: 0.28), C.surface2);
 
+  /// A branch already merged into base: struck through and muted, still pickable.
+  static final _mergedStyle = T.body.copyWith(
+    color: C.muted,
+    decoration: TextDecoration.lineThrough,
+    decorationColor: C.muted,
+  );
+
   final String name;
-  final bool selected;
+  final bool selected, merged;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => HoverRow(
-    selected: selected,
-    selectedColor: _highlight,
-    onTap: onTap,
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    child: Row(
-      children: [
-        const Icon(Icons.call_split, size: 13, color: C.muted),
-        const SizedBox(width: 6),
-        Expanded(child: Text(name, style: T.body, overflow: TextOverflow.ellipsis)),
-      ],
+  Widget build(BuildContext context) => Semantics(
+    container: true, // the tooltip's own node (see CLAUDE.md, tooltip semantics)
+    child: Tooltip(
+      message: merged ? '$name: already merged into base' : 'Show $name as head',
+      waitDuration: const Duration(milliseconds: 600),
+      child: HoverRow(
+        selected: selected,
+        selectedColor: _highlight,
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          children: [
+            const Icon(Icons.call_split, size: 13, color: C.muted),
+            const SizedBox(width: 6),
+            Expanded(child: Text(name, style: merged ? _mergedStyle : T.body, overflow: TextOverflow.ellipsis)),
+          ],
+        ),
+      ),
     ),
   );
 }
