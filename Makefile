@@ -55,7 +55,7 @@ dist: build ## release build zipped as dist/ops-windows-x64-<version>.zip (versi
 single: build ## one-file exe dist/ops-windows-x64-<version>-single.exe (needs Enigma Virtual Box)
 	pwsh -NoProfile -File tool/dist.ps1 -Single -Version '$(version)'
 
-all: dev single bin-local ## every build: the debug exe, the release exe and the one-file exe
+all: dev single bin-local ## every build: the debug, release and one-file exes, the one-file one copied to ~/.local/bin
 
 bin-local: single ## build the one-file exe and copy it to ~/.local/bin/ops.exe (a bare Release ops.exe needs its dll and data/)
 	Copy-Item -Force 'dist/ops-windows-x64-$(version)-single.exe' "$$env:USERPROFILE/.local/bin/ops.exe"
