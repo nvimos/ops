@@ -305,6 +305,9 @@ the plan wins where they disagree. Keep them vague (no buttons, no keys) when up
   `NvimBackend` calling the relay's Lua (`nvimos.git.<fn>` in `../nvimos-relay`, committed there
   on its own) and `LocalBackend` running git itself. An older relay lacks a new function: the
   caller catches and degrades (`PrState.merged` shows nothing struck through).
+- Pushing this repo pushes `../nvimos-relay` too when it has commits for Ops (a new Lua function, a
+  change the app calls): the release workflow tests against the relay's `main`, and an app whose
+  relay lags degrades. Push only your own commits there; its uncommitted work stays.
 - `PLAN.md` uses fold markers in HTML comments (`<!-- {{{ -->`) and list items as a topic line
   with one point per line underneath. Sections marked _not strictly normative_ describe what is,
   not what must be.
