@@ -212,6 +212,64 @@ index 1111111..2222222 100644
       expect(f.deletions, 1);
     });
 
+    test('a quoted header with a space is the real path', () {
+      final files = parseDiff('''
+diff --git "a/notes/Q3 plan.md" "b/notes/Q3 plan.md"
+index 1111111..2222222 100644
+--- "a/notes/Q3 plan.md"
++++ "b/notes/Q3 plan.md"
+@@ -1 +1 @@
+-a
++b
+''');
+      final f = files.single;
+      expect(f.path, 'notes/Q3 plan.md');
+      expect(f.oldPath, 'notes/Q3 plan.md');
+      expect(f.additions, 1);
+      expect(f.deletions, 1);
+    });
+
+    test('a quoted octal escape is the real utf-8 path', () {
+      final files = parseDiff(
+        'diff --git "a/caf\\303\\251.txt" "b/caf\\303\\251.txt"\n'
+        '--- "a/caf\\303\\251.txt"\n'
+        '+++ "b/caf\\303\\251.txt"\n'
+        '@@ -1 +1 @@\n'
+        '-a\n'
+        '+b\n',
+      );
+      final f = files.single;
+      expect(f.path, 'caf\u00e9.txt');
+      expect(f.oldPath, 'caf\u00e9.txt');
+    });
+
+    test('a quoted rename has no a/ or b/ prefix', () {
+      final files = parseDiff(
+        'diff --git "a/caf\\303\\251.txt" "b/notes/Q4 plan.md"\n'
+        'similarity index 100%\n'
+        'rename from "caf\\303\\251.txt"\n'
+        'rename to notes/Q4 plan.md\n',
+      );
+      final f = files.single;
+      expect(f.status, 'renamed');
+      expect(f.oldPath, 'caf\u00e9.txt');
+      expect(f.path, 'notes/Q4 plan.md');
+    });
+
+    test('a quoted --- line that does not unquote does not wipe the header path', () {
+      final files = parseDiff(
+        'diff --git a/ok.txt b/ok.txt\n'
+        '--- "a/not-closed\n'
+        '+++ b/ok.txt\n'
+        '@@ -1 +1 @@\n'
+        '-a\n'
+        '+b\n',
+      );
+      final f = files.single;
+      expect(f.path, 'ok.txt');
+      expect(f.oldPath, 'ok.txt');
+    });
+
     test('several files in one text keep their order', () {
       final files = parseDiff('''
 diff --git a/one.txt b/one.txt
