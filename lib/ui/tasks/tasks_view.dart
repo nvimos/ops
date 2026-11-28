@@ -376,6 +376,12 @@ class TasksViewState extends State<TasksView> implements TaskActions {
   Future<void> setPriority(Task t, String priority) async => _snack(await ws.setTaskPriority(t, priority));
 
   @override
+  Future<void> setMilestone(Task t, String name) async => _snack(await ws.setTaskMilestone(t, name));
+
+  @override
+  Future<void> setChangeMilestone(Change c, String name) async => _snack(await ws.setChangeMilestone(c, name));
+
+  @override
   Future<void> toggleCheck(String path, Check c, {bool cycle = false}) async =>
       _snack(await ws.toggleCheck(path, c, cycle: cycle));
 
@@ -651,7 +657,14 @@ class TasksViewState extends State<TasksView> implements TaskActions {
       TaskDetail(key: ValueKey(ws.task(id)!.path), task: ws.task(id)!, ws: ws, actions: this),
     final ChangeKey k when _change(k) != null => ChangeDetail(change: _change(k)!, ws: ws, actions: this, onArchive: archive),
     final SpecKey k => _specDetail(k),
-    final MilestoneKey k => MilestoneDetail(name: k.name, ws: ws, onClose: close, onChange: openChange, widen: widen),
+    final MilestoneKey k => MilestoneDetail(
+      name: k.name,
+      ws: ws,
+      onClose: close,
+      onChange: openChange,
+      widen: widen,
+      onMove: setChangeMilestone,
+    ),
     final LegacyKey k when ws.legacyAt(k) != null => _legacyDetail(ws.legacyAt(k)!),
     _ => const Empty('Gone: the file moved or was deleted.'),
   };

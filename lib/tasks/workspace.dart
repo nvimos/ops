@@ -328,6 +328,24 @@ class Workspace extends ChangeNotifier {
   Future<String?> setTaskPriority(Task t, String priority) =>
       t.priority == priority ? Future.value(null) : edit(t.path, [taskPriorityEdit(t, priority)]);
 
+  /// Plan a task for the milestone [name] ('' takes the plan off): its `milestone:` field.
+  Future<String?> setTaskMilestone(Task t, String name) => UiTiming.instance.time('tasks.setMilestone', () async {
+    if (t.milestone == name.trim()) return null;
+    return edit(t.path, [taskMilestoneEdit(t, name.trim())]);
+  });
+
+  /// Plan a change: through its task when it has one (the task owns the milestone), else the
+  /// proposal's `Milestone:` line.
+  Future<String?> setChangeMilestone(Change c, String name) {
+    final t = taskFor(c);
+    if (t != null) return setTaskMilestone(t, name);
+    return UiTiming.instance.time('tasks.setMilestone', () async {
+      if (c.milestone == name.trim()) return null;
+      final e = changeMilestoneEdit(c, name.trim());
+      return e == null ? '${c.dir} has no proposal.md' : edit(c.proposal!.path, [e]);
+    });
+  }
+
   /// The last status the app set by itself after a tick (see [toggleCheck]); the view offers Undo.
   final autoStatus = ValueNotifier<AutoStatus?>(null);
 
@@ -567,9 +585,16 @@ class Workspace extends ChangeNotifier {
     return out;
   }
 
-  /// The milestones from milestones.md or the archive months, plus the ones tasks plan for.
+  /// The milestone a change is planned for by hand: its task's `milestone:` when it has a task,
+  /// else the proposal's own `Milestone:` line; '' when neither.
+  String plannedMilestone(Change c) {
+    final t = taskFor(c);
+    return t != null ? t.milestone : c.milestone;
+  }
+
+  /// The milestones from milestones.md or the archive months, plus the planned ones.
   void _planMilestones() {
-    String planned(Change c) => taskFor(c)?.milestone ?? '';
+    final planned = plannedMilestone;
     final dated = _fileMilestones ?? monthlyMilestones(changes.where((c) => planned(c).isEmpty).toList());
     final plan = planMilestones(dated, [
       for (final c in changes) (key: c.dir, archived: c.archived, archiveDate: c.archiveDate, planned: planned(c)),

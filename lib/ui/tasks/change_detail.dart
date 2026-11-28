@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'detail_parts.dart';
 import 'icons.dart';
+import 'milestone_menu.dart';
 import 'rich.dart';
 import 'task_detail.dart';
 
@@ -73,12 +74,20 @@ class _ChangeDetailState extends State<ChangeDetail> {
 
   void _archive() => widget.onArchive?.call(c);
 
+  void _setMilestone(String name) => widget.actions.setChangeMilestone(c, name);
+
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       PanelHeader(kicker: c.archived ? 'archived change' : 'change ${c.id}', title: c.title, onClose: widget.actions.close, widen: widget.actions.widen),
-      _ChangeProps(change: c, task: widget.ws.taskFor(c), onTask: widget.actions.openTask),
+      _ChangeProps(
+        change: c,
+        task: widget.ws.taskFor(c),
+        onTask: widget.actions.openTask,
+        ws: widget.ws,
+        onMilestone: _setMilestone,
+      ),
       _TabBar(tabs: ChangeTab.values.where((t) => t.shownFor(c)).toList(), selected: _tab, onSelect: _select),
       Expanded(child: _raw ? _RawView(_tab.docOf(c)) : _body()),
       _ChangeFooter(
@@ -105,11 +114,20 @@ class _ChangeDetailState extends State<ChangeDetail> {
 // Organisms ----------------------------------------------------------------------------------------
 
 class _ChangeProps extends StatelessWidget {
-  const _ChangeProps({required this.change, required this.task, required this.onTask});
+  const _ChangeProps({required this.change, required this.task, required this.onTask, required this.ws, required this.onMilestone});
 
   final Change change;
   final Task? task;
   final ValueChanged<String> onTask;
+  final Workspace ws;
+  final ValueChanged<String> onMilestone;
+
+  Widget _milestone() => MilestoneMenu(
+    value: ws.plannedMilestone(change),
+    choices: milestoneChoices(ws),
+    tip: task != null ? "Milestone (from ${task!.id}: the task's milestone: field)" : "Milestone (the proposal's Milestone: line)",
+    onPick: onMilestone,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -120,6 +138,7 @@ class _ChangeProps extends StatelessWidget {
         children: [
           Prop('Stage', _Stage(c.stage)),
           Prop('Status', Text(c.status, style: T.body)),
+          Prop('Milestone', _milestone()),
           if (t != null) Prop('Task', LinkChip(icon: Icons.task_alt, label: '${t.id}  ${t.title}', onTap: () => onTask(t.id))),
           if (c.archiveDate != null) Prop('Archived', Text(fmtDate(c.archiveDate!), style: T.small)),
           if (checks.isNotEmpty) Prop('Progress', Progress(checks.where((x) => x.done).length, checks.length, width: 120)),
@@ -384,10 +403,21 @@ class ScenarioBox extends StatelessWidget {
 
 /// A change as a clickable line: stage, optional delta pill, title, task id, archive date.
 class ChangeLine extends StatelessWidget {
-  const ChangeLine({super.key, required this.change, required this.onTap, this.op, this.taskId, this.indent = 20});
+  const ChangeLine({
+    super.key,
+    required this.change,
+    required this.onTap,
+    this.op,
+    this.taskId,
+    this.indent = 20,
+    this.onContextMenu,
+  });
 
   final Change change;
   final VoidCallback onTap;
+
+  /// A right click, at this global position (the Milestones view's "Move to…").
+  final ValueChanged<Offset>? onContextMenu;
   final DeltaOp? op;
   final String? taskId;
   final double indent;
@@ -398,6 +428,7 @@ class ChangeLine extends StatelessWidget {
     final date = change.archiveDate;
     return HoverRow(
       onTap: onTap,
+      onContextMenu: onContextMenu,
       padding: EdgeInsets.symmetric(horizontal: indent, vertical: 7),
       child: Row(
         children: [

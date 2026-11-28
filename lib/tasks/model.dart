@@ -158,6 +158,14 @@ class Change {
   late final String? taskId =
       statusLine < 0 ? null : _taskRe.firstMatch(proposal!.lines[statusLine])?.group(0)?.toUpperCase();
 
+  /// The proposal's own `Milestone: X` line; it counts only for a change without a task (a task's
+  /// `milestone:` field owns the milestone of its change).
+  late final int milestoneLine = proposal?.lines.indexWhere(_milestoneRe.hasMatch) ?? -1;
+
+  late final String milestone =
+      milestoneLine < 0 ? '' : _milestoneRe.firstMatch(proposal!.lines[milestoneLine])!.group(1)!.trim();
+
+  static final _milestoneRe = RegExp(r'^Milestone:\s*(.*)$');
   static final _statusRe = RegExp(r'^Status:\s*([^(]+?)\s*(\(|$)');
   static final _taskRe = RegExp(r'TASK-\d+', caseSensitive: false);
 

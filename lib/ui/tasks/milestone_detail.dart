@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../widgets.dart';
 import 'change_detail.dart';
 import 'detail_parts.dart';
+import 'milestone_menu.dart';
 
 /// A milestone: its date, progress and requirement count, then its changes.
 class MilestoneDetail extends StatelessWidget {
@@ -17,6 +18,7 @@ class MilestoneDetail extends StatelessWidget {
     required this.onClose,
     this.widen,
     required this.onChange,
+    this.onMove,
   });
 
   final String name;
@@ -24,6 +26,21 @@ class MilestoneDetail extends StatelessWidget {
   final VoidCallback onClose;
   final PanelWiden? widen;
   final void Function(Change c) onChange;
+
+  /// "Move to…" in a change's right-click menu: plan it for a milestone ('' for none).
+  final void Function(Change c, String milestone)? onMove;
+
+  Future<void> _menu(BuildContext context, Change c, Offset at) async {
+    final to = await showMoveToMenu(context, at, choices: milestoneChoices(ws), current: ws.plannedMilestone(c));
+    if (to != null) onMove?.call(c, to);
+  }
+
+  Widget _line(BuildContext context, Change c) => ChangeLine(
+    change: c,
+    taskId: ws.taskFor(c)?.id,
+    onTap: () => onChange(c),
+    onContextMenu: onMove == null ? null : (at) => _menu(context, c, at),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +57,7 @@ class MilestoneDetail extends StatelessWidget {
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: list.length,
-                  itemBuilder: (_, i) =>
-                      ChangeLine(change: list[i], taskId: ws.taskFor(list[i])?.id, onTap: () => onChange(list[i])),
+                  itemBuilder: (context, i) => _line(context, list[i]),
                 ),
         ),
       ],
@@ -78,7 +94,7 @@ class _MilestoneProps extends StatelessWidget {
 
   String _source(Milestone? m) {
     if (m == null) return 'changes not archived and not planned';
-    if (m.planned) return "the tasks' milestone: field";
+    if (m.planned) return "planned by hand: a task's milestone: field or a proposal's Milestone: line";
     return ws.milestonesFromFile ? 'milestones.md' : 'archive dates, one per month';
   }
 }
