@@ -1231,7 +1231,8 @@ keyboard J/K/Enter/Esc/C and /.
     - while the mouse is over it, it stays, and goes when the mouse leaves (`HoverDismiss`)
 - archiving a change (`Workspace.archive`): `openspec archive` when the CLI is installed,
   else merge its deltas into the living spec (`tasks/archive.dart`) and move the folder
-  as `files.move`; new tasks and promoted legacy notes are written as `files.create`.
+  as `files.move`, marking Done only after that move (a failed write or move leaves the files as they were);
+  new tasks and promoted legacy notes are written as `files.create`.
 - UI: sidebar (Inbox, Tasks, Changes, Specs, Legacy, Milestones), list with grouping, detail panel.
 - The list header (`TaskListHeader`): the title and count on the left, the filter and the view's own
   buttons against the right edge with a margin, in every view
