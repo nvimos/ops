@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
 import '../backend/repo_backend.dart';
 import '../backend/models.dart';
+import '../local/paths.dart';
 import '../state/session.dart';
 import 'archive.dart';
 import 'auto_status.dart';
@@ -422,8 +424,8 @@ class Workspace extends ChangeNotifier {
   }
 
   /// Archive a change: `openspec archive` when the CLI is installed; otherwise merge its deltas
-  /// into `openspec/specs/<capability>/spec.md`, mark it (and its task) Done, and move the folder to
-  /// `openspec/changes/archive/<date>-<id>`.
+  /// into `openspec/specs/<capability>/spec.md`, move the folder to
+  /// `openspec/changes/archive/<date>-<id>`, and only then mark it (and its task) Done.
   Future<String?> archive(Change c, {DateTime? now}) async {
     final b = session.backend;
     if (b == null) return 'not connected';
@@ -433,34 +435,107 @@ class Workspace extends ChangeNotifier {
       await load();
       return r.code == 0 ? null : (r.stderr.isEmpty ? r.stdout : r.stderr).trim();
     }
-    final t = taskFor(c);
-    if (t != null && t.status != 'Done') {
-      final err = await setTaskStatus(t, 'Done');
-      if (err != null) return err;
-    } else if (c.status != 'Done') {
-      final fresh = changes.firstWhere((x) => x.dir == c.dir, orElse: () => c);
-      final e = changeStatusEdit(fresh, 'Done');
-      if (e != null) {
-        final err = await edit(fresh.proposal!.path, [e]);
-        if (err != null) return err;
-      }
-    }
+    return _archiveWithoutCli(c, now ?? DateTime.now());
+  }
+
+  /// The fallback when `openspec` is missing. Done is never the first write: the specs are merged
+  /// and the folder moved before the task or the proposal status changes. A failed spec write or a
+  /// failed move puts the original spec bytes back (a spec that did not exist is removed) and leaves
+  /// the task and the change folder as they were. The proposal lives in the change folder, so its
+  /// Status line is written after the move, at the archived path.
+  Future<String?> _archiveWithoutCli(Change c, DateTime date) async {
+    final root = tracking?.root ?? session.repo?.root;
+    if (root == null || root.isEmpty) return 'no planning folder';
+    final planning = root;
+    String abs(String path) => pathIn(planning, path);
+
     final byCap = <String, List<Delta>>{};
     for (final d in c.deltas) {
       byCap.putIfAbsent(d.capability, () => []).add(d);
     }
+    final merges = <({String path, List<String>? old, List<String> merged})>[];
     for (final e in byCap.entries) {
       final path = 'openspec/specs/${e.key}/spec.md';
       final old = _files[path];
-      final merged = mergeDeltas(old, e.key, c.id, e.value);
-      final err = await session.run(
-        (b) => old == null ? b.create(path, merged) : b.setLines(path, [LineEdit(0, old.length, merged, expect: old)]),
-      );
-      if (err != null) return err;
+      merges.add((path: path, old: old, merged: mergeDeltas(old, e.key, c.id, e.value)));
     }
-    final err = await session.run((b) => b.move(c.dir, archiveDir(c, now ?? DateTime.now())));
+
+    final dest = archiveDir(c, date);
+    // An existing destination is an error, not an overwrite, and nothing is written yet.
+    if (await FileSystemEntity.type(abs(dest)) != FileSystemEntityType.notFound) {
+      return 'nvimos: move failed: $dest already exists';
+    }
+
+    // Original bytes, not the lines the backend would write back: a restore must not re-serialize.
+    final snaps = <({String path, List<int>? bytes})>[];
+    for (final m in merges) {
+      final f = File(abs(m.path));
+      snaps.add((path: m.path, bytes: await f.exists() ? await f.readAsBytes() : null));
+    }
+
+    Future<void> restore(int count) async {
+      for (final s in snaps.take(count)) {
+        final f = File(abs(s.path));
+        if (s.bytes == null) {
+          if (await f.exists()) await f.delete();
+        } else {
+          await f.parent.create(recursive: true);
+          await f.writeAsBytes(s.bytes!, flush: true);
+        }
+      }
+    }
+
+    for (var i = 0; i < merges.length; i++) {
+      final m = merges[i];
+      final old = m.old;
+      final err = await session.run(
+        (b) => old == null
+            ? b.create(m.path, m.merged)
+            : b.setLines(m.path, [LineEdit(0, old.length, m.merged, expect: old)]),
+      );
+      if (err != null) {
+        await restore(i + 1);
+        await load();
+        return err;
+      }
+    }
+
+    final moveErr = await session.run((b) => b.move(c.dir, dest));
+    if (moveErr != null) {
+      await restore(snaps.length);
+      await load();
+      return moveErr;
+    }
+
+    // The move has succeeded, so a failure here cannot leave a Done change in the active folder.
+    final doneErr = await _markArchivedDone(c, dest);
     await load();
-    return err;
+    return doneErr;
+  }
+
+  /// Task status, the archived proposal's Status line, and index.tsv. The proposal path is [dest],
+  /// not the active folder the change was loaded from.
+  Future<String?> _markArchivedDone(Change c, String dest) async {
+    final t = taskFor(c);
+    if (t != null && t.status != 'Done') {
+      final err = await edit(t.path, [taskStatusEdit(t, 'Done')]);
+      if (err != null) return err;
+      final pe = await _writeProposalDone(c, dest);
+      if (pe != null) return pe;
+      final index = _files['index.tsv'];
+      final ie = index == null ? null : indexStatusEdit(index, t.id, 'Done');
+      return ie == null ? null : edit('index.tsv', [ie]);
+    }
+    if (c.status != 'Done') return _writeProposalDone(c, dest);
+    return null;
+  }
+
+  Future<String?> _writeProposalDone(Change c, String dest) async {
+    if (c.proposal == null) return null;
+    final e = changeStatusEdit(c, 'Done');
+    if (e == null) return null;
+    final name = c.proposal!.path.split('/').last;
+    return session.run((b) => b.setLines('$dest/$name', [e]));
   }
 
   /// What the agent is asked to do for "New change".
