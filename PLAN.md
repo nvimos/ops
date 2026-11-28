@@ -375,7 +375,9 @@ Everything is under `lib/`; `main.dart` reads the address and starts the app.
   - `prefs.dart`: small per-user settings in `%APPDATA%/nvimos/state.json` (last-seen times, branch
     links, true / false view choices, and everything the Settings mode keeps: the editor command, the
     terminal, the folder opener, the crawl depth, the wheel step, delete to the trash and its
-    question, the side pane's view and width)
+    question, the side pane's view and width); a file that cannot be read, or is not a JSON object,
+    is renamed to `state.json.bad-<yyyy-mm-dd-HHmmss>` and a notice names that path; a missing file
+    is still a fresh start
   - `settings.dart`: the Settings mode's state: detection of editors and terminals, the choices above,
     the Test button
   - `commit_template.dart`: git's commented instructions and file list for the commit message modal

@@ -38,6 +38,14 @@ String startupFolder(List<Recent> recents, String cwd, {bool Function(String pat
   return cwd;
 }
 
+/// A broken state file was kept aside, or left in place: say so once. The path is in the message,
+/// because the notice bar dismisses itself and does not open Details.
+void showPrefsRecovery(Session session) {
+  final message = session.prefs.recoveryNotice;
+  if (message == null) return;
+  session.notices.show(message, failure: true);
+}
+
 /// A directory to open locally or the address of Neovim: the first command-line argument (an
 /// existing directory there wins), else NVIMOS_ADDR; with neither, the [startupFolder] locally.
 void main(List<String> args) {
@@ -68,6 +76,7 @@ class _NvimosAppState extends State<NvimosApp> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(onExitRequested: _onExit);
+    showPrefsRecovery(_session);
     final address = widget.address;
     if (address != null && widget.directory == null) {
       _session.connect(address: address);
