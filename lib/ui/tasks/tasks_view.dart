@@ -215,10 +215,25 @@ class TasksViewState extends State<TasksView> implements TaskActions {
 
   Future<void> _undoAutoStatus(AutoStatus a) async => _snack(await ws.undoAutoStatus(a));
 
-  @override
-  void dispose() {
+  bool _detached = false;
+
+  /// The listeners [detach] removes are still on. A mode switch leaves them; only close drops them.
+  bool get listening => !_detached;
+
+  /// Drop the listeners from [didChangeDependencies]. Close calls this while the view is still
+  /// mounted, then disposes the workspace; [dispose] calls it again. The second call does nothing,
+  /// so a listener is never taken off a notifier that is already gone.
+  void detach() {
+    if (_detached) return;
+    _detached = true;
     _session?.jobs.removeListener(_onJobs);
     ws.autoStatus.removeListener(_onAutoStatus);
+    browser.selection.removeListener(_onSelection);
+  }
+
+  @override
+  void dispose() {
+    detach();
     _keys.dispose();
     browser.dispose();
     _detailScope.dispose();
