@@ -267,10 +267,14 @@ Moved from `PLAN.md`, which describes what the app does, not how it is built.
     on the default one, a line in the option table of `tool/configure.ps1`; the overrides file is
     the configuration, there is no other state
   - `make release` configures `release_config` (PDF off) before it builds
-  - PDF is off by default, and `make release` turns it off before it builds (2026-11-19: the PDF
-    build is not tested yet, and an untested one was shipped once); build with PDF on now and then
-    to check it still compiles
-  - while PDF is on, `pubspec.lock` shows as modified; commit the lock from the off state
+  - the working checkout keeps PDF on (`make configure pdf=on`, the user's choice, 2026-11-28):
+    build, test and run with it on; don't switch it off for a build or a test run, and if
+    something did (`make release`), put it back with `make configure pdf=on`
+  - `pubspec.yaml` still points at the off stub (a fresh clone builds without PDFium), and
+    `make release` still turns PDF off before it builds (2026-11-19: an untested PDF build was
+    shipped once)
+  - commit `pubspec.lock` from the on state, as it is in the checkout (since 2026-11-28; it was
+    the off state before)
   - `analysis_options.yaml` excludes `packages/ops_pdf_on` (its pdfrx import only resolves when on)
 - `build_concurrency ?= 4` in the Makefile is exported as `CMAKE_BUILD_PARALLEL_LEVEL` for the
   native build (2026-11-19; not yet checked that `flutter build windows` honours it)
